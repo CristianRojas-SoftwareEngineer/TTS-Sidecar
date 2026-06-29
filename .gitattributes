@@ -1,0 +1,20 @@
+# Normalizar archivos de texto a LF en el repositorio
+* text=auto
+
+# Archivos de texto que siempre deben usar LF
+*.md      text eol=lf
+*.ts      text eol=lf
+*.js      text eol=lf
+*.json    text eol=lf
+*.toml    text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.rs      text eol=lf
+*.sh      text eol=lf
+
+# Archivos binarios - no modificar
+*.bin     binary
+*.png     binary
+*.jpg     binary
+*.wav     binary
+*.mp3     binary

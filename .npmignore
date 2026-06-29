@@ -1,0 +1,42 @@
+# Source code
+src/
+
+# Rust project
+Cargo.toml
+Cargo.lock
+crates/
+target/
+
+# CI/CD
+.circleci/
+.github/
+
+# Documentation source
+docs/
+ARCHITECTURE.md
+BUILD.md
+USAGE.md
+
+# Development
+tsconfig.json
+jest.config.js
+*.test.ts
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp

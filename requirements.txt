@@ -1,0 +1,13 @@
+# Chatterbox TTS dependencies
+chatterbox-tts>=0.3.0
+
+# Audio playback (platform-specific)
+sounddevice>=0.4.0  # Cross-platform (Linux/Windows fallback)
+simpleaudio>=1.0.0  # Alternative cross-platform
+
+# Platform-specific
+pycaw>=20240210; platform_system == "Windows"
+pyalsaaudio>=0.10.0; platform_system == "Linux"
+
+# Build tools
+nuitka>=2.0.0

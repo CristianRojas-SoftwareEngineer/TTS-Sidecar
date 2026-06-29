@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""
+Entry point for tts-sidecar.
+
+In compiled (Nuitka onefile) mode: packages are embedded by Nuitka,
+sys.path is handled automatically by the embedded interpreter.
+In development mode: the project src/ directory is added to sys.path.
+"""
+
+import sys
+import os
+from pathlib import Path
+
+# Suppress all warnings before any import
+import warnings
+warnings.filterwarnings("ignore")
+os.environ["PYTHONWARNINGS"] = "ignore"
+os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+import logging
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+logging.getLogger("chatterbox.models.tokenizers.tokenizer").setLevel(logging.ERROR)
+logging.getLogger("chatterbox.models.t3.inference.alignment_stream_analyzer").setLevel(logging.ERROR)
+
+# In compiled onefile mode, sys.frozen tells us we're running as a bundle.
+# In that case, the embedded interpreter already has all packages.
+# In development mode (not frozen), add the local src/ to path.
+if getattr(sys, 'frozen', False):
+    # Running as compiled onefile — packages are embedded, no path changes needed
+    pass
+else:
+    # Development mode: add project src/ to path
+    _script_dir = Path(__file__).parent.resolve()
+    _project_root = _script_dir.parent
+    _src_path = _project_root / "src"
+    if _src_path.exists():
+        sys.path.insert(0, str(_project_root))
+
+from chatterbox_tts.cli import main
+
+if __name__ == "__main__":
+    main()

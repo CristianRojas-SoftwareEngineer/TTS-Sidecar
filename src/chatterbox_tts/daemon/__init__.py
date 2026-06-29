@@ -1,0 +1,29 @@
+"""
+tts-sidecar daemon module.
+
+Provides a persistent TTS server that keeps the model in memory
+between invocations, enabling caching and torch.compile optimization.
+"""
+
+from .daemon import DaemonManager
+from .ipc import DaemonIPCClient, DaemonIPCError, is_daemon_running
+from .protocol import (
+    SynthesizeRequest,
+    HealthResponse,
+    VoicesResponse,
+    ErrorResponse,
+)
+from .server import app, get_socket_path
+
+__all__ = [
+    "DaemonManager",
+    "DaemonIPCClient",
+    "DaemonIPCError",
+    "is_daemon_running",
+    "SynthesizeRequest",
+    "HealthResponse",
+    "VoicesResponse",
+    "ErrorResponse",
+    "app",
+    "get_socket_path",
+]

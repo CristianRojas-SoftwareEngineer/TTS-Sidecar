@@ -1,0 +1,37 @@
+{
+  "name": "tts-sidecar",
+  "version": "0.1.0",
+  "description": "100% local TTS with voice cloning in Latin American Spanish - Chatterbox Multilingual V3",
+  "license": "MIT",
+  "python": ">=3.13",
+  "os": [
+    "win32",
+    "linux",
+    "darwin"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "scripts": {
+    "install-model": "python scripts/install.py",
+    "build-clean": "python scripts/clean_build.py",
+    "build-windows": "python scripts/build_windows.py",
+    "build-linux": "python scripts/build_linux.py",
+    "build-macos": "python scripts/build_macos.py"
+  },
+  "keywords": [
+    "tts",
+    "text-to-speech",
+    "chatterbox",
+    "voice-cloning",
+    "offline",
+    "audio",
+    "spanish",
+    "latin-american"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/tts-sidecar"
+  }
+}

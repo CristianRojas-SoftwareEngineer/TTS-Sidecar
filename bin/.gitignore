@@ -1,0 +1,12 @@
+# Binaries are platform-specific and should be built separately
+# DO NOT commit built binaries to git
+
+# Keep directory structure
+!.gitkeep
+
+# Actual binaries (uncomment after building)
+win32-x64/
+linux-x64/
+linux-arm64/
+darwin-x64/
+darwin-arm64/

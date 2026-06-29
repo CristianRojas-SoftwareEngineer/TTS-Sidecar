@@ -1,0 +1,8 @@
+node_modules/
+dist/
+assets/
+voices/
+*.spec
+.claude/
+__pycache__/
+*.pyc
