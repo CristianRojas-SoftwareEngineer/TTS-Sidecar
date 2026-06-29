@@ -11,7 +11,6 @@ warnings.filterwarnings("ignore")
 import os
 os.environ["PYTHONWARNINGS"] = "ignore"
 os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
-os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -19,6 +18,22 @@ import logging
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 logging.getLogger("chatterbox.models.tokenizers.tokenizer").setLevel(logging.ERROR)
 logging.getLogger("chatterbox.models.t3.inference.alignment_stream_analyzer").setLevel(logging.ERROR)
+
+# Workaround for Python 3.13+ where pkg_resources was removed.
+# The perth package (used by chatterbox) imports pkg_resources at import time.
+# We provide a minimal mock before perth is imported.
+import importlib.util
+if importlib.util.find_spec('pkg_resources') is None:
+    class _MockPkgResources:
+        @staticmethod
+        def resource_filename(package, resource):
+            from pathlib import Path
+            spec = importlib.util.find_spec(package)
+            if spec and spec.submodule_search_locations:
+                return str(Path(spec.submodule_search_locations[0]) / resource)
+            return resource
+    import sys
+    sys.modules['pkg_resources'] = _MockPkgResources()
 
 import argparse
 import signal

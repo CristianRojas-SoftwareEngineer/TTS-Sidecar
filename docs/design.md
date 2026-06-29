@@ -48,7 +48,14 @@ tts-sidecar/
 │       ├── __init__.py            # Lazy imports
 │       ├── engine.py              # ChatterboxTTS wrapper
 │       ├── audio.py               # Cross-platform audio playback
-│       └── cli.py                 # CLI interface
+│       ├── timing.py              # Instrumentation and timing
+│       ├── cli.py                 # CLI interface (14 commands)
+│       └── daemon/                # Daemon mode (FastAPI + IPC)
+│           ├── daemon.py          # Lifecycle manager
+│           ├── server.py          # FastAPI endpoints
+│           ├── ipc.py             # HTTP client for daemon
+│           ├── protocol.py        # Pydantic models
+│           └── run.py             # Entry point
 ├── bin/
 │   └── tts-sidecar               # Entry point script
 ├── scripts/
@@ -60,11 +67,20 @@ tts-sidecar/
 │   └── chatterbox-multilingual/
 ├── voices/                       # User voice clones
 │   └── mi_voz/
-│       └── reference.wav
+│       ├── reference.wav         # Voice timbre (any length)
+│       └── speech.wav            # Conditioning (10s+)
+├── config/
+│   └── config.toml               # Configuration file
+├── assets/                       # Audio samples
+│   ├── Voice Sampler.wav
+│   └── Speech Sampler.wav
+├── tests/                        # Pytest test suite
 ├── requirements.txt               # Python dependencies
+├── pyproject.toml                # Python project config
 └── docs/
     ├── design.md                 # Este documento
-    └── goal.md                   # Meta del proyecto
+    ├── goal.md                   # Meta del proyecto
+    └── migration-plan.md          # Daemon mode history
 ```
 
 ## Motor Chatterbox Multilingual V3
@@ -114,8 +130,8 @@ tts-sidecar speak --text "Hola" -v mi_voz
 # Exportar a archivo
 tts-sidecar synthesize --text "Hola" --output audio.wav -v mi_voz
 
-# Clonación de voz
-tts-sidecar voice-add --name mi_voz --reference mi_audio.wav
+# Clonación de voz (requiere dos archivos de audio)
+tts-sidecar voice-add --name mi_voz --reference timbre.wav --speech condicion.wav
 
 # Listar voces
 tts-sidecar voices

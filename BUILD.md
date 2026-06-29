@@ -42,7 +42,7 @@ python -m nuitka --standalone --onefile \
   --enable-plugin=anti-bloat \
   --windows-icon=assets/icon.ico \
   --output-dir=bin \
-  src/chatterbox_tts/__main__.py
+  bin/tts-sidecar
 ```
 
 ## Verificación

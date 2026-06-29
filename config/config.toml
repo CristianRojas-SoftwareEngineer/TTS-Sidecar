@@ -2,8 +2,8 @@
 # Este archivo se carga automaticamente si existe en la misma carpeta que el binario.
 # Usa --config <ruta> para especificar otro archivo.
 
-# Ruta al modelo ONNX de XTTS v2
-model_path = "models/xtts/model.onnx"
+# Modelo Chatterbox (se descarga automaticamente via HuggingFace)
+# No requiere configuracion manual del modelo.
 
 # Ruta al directorio de voces clonadas
 voices_path = "voices/"

@@ -44,7 +44,14 @@ tts-sidecar/
 │       ├── __init__.py         # Lazy imports
 │       ├── engine.py           # ChatterboxTTS wrapper
 │       ├── audio.py           # Cross-platform audio playback
-│       └── cli.py             # CLI interface
+│       ├── timing.py           # Instrumentation y timing
+│       ├── cli.py             # CLI interface (14 commands)
+│       └── daemon/            # Daemon mode (FastAPI + IPC)
+│           ├── daemon.py      # Lifecycle manager
+│           ├── server.py      # FastAPI endpoints
+│           ├── ipc.py         # HTTP client for daemon
+│           ├── protocol.py    # Pydantic request/response models
+│           └── run.py         # Entry point
 ├── bin/
 │   └── tts-sidecar           # Entry point
 ├── scripts/
@@ -52,10 +59,13 @@ tts-sidecar/
 │   ├── build_linux.py       # Nuitka build for Linux
 │   ├── build_macos.py       # Nuitka build for macOS
 │   └── install.py            # Model download + setup
+├── tests/                    # Pytest test suite
 ├── requirements.txt           # Python dependencies
+├── pyproject.toml            # Python project config
 └── docs/
     ├── design.md
-    └── goal.md
+    ├── goal.md
+    └── migration-plan.md
 ```
 
 ## Modelos Disponibles
@@ -63,7 +73,7 @@ tts-sidecar/
 | Modelo | Descripción | Licencia |
 |--------|-------------|----------|
 | `multilingual` | Base model, 23+ idiomas | MIT |
-| `es-latam` | Latin American Spanish (experimental) | MIT |
+| `es-latam` | Latin American Spanish (RECOMMENDED) | MIT |
 
 ## Flujo de Síntesis
 

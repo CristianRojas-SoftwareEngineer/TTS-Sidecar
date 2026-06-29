@@ -19,7 +19,7 @@ Sistema de síntesis de voz (TTS) **100% local** con clonación de voz en **espa
 
 ### Opción 1: Descargar binario pre-compilado
 
-Descarga el ejecutable para tu plataforma desde [Releases]():
+Descarga el ejecutable para tu plataforma desde [Releases](https://github.com/resemble-ai/tts-sidecar/releases):
 
 ```bash
 # Windows

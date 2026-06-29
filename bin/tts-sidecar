@@ -16,7 +16,6 @@ import warnings
 warnings.filterwarnings("ignore")
 os.environ["PYTHONWARNINGS"] = "ignore"
 os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
-os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -38,7 +37,22 @@ else:
     _project_root = _script_dir.parent
     _src_path = _project_root / "src"
     if _src_path.exists():
-        sys.path.insert(0, str(_project_root))
+        sys.path.insert(0, str(_src_path))
+
+# Workaround for Python 3.13+ where pkg_resources was removed from setuptools.
+# The perth package (used by chatterbox) imports pkg_resources at import time,
+# causing a fatal error. We provide a minimal mock before perth is imported.
+if 'pkg_resources' not in sys.modules:
+    import importlib.util
+    if importlib.util.find_spec('pkg_resources') is None:
+        class _MockPkgResources:
+            @staticmethod
+            def resource_filename(package, resource):
+                spec = importlib.util.find_spec(package)
+                if spec and spec.submodule_search_locations:
+                    return str(Path(spec.submodule_search_locations[0]) / resource)
+                return resource
+        sys.modules['pkg_resources'] = _MockPkgResources()
 
 from chatterbox_tts.cli import main
 

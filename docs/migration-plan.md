@@ -45,10 +45,9 @@ $ tts-sidecar speak --text "Hola"
               │ NO                                 │ YES
               ▼                                    ▼
     ┌─────────────────┐                ┌─────────────────────────────┐
-    │ Fallback Mode   │                │  IPC (HTTP + Unix Socket)   │
-    │ (direct load)   │                │  127.0.0.1:8765 (Windows)   │
-    └─────────────────┘                │  /tmp/tts-sidecar.sock (*)  │
-                                      └──────────┬──────────────────┘
+    │ Fallback Mode   │                │  IPC (HTTP only)            │
+    │ (direct load)   │                │  127.0.0.1:8765            │
+    └─────────────────┘                └──────────┬──────────────────┘
                                                   │
                                                   ▼
                                 ┌───────────────────────────────────┐
@@ -56,11 +55,11 @@ $ tts-sidecar speak --text "Hola"
                                 │                                   │
                                 │  - ChatterboxEngine (cached)      │
                                 │  - torch.compile (aplicado)       │
-                                │  - Puerto 8765 / Unix socket     │
+                                │  - Puerto 8765 (TCP)             │
                                 └───────────────────────────────────┘
 ```
 
-*(*) Unix socket en Linux/Mac, TCP en Windows*
+*Nota: La implementación actual usa TCP en todas las plataformas. Unix sockets fueron considerados pero no implementados.*
 
 ---
 

@@ -32,13 +32,20 @@ Implementar y validar la síntesis en español latinoamericano con voz propia de
 ```
 tts-sidecar/
 ├── src/
-│   └── chatterbox/           # Python package
+│   └── chatterbox_tts/       # Python package
 │       ├── __init__.py
 │       ├── engine.py         # Wrapper de Chatterbox
 │       ├── audio.py          # Audio playback nativo
 │       ├── cli.py            # Interfaz CLI
-│       └── installer.py     # Descarga modelo + setup
-├── nuitka/                   # Configuración de compilación
+│       ├── timing.py         # Instrumentation y timing
+│       └── daemon/           # Daemon mode (FastAPI + IPC)
+│           ├── daemon.py    # Lifecycle manager
+│           ├── server.py    # FastAPI endpoints
+│           ├── ipc.py       # HTTP client
+│           ├── protocol.py  # Pydantic models
+│           └── run.py       # Entry point
+├── bin/
+│   └── tts-sidecar          # Entry point script
 ├── scripts/                  # Build scripts por SO
 ├── models/                   # Modelos Chatterbox
 └── docs/
@@ -58,9 +65,13 @@ tts-sidecar/
 # Síntesis básica
 ./tts-sidecar speak --text "Hola mundo"
 
-# Clonación de voz
-./tts-sidecar voice-add --name mi_voz --reference mi_audio.wav
+# Clonación de voz (requiere dos archivos)
+./tts-sidecar voice-add --name mi_voz --reference timbre.wav --speech condicion.wav
 ./tts-sidecar speak --text "Hola" -v mi_voz
+
+# Daemon mode
+./tts-sidecar daemon start
+./tts-sidecar daemon stop
 
 # Exportar a archivo
 ./tts-sidecar synthesize --text "Hola" --output audio.wav
