@@ -42,22 +42,23 @@ tts-sidecar doctor
 
 ---
 
-### `voices`
+### `voice list`
 
 Lista las voces clonadas disponibles.
 
 ```bash
-tts-sidecar voices
+tts-sidecar voice list
+tts-sidecar voice list --json   # salida legible por máquina
 ```
 
 ---
 
-### `voice-add`
+### `voice add`
 
 Registra una nueva voz clonada a partir de dos archivos de audio.
 
 ```bash
-tts-sidecar voice-add --name mi_voz --reference timbre.wav --speech condicion.wav
+tts-sidecar voice add --name mi_voz --reference timbre.wav --speech condicion.wav
 ```
 
 **Opciones:**
@@ -77,12 +78,12 @@ tts-sidecar voice-add --name mi_voz --reference timbre.wav --speech condicion.wa
 
 ---
 
-### `voice-remove`
+### `voice remove`
 
 Elimina una voz clonada.
 
 ```bash
-tts-sidecar voice-remove --name mi_voz
+tts-sidecar voice remove --name mi_voz
 ```
 
 ---
@@ -93,20 +94,26 @@ Lista los dispositivos de audio disponibles.
 
 ```bash
 tts-sidecar devices
+tts-sidecar devices --json   # salida legible por máquina
 ```
 
 ---
 
 ### `speak`
 
-Sintetiza texto y lo reproduce inmediatamente.
+Sintetiza texto. Sin `--output` reproduce el audio inmediatamente; con `--output` lo guarda en un archivo WAV sin reproducirlo.
 
 ```bash
+# Reproducir
 tts-sidecar speak --text "Hola mundo"
+
+# Guardar a archivo WAV
+tts-sidecar speak --text "Hola mundo" --output output.wav
 ```
 
 **Opciones:**
 - `--text, -t` (requerido): Texto a sintetizar
+- `--output, -o`: Ruta del archivo de salida; si se omite, el audio se reproduce
 - `--voice, -v`: Nombre de la voz clonada a usar (auto-carga reference.wav + speech.wav)
 - `--voice-audio`: Ruta a archivo de audio para timbre (usa --speech si no se especifica)
 - `--speech-audio`: Ruta a archivo de audio para conditioning (usa --voice-audio si no se especifica)
@@ -122,33 +129,11 @@ tts-sidecar speak --text "Hola mundo" --voice mi_voz
 # Usando archivos directamente
 tts-sidecar speak --text "Hola" --voice-audio timbre.wav --speech-audio condicion.wav
 
+# Guardar a archivo con voz registrada
+tts-sidecar speak --text "Hola mundo" --voice mi_voz --output audio.wav
+
 # Forzar modo directo
 tts-sidecar speak --text "Hola" --voice mi_voz --no-daemon
-```
-
----
-
-### `synthesize`
-
-Genera un archivo WAV sin reproducir audio.
-
-```bash
-tts-sidecar synthesize --text "Hola mundo" --output output.wav
-```
-
-**Opciones:**
-- `--text, -t` (requerido): Texto a sintetizar
-- `--output, -o` (requerido): Ruta del archivo de salida
-- `--voice, -v`: Nombre de la voz clonada a usar
-- `--voice-audio`: Ruta a archivo de audio para timbre
-- `--speech-audio`: Ruta a archivo de audio para conditioning
-- `--daemon`: Usar el daemon si está disponible (default: automático)
-- `--no-daemon`: Forzar modo directo, ignorar daemon
-- `--device, -d`: Device para inferencia (`cpu`, `cuda`, `mps`)
-
-**Ejemplo:**
-```bash
-tts-sidecar synthesize --text "Hola mundo" --voice mi_voz --output audio.wav
 ```
 
 ---
@@ -178,7 +163,7 @@ tts-sidecar daemon start --autorestart --max-retries 3
 
 ### Uso con daemon
 
-Por defecto, `speak` y `synthesize` intentan usar el daemon si está corriendo:
+Por defecto, `speak` intenta usar el daemon si está corriendo:
 
 ```bash
 # El daemon se usa automáticamente si está disponible
@@ -215,16 +200,16 @@ Los tiempos de `[Stage 2a]` (T3 autoregresivo) y `[Stage 2b]` (S3Gen vocoder) se
 # speech.wav - 10+ segundos, habla limpia para conditioning
 
 # 2. Registrar la voz
-tts-sidecar voice-add --name mi_voz --reference timbre.wav --speech speech.wav
+tts-sidecar voice add --name mi_voz --reference timbre.wav --speech speech.wav
 
 # 3. Listar voces
-tts-sidecar voices
+tts-sidecar voice list
 
 # 4. Sintetizar con tu voz clonada
 tts-sidecar speak --text "Hola, esto es una prueba" --voice mi_voz
 
 # 5. Generar archivo
-tts-sidecar synthesize --text "Hola, esto es una prueba" --voice mi_voz --output mi_voz.wav
+tts-sidecar speak --text "Hola, esto es una prueba" --voice mi_voz --output mi_voz.wav
 ```
 
 ---
@@ -250,7 +235,7 @@ tts-sidecar speak --text "Hola" --voice mi_voz
 Verifica que la voz existe:
 
 ```bash
-tts-sidecar voices
+tts-sidecar voice list
 ```
 
 ### "reference.wav/speech.wav not found"
@@ -258,7 +243,7 @@ tts-sidecar voices
 La voz no tiene los archivos necesarios. Puede que se registró con el formato antiguo. Vuelve a registrar:
 
 ```bash
-tts-sidecar voice-add --name mi_voz --reference timbre.wav --speech condicion.wav
+tts-sidecar voice add --name mi_voz --reference timbre.wav --speech condicion.wav
 ```
 
 ### Sin audio de salida

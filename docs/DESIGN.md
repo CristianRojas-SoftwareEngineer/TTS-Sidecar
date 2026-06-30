@@ -127,16 +127,16 @@ tts-sidecar speak --text "Hola mundo"
 # Síntesis con voz clonada
 tts-sidecar speak --text "Hola" -v mi_voz
 
-# Exportar a archivo
-tts-sidecar synthesize --text "Hola" --output audio.wav -v mi_voz
+# Exportar a archivo (speak con --output guarda en vez de reproducir)
+tts-sidecar speak --text "Hola" --output audio.wav -v mi_voz
 
 # Clonación de voz (requiere dos archivos de audio)
-tts-sidecar voice-add --name mi_voz --reference timbre.wav --speech condicion.wav
+tts-sidecar voice add --name mi_voz --reference timbre.wav --speech condicion.wav
 
 # Listar voces
-tts-sidecar voices
+tts-sidecar voice list
 
-# Diagnóstico
+# Diagnóstico (--json para salida legible por máquina)
 tts-sidecar doctor
 tts-sidecar devices
 ```

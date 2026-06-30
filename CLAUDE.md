@@ -32,7 +32,7 @@ python -m py_compile src/chatterbox_tts/cli.py
 ```
 bin/tts-sidecar              # Entry point (suprime warnings, delegar a cli.main)
 src/chatterbox_tts/
-├── cli.py                   # CLI con argparse (14 comandos)
+├── cli.py                   # CLI con argparse (speak, voice, daemon, devices, doctor, install, version)
 ├── engine.py                # Wrapper Chatterbox + síntesis
 ├── audio.py                 # Playback multiplataforma
 ├── timing.py                # StageTimer, log(), timed_command
@@ -63,7 +63,7 @@ Chatterbox (`chatterbox-tts` package) con arquitectura `ChatterboxMultilingualTT
 ### Flujo de síntesis
 
 ```
-CLI → cmd_speak/cmd_synthesize
+CLI → cmd_speak
               ↓ (daemon o directo)
        ChatterboxEngine.speak()
               ↓
@@ -85,9 +85,9 @@ Cada voz registrada contiene dos archivos:
 | `reference.wav` | Voice Encoder (timbre) — audio completo promediado | Cualquier largo |
 | `speech.wav` | T3 conditioning + S3Gen decoder | 10s+ recomendado |
 
-`voice-add` requiere ambos archivos:
+`voice add` requiere ambos archivos:
 ```bash
-tts-sidecar voice-add --name mi_voz --reference timbre.wav --speech condicion.wav
+tts-sidecar voice add --name mi_voz --reference timbre.wav --speech condicion.wav
 ```
 
 ## Comandos CLI
@@ -99,22 +99,22 @@ tts-sidecar daemon stop                 # Detener daemon
 tts-sidecar daemon restart              # Reiniciar
 tts-sidecar daemon status               # Ver estado
 
-# Síntesis
+# Síntesis (speak reproduce; con --output guarda a archivo)
 tts-sidecar speak --text "Hola"        # Reproducir audio
 tts-sidecar speak --text "Hola" --daemon
 tts-sidecar speak --text "Hola" --no-daemon
-tts-sidecar synthesize --text "Hola" --output audio.wav
+tts-sidecar speak --text "Hola" --output audio.wav
 
 # Clonación de voz
-tts-sidecar voice-add --name mi_voz --reference timbre.wav --speech condicion.wav
-tts-sidecar voices
+tts-sidecar voice add --name mi_voz --reference timbre.wav --speech condicion.wav
+tts-sidecar voice list
 tts-sidecar speak --text "Hola" --voice mi_voz
-tts-sidecar voice-remove --name mi_voz
+tts-sidecar voice remove --name mi_voz
 
-# Diagnóstico
-tts-sidecar doctor
-tts-sidecar devices
-tts-sidecar version
+# Diagnóstico (--json para salida legible por máquina)
+tts-sidecar doctor [--json]
+tts-sidecar devices [--json]
+tts-sidecar version [--json]
 ```
 
 ## Estructura de directorios
@@ -130,7 +130,7 @@ assets/                  # Audios de prueba
 
 src/chatterbox_tts/      # Código fuente Python
 ├── daemon/              # Daemon mode
-├── tests/               # Tests pytest (31 tests)
+├── tests/               # Tests pytest (37 tests)
 │   ├── conftest.py
 │   ├── test_timing.py
 │   ├── test_protocol.py

@@ -28,7 +28,7 @@ El daemon es un servidor HTTP persistente que mantiene el modelo cargado:
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                           CLI Client                                 │
-│                    (cmd_speak / cmd_synthesize)                      │
+│                            (cmd_speak)                               │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
                                │ ¿Daemon corriendo?

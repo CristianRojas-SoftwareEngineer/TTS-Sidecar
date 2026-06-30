@@ -21,6 +21,7 @@ from typing import Optional
 import numpy as np
 import torch
 
+from . import voices
 from .timing import StageTimer, log
 
 # =============================================================================
@@ -549,11 +550,7 @@ class ChatterboxEngine:
         Returns:
             Tuple of (reference_path, speech_path)
         """
-        voices_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "voices",
-            name
-        )
+        voices_dir = voices.voice_dir(name)
         Path(voices_dir).mkdir(parents=True, exist_ok=True)
 
         ref_path = os.path.join(voices_dir, "reference.wav")
@@ -646,32 +643,11 @@ class ChatterboxEngine:
 
     def list_voices(self) -> list[str]:
         """List all registered voices."""
-        voices_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "voices"
-        )
-        if not os.path.exists(voices_dir):
-            return []
-
-        voices = []
-        for entry in os.listdir(voices_dir):
-            ref_path = os.path.join(voices_dir, entry, "reference.wav")
-            if os.path.isdir(os.path.join(voices_dir, entry)) and os.path.exists(ref_path):
-                voices.append(entry)
-        return voices
+        return voices.list_voices()
 
     def remove_voice(self, name: str) -> bool:
         """Remove a registered voice."""
-        import shutil
-        voices_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "voices",
-            name
-        )
-        if os.path.exists(voices_dir):
-            shutil.rmtree(voices_dir)
-            return True
-        return False
+        return voices.remove_voice(name)
 
     def resolve_voice(self, name: str) -> tuple[str, str]:
         """
@@ -683,15 +659,4 @@ class ChatterboxEngine:
         Returns:
             Tuple of (reference_path, speech_path)
         """
-        voices_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "voices",
-            name
-        )
-        ref_path = os.path.join(voices_dir, "reference.wav")
-        speech_path = os.path.join(voices_dir, "speech.wav")
-        if not os.path.exists(ref_path):
-            raise FileNotFoundError(f"Voice '{name}': reference.wav not found at {ref_path}")
-        if not os.path.exists(speech_path):
-            raise FileNotFoundError(f"Voice '{name}': speech.wav not found at {speech_path}")
-        return (ref_path, speech_path)
+        return voices.voice_paths(name)

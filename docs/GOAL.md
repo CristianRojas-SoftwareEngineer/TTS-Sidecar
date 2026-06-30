@@ -75,17 +75,17 @@ sesión: se arranca antes de sintetizar y se detiene al final.
 ./tts-sidecar daemon status        # Verificar que está activo
 
 # 4. Clonación de voz (requiere dos archivos de audio)
-./tts-sidecar voice-add --name mi_voz --reference timbre.wav --speech condicion.wav
+./tts-sidecar voice add --name mi_voz --reference timbre.wav --speech condicion.wav
 
 # 5. Listar voces registradas (verifica que la voz quedó registrada)
-./tts-sidecar voices
+./tts-sidecar voice list
 
 # 6. Síntesis a través del daemon (añade -v mi_voz para usar la voz clonada)
-./tts-sidecar speak --text "Hola mundo" [-v mi_voz]                          # Reproducir
-./tts-sidecar synthesize --text "Hola mundo" [-v mi_voz] --output audio.wav  # Exportar WAV
+./tts-sidecar speak --text "Hola mundo" [-v mi_voz]                    # Reproducir
+./tts-sidecar speak --text "Hola mundo" [-v mi_voz] --output audio.wav  # Exportar WAV
 
 # 7. Eliminar voz clonada (limpieza)
-./tts-sidecar voice-remove --name mi_voz
+./tts-sidecar voice remove --name mi_voz
 
 # 8. Detener el daemon (cierre de la sesión, libera el modelo de memoria)
 ./tts-sidecar daemon stop
@@ -108,7 +108,7 @@ sesión: se arranca antes de sintetizar y se detiene al final.
 2. [x] El instalador de Linux funciona en distribuciones principales
 3. [x] El instalador de macOS funciona en macOS 12+
 4. [x] `tts-sidecar speak --text "Hola mundo"` reproduce audio en español
-5. [x] `tts-sidecar voice-add --name test --reference ref.wav --speech speech.wav` clona la voz
+5. [x] `tts-sidecar voice add --name test --reference ref.wav --speech speech.wav` clona la voz
 6. [x] El audio generado suena en español con las características de la voz de referencia
 7. [x] El español latinoamericano suena natural y con buena prosodia
 8. [x] La síntesis funciona sin conexión a internet (modelo en local)

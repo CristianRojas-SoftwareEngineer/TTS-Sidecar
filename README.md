@@ -53,13 +53,13 @@ python scripts/build_macos.py     # macOS
 ```bash
 # Agregar tu voz (requiere ~10 segundos de audio en español)
 # Se necesitan DOS archivos: reference (timbre) y speech (conditioning)
-tts-sidecar voice-add --name mi_voz --reference timbre.wav --speech condicion.wav
+tts-sidecar voice add --name mi_voz --reference timbre.wav --speech condicion.wav
 
 # Sintetizar con tu voz clonada
 tts-sidecar speak --text "Hola mundo" -v mi_voz
 
-# Generar archivo WAV
-tts-sidecar synthesize --text "Hola mundo" -v mi_voz --output audio.wav
+# Generar archivo WAV (speak con --output guarda en vez de reproducir)
+tts-sidecar speak --text "Hola mundo" -v mi_voz --output audio.wav
 ```
 
 ### Síntesis básica
@@ -69,20 +69,20 @@ tts-sidecar synthesize --text "Hola mundo" -v mi_voz --output audio.wav
 tts-sidecar speak --text "Hola mundo"
 
 # Generar archivo WAV
-tts-sidecar synthesize --text "Hola mundo" --output audio.wav
+tts-sidecar speak --text "Hola mundo" --output audio.wav
 ```
 
 ### Comandos disponibles
 
 ```bash
-tts-sidecar speak --text "..."          # Sintetizar y reproducir
-tts-sidecar synthesize --text "..."    # Generar archivo WAV
-tts-sidecar voice-add --name X --reference ref.wav --speech speech.wav  # Agregar voz clonada
-tts-sidecar voice-remove --name X      # Eliminar voz
-tts-sidecar voices                     # Listar voces
-tts-sidecar devices                    # Dispositivos de audio
-tts-sidecar doctor                     # Diagnóstico
-tts-sidecar install                    # Descargar modelo
+tts-sidecar speak --text "..."          # Sintetizar y reproducir (--output guarda a WAV)
+tts-sidecar voice add --name X --reference ref.wav --speech speech.wav  # Agregar voz clonada
+tts-sidecar voice remove --name X       # Eliminar voz
+tts-sidecar voice list                  # Listar voces (--json disponible)
+tts-sidecar devices                     # Dispositivos de audio (--json disponible)
+tts-sidecar doctor                      # Diagnóstico (--json disponible)
+tts-sidecar install                     # Descargar modelo
+tts-sidecar version                     # Versión (--json disponible)
 ```
 
 ## Invocación desde cualquier lenguaje
