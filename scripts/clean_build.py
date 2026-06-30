@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Clean build script — removes dist/ and cached model cache.
+Clean build script — removes PyInstaller artifacts (dist/, build/, *.spec)
+and the cached model.
 Usage: python scripts/clean_build.py
-       npm run build-clean
+       npm run clean-build
 """
 
 import shutil
@@ -16,6 +17,8 @@ from build_utils import log
 
 PROJECT_ROOT = Path(__file__).parent.parent
 DIST_DIR = PROJECT_ROOT / "dist"
+BUILD_DIR = PROJECT_ROOT / "build"          # PyInstaller --workpath
+SPEC_DIR = PROJECT_ROOT / "scripts"         # PyInstaller --specpath
 
 # HuggingFace default cache location
 HF_CACHE = Path.home() / ".cache" / "huggingface" / "hub"
@@ -44,6 +47,17 @@ def main():
 
     log("Removing dist/...")
     delete_folder(DIST_DIR)
+
+    log("Removing build/...")
+    delete_folder(BUILD_DIR)
+
+    log("Removing PyInstaller *.spec...")
+    for spec in SPEC_DIR.glob("*.spec"):
+        try:
+            spec.unlink()
+            log(f"Deleted: {spec}")
+        except Exception as e:
+            log(f"Error deleting {spec}: {e}")
 
     log("Removing HuggingFace model cache...")
     for name in MODEL_CACHE_NAMES:

@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "install-model": "python scripts/install.py",
-    "build-clean": "python scripts/clean_build.py",
+    "clean-build": "python scripts/clean_build.py",
     "build-windows": "python scripts/build_windows.py",
     "build-linux": "python scripts/build_linux.py",
     "build-macos": "python scripts/build_macos.py"
