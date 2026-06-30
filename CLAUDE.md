@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Ejecutar CLI (desarrollo)
 python bin/tts-sidecar <comando>
 
-# Compilar binario Windows con Nuitka
+# Compilar binario Windows con PyInstaller
 npm run build-windows
 
 # Ejecutar tests
@@ -153,6 +153,6 @@ src/chatterbox_tts/      # Código fuente Python
 - `docs/DESIGN.md` - Diseño del motor
 - `docs/GOAL.md` - Meta del proyecto
 - `docs/DAEMON-MODE.md` - Daemon mode (servidor persistente)
-- `docs/BUILD.md` - Guía de compilación Nuitka
+- `docs/BUILD.md` - Guía de compilación PyInstaller
 - `docs/ARCHITECTURE.md` - Arquitectura del sistema
-- `scripts/build_windows.py` - Build Nuitka para Windows
+- `scripts/build_windows.py` - Build PyInstaller para Windows

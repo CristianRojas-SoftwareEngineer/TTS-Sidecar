@@ -193,7 +193,7 @@ Los paquetes que requieren `--collect-all` son: `chatterbox`, `transformers`,
 
 - **PyInstaller --onedir**: genera una carpeta con el ejecutable y todas las dependencias
   (~1.7 GB sin comprimir). Es el artefacto que el script de empaquetado consume.
-- **Tiempo de build**: ~10 min en frío, ~5 min incremental (vs ~3 h con Nuitka).
+- **Tiempo de build**: ~10 min en frío, ~5 min incremental.
 - **Windows**: el instalador Inno Setup es el artefacto que recibe el usuario final.
 - **Linux**: el AppImage es un único archivo ejecutable, compatible con la mayoría de distribuciones.
 - **macOS**: el `.dmg` es el instalador estándar de macOS; el `.app` bundle es la aplicación.

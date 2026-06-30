@@ -3,7 +3,7 @@
 Installer script for Chatterbox TTS.
 Downloads the model and configures the environment.
 Run as: python install.py
-Or after Nuitka compilation: ./tts-sidecar install
+Or after compilation: ./tts-sidecar install
 """
 
 import os

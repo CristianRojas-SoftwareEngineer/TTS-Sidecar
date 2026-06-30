@@ -10,4 +10,4 @@ pycaw>=20240210; platform_system == "Windows"
 pyalsaaudio>=0.10.0; platform_system == "Linux"
 
 # Build tools
-nuitka>=2.0.0
+pyinstaller>=6.0.0

@@ -6,7 +6,7 @@ modos de ejecución:
 
 - **Desde fuente** (`python bin/tts-sidecar`): la raíz es la carpeta `src/`,
   reproduciendo el layout actual del repositorio.
-- **Congelado** (ejecutable onefile de Nuitka): la raíz es el directorio de
+- **Congelado** (ejecutable compilado con PyInstaller): la raíz es el directorio de
   datos de usuario por SO, estable y escribible entre ejecuciones, ya que en
   onefile `__file__` resuelve a un directorio temporal de extracción efímero.
 

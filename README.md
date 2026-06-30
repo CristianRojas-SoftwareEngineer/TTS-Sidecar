@@ -114,7 +114,7 @@ new ProcessBuilder("./tts-sidecar", "speak", "--text", "Hola").start()
 ```
 ┌─────────────────────────────────────────────────────┐
 │              tts-sidecar (CLI binary)                │
-│   Built with Nuitka: single-file, no dependencies   │
+│   Built with PyInstaller: single-file, no dependencies   │
 └──────────────────────┬──────────────────────────────┘
                        │
                        ▼

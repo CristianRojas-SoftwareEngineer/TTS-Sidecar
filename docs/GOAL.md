@@ -140,10 +140,10 @@ La implementación está completa únicamente cuando:
 - Motor Chatterbox Multilingual V3 implementado (Python)
 - Sistema de audio playback nativo por SO (pycaw/winsound/sounddevice/afplay)
 - Daemon mode con IPC HTTP (FastAPI, puerto 8765)
-- torch.compile con optimizaciones (reduce-overhead, n_cfm=4, max_new_tokens=500)
+- Optimizaciones de síntesis (n_cfm=4, max_new_tokens=500, watermark bypass)
 - Watermark bypass para mayor velocidad
-- Scripts de build Nuitka por SO (Windows/Linux/macOS)
+- Scripts de build PyInstaller por SO (Windows/Linux/macOS)
 - Descarga automática del modelo Chatterbox desde HuggingFace
 - CLI completa con todos los comandos
-- Tests pytest (31 tests)
+- Tests pytest (37 tests)
 - Documentación sincronizada

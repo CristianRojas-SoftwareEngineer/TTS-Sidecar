@@ -2,7 +2,7 @@
 """
 Entry point for tts-sidecar.
 
-In compiled (Nuitka onefile) mode: packages are embedded by Nuitka,
+In compiled (PyInstaller --onedir) mode: packages are embedded by PyInstaller,
 sys.path is handled automatically by the embedded interpreter.
 In development mode: the project src/ directory is added to sys.path.
 """

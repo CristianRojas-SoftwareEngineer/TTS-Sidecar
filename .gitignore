@@ -8,5 +8,4 @@ voices/
 __pycache__/
 *.pyc
 .pytest_cache/
-nuitka-crash-report.xml
 *.egg-info/

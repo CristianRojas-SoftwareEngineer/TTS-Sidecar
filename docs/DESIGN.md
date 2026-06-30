@@ -18,7 +18,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │              tts-sidecar (CLI binary)                       │
 │   Single-file executable per OS (Windows, Linux, macOS)    │
-│   Built with Nuitka: embedded Python interpreter            │
+│   Built with PyInstaller: embedded Python interpreter             │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
@@ -59,9 +59,9 @@ tts-sidecar/
 ├── bin/
 │   └── tts-sidecar               # Entry point script
 ├── scripts/
-│   ├── build_windows.py          # Nuitka build for Windows
-│   ├── build_linux.py            # Nuitka build for Linux
-│   ├── build_macos.py            # Nuitka build for macOS
+│   ├── build_windows.py          # PyInstaller build for Windows
+│   ├── build_linux.py            # PyInstaller build for Linux
+│   ├── build_macos.py            # PyInstaller build for macOS
 │   └── install.py                 # Model download + setup
 ├── models/                       # Chatterbox model cache
 │   └── chatterbox-multilingual/
@@ -157,17 +157,17 @@ child_process.spawn("./tts-sidecar", ["speak", "--text", "Hola"])
 std::process::Command::new("./tts-sidecar").args(["speak", "--text", "Hola"]).output()
 ```
 
-## Por qué Python + Nuitka
+## Por qué Python + PyInstaller
 
-| Criterio | Rust actual | Python + Nuitka |
-|----------|-------------|-----------------|
+| Criterio | Rust actual | Python + PyInstaller |
+|----------|-------------|----------------------|
 | Motor TTS | ONNX (ort) | Chatterbox directo |
 | Licencia | MIT | MIT |
-| Single-file installer | No (Rust no bundlea Python) | ✅ Sí (Nuitka bundles interpreter) |
+| Single-file installer | No (Rust no bundlea Python) | ✅ Sí (PyInstaller bundles interpreter) |
 | Dependencias usuario | Rust toolchain | Ninguna |
 | Tamaño estimado | ~100MB binario | ~500MB-1GB (con modelo) |
 
-## Compilación Nuitka
+## Compilación PyInstaller
 
 ```bash
 # Windows
@@ -187,12 +187,12 @@ Para añadir un nuevo motor TTS:
 
 1. Crear nuevo módulo en `src/chatterbox_tts/`
 2. Mantener la misma interfaz CLI en `cli.py`
-3. Re-compilar con Nuitka para cada plataforma
+3. Re-empaquetar con PyInstaller para cada plataforma
 
 ---
 
 ## Referencias
 
 - [Chatterbox TTS - Resemble AI](https://huggingface.co/ResembleAI/chatterbox-multilingual)
-- [Nuitka - Python to Executable](https://nuitka.net/)
+- [PyInstaller - Python to Executable](https://pyinstaller.org/)
 - [Chatterbox GitHub](https://github.com/resemble-ai/chatterbox)

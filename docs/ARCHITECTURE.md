@@ -6,7 +6,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │              tts-sidecar (Executable binary)                  │
 │   Single-file executable per OS (Windows, Linux, macOS)      │
-│   Built with Nuitka: embedded Python interpreter             │
+│   Built with PyInstaller: embedded Python interpreter            │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
@@ -29,10 +29,10 @@
 
 ## Principios de Diseño
 
-### Python + Nuitka
+### Python + PyInstaller
 
 - **Python**: Motor TTS con Chatterbox
-- **Nuitka**: Compila Python a ejecutable nativo con interpreter embebido
+- **PyInstaller**: Empaqueta Python bytecode en ejecutable con interpreter embebido
 - **Resultado**: Un solo archivo binario por SO, sin dependencias externas
 
 ### El entry point `bin/tts-sidecar`
@@ -43,7 +43,7 @@ El archivo `bin/tts-sidecar` es el **punto de entrada único** de la aplicación
 - **Shebang en vez de extensión**: la primera línea es `#!/usr/bin/env python3`. En Linux/macOS, con el bit de ejecución activo (`chmod +x`), el sistema operativo lee esa línea para saber con qué intérprete ejecutarlo; la extensión `.py` solo orienta a editores y humanos, el SO nunca la necesita. Por eso `./tts-sidecar speak ...` funciona sin nombrar a Python.
 - **Invocación en desarrollo bajo Windows**: Windows ignora el shebang, así que en desarrollo el entry point se invoca explícitamente a través del intérprete: `python bin/tts-sidecar speak --text "Hola"`.
 
-El archivo no contiene lógica de negocio: prepara el entorno (silencia warnings, ajusta `sys.path`, parchea `pkg_resources` para Python 3.13+) y delega en `chatterbox_tts.cli.main`. Además es la **semilla de compilación** que reciben los scripts de `scripts/build_*.py`: Nuitka lo toma como entrada y produce el binario final (`tts-sidecar` en Linux/macOS, `tts-sidecar.exe` en Windows). Véase `docs/BUILD.md`.
+El archivo no contiene lógica de negocio: prepara el entorno (silencia warnings, ajusta `sys.path`, parchea `pkg_resources` para Python 3.13+) y delega en `chatterbox_tts.cli.main`. Además es la **semilla de compilación** que reciben los scripts de `scripts/build_*.py`: PyInstaller lo toma como entrada y produce el bundle final. Véase `docs/BUILD.md`.
 
 ### Estructura del Proyecto
 
@@ -63,11 +63,11 @@ tts-sidecar/
 │           ├── protocol.py    # Pydantic request/response models
 │           └── run.py         # Entry point
 ├── bin/
-│   └── tts-sidecar           # Entry point (Python, sin extensión; semilla de Nuitka)
+│   └── tts-sidecar           # Entry point (Python, sin extensión; semilla de compilación)
 ├── scripts/
-│   ├── build_windows.py      # Nuitka build for Windows
-│   ├── build_linux.py       # Nuitka build for Linux
-│   ├── build_macos.py       # Nuitka build for macOS
+│   ├── build_windows.py      # PyInstaller build for Windows
+│   ├── build_linux.py       # PyInstaller build for Linux
+│   ├── build_macos.py       # PyInstaller build for macOS
 │   └── install.py            # Model download + setup
 ├── tests/                    # Pytest test suite
 ├── requirements.txt           # Python dependencies
@@ -125,4 +125,4 @@ Para añadir un nuevo motor TTS:
 
 1. Crear nuevo módulo en `src/chatterbox_tts/`
 2. Mantener la misma interfaz en `cli.py`
-3. Re-compilar con Nuitka para cada plataforma
+3. Re-empaquetar con PyInstaller para cada plataforma
