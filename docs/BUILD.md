@@ -20,11 +20,13 @@
 
 | Plataforma | Comando | Output |
 |------------|---------|--------|
-| Windows x64 | `npm run build-windows` | `bin/win32-x64/tts-sidecar.exe` |
-| Linux x64 | `npm run build-linux` | `bin/linux-x64/tts-sidecar` |
-| Linux ARM64 | `npm run build-linux-arm64` | `bin/linux-arm64/tts-sidecar` |
-| macOS Intel | `npm run build-darwin` | `bin/darwin-x64/tts-sidecar` |
-| macOS Apple Silicon | `npm run build-darwin-arm64` | `bin/darwin-arm64/tts-sidecar` |
+| Windows x64 | `npm run build-windows` | `dist/tts-sidecar.exe` |
+| Linux x64 | `npm run build-linux` | `dist/tts-sidecar-linux-x86_64` |
+| Linux ARM64 | `python scripts/build_linux.py --arch arm64` | `dist/tts-sidecar-linux-aarch64` |
+| macOS universal2 | `npm run build-macos` | `dist/tts-sidecar-macos-universal2` |
+
+> El script de macOS compila por defecto un binario **universal2** (x86_64 + arm64).
+> Se puede acotar la arquitectura con `python scripts/build_macos.py --arch {x86_64\|arm64\|universal2}`.
 
 ---
 
@@ -57,7 +59,7 @@ npm run build-windows
 npm run build-linux
 
 # macOS
-npm run build-darwin
+npm run build-macos
 ```
 
 Los scripts de build (`scripts/build_*.py`) ejecutan Nuitka con las opciones configuradas.
@@ -68,7 +70,7 @@ Los scripts de build (`scripts/build_*.py`) ejecutan Nuitka con las opciones con
 python -m nuitka --standalone --onefile \
   --enable-plugin=anti-bloat \
   --windows-icon=assets/icon.ico \
-  --output-dir=bin \
+  --output-dir=dist \
   bin/tts-sidecar
 ```
 
@@ -77,59 +79,67 @@ python -m nuitka --standalone --onefile \
 Después de compilar:
 
 ```bash
-bin/win32-x64/tts-sidecar.exe version
-bin/win32-x64/tts-sidecar.exe doctor
+dist/tts-sidecar.exe version
+dist/tts-sidecar.exe doctor
 ```
 
 ---
 
 ## 4. CI/CD con CircleCI
 
-El pipeline de CircleCI compila el proyecto para todas las plataformas automáticamente.
+El pipeline de CircleCI ejecuta los tests y, si pasan, compila el proyecto para todas las
+plataformas automáticamente. El job `test` actúa como **puerta**: cada build depende de él
+(`requires: [test]`), de modo que no se empaqueta ningún binario si la suite falla.
 
 ### Arquitectura del Pipeline
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Pipeline                                 │
-│                   (multijob)                                │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
-│  │build-win64  │  │build-lin64  │  │build-linarm │          │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          │
-│         │                 │                 │                 │
-│         ▼                 ▼                 ▼                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
-│  │build-darwin │  │build-darwin │                          │
-│  │    x64      │  │   arm64     │                          │
-│  └─────────────┘  └─────────────┘                          │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+│                         test                                 │
+│              (pytest tests/ — puerta previa)                 │
+└───────┬───────────────┬───────────────┬───────────────┬─────┘
+        │               │               │               │
+        ▼               ▼               ▼               ▼
+┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌──────────────────┐
+│build-windows│ │build-linux- │ │build-linux- │ │ build-darwin-    │
+│             │ │    x64      │ │   arm64     │ │   universal2     │
+└─────────────┘ └─────────────┘ └─────────────┘ └──────────────────┘
 ```
 
 ### Jobs
 
 | Job | Plataforma | Executor | Notas |
 |-----|------------|----------|-------|
-| `build-windows` | Windows x64 | windows-server | Nuitka onefile |
-| `build-linux-x64` | Linux x64 | ubuntu | Nuitka onefile |
-| `build-linux-arm64` | Linux ARM64 | ubuntu | Cross-compile |
-| `build-darwin-x64` | macOS Intel | macos | Nuitka onefile |
-| `build-darwin-arm64` | macOS Apple Silicon | macos | Nuitka onefile |
+| `test` | — | docker `cimg/python:3.13` | `pytest tests/` (puerta previa) |
+| `build-windows` | Windows x64 | `win/server-2022` (orb `circleci/windows`) | Nuitka onefile nativo |
+| `build-linux-x64` | Linux x64 | docker `cimg/python:3.13` | Nuitka onefile |
+| `build-linux-arm64` | Linux ARM64 | machine `arm.medium` | Nuitka onefile nativo (ARM real) |
+| `build-darwin-universal2` | macOS universal2 | macos `m4pro.medium` (Xcode 26.4.0) | Nuitka onefile (x86_64 + arm64) |
+
+> **Nota de plataforma**: CircleCI retiró los runners macOS Intel (jun-2024) y los M1/M2
+> (EOL feb-2026), por lo que macOS se compila en Apple Silicon (`m4pro.medium`) como un único
+> binario `universal2`. Las builds ARM64 de Linux requieren el **machine executor**
+> (`arm.medium`); el Docker executor no soporta resource classes ARM.
 
 ### Workflow
 
 ```yaml
 workflows:
-  version: 2
   build-all:
     jobs:
-      - build-windows
-      - build-linux-x64
-      - build-linux-arm64
-      - build-darwin-x64
-      - build-darwin-arm64
+      - test
+      - build-windows:
+          requires:
+            - test
+      - build-linux-x64:
+          requires:
+            - test
+      - build-linux-arm64:
+          requires:
+            - test
+      - build-darwin-universal2:
+          requires:
+            - test
 ```
 
 El archivo de configuración completo está en `.circleci/config.yml`.
@@ -138,20 +148,14 @@ El archivo de configuración completo está en `.circleci/config.yml`.
 
 ## 5. Distribución de Binarios
 
-Los binarios compilados se almacenan en `bin/<platform>/`:
+Los binarios compilados se almacenan en `dist/`:
 
 ```bash
-bin/
-├── win32-x64/
-│   └── tts-sidecar.exe
-├── linux-x64/
-│   └── tts-sidecar
-├── linux-arm64/
-│   └── tts-sidecar
-├── darwin-x64/
-│   └── tts-sidecar
-└── darwin-arm64/
-    └── tts-sidecar
+dist/
+├── tts-sidecar.exe                  # Windows x64
+├── tts-sidecar-linux-x86_64         # Linux x64
+├── tts-sidecar-linux-aarch64        # Linux ARM64
+└── tts-sidecar-macos-universal2     # macOS (x86_64 + arm64)
 ```
 
 ---

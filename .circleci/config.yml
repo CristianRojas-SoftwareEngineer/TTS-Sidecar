@@ -2,87 +2,107 @@ version: 2.1
 
 orbs:
   python: circleci/python@2.1.1
+  windows: circleci/windows@5.0
 
 jobs:
-  build-windows:
+  test:
     docker:
       - image: cimg/python:3.13
-    parameters:
-      py_version:
-        type: string
     steps:
       - checkout
+      - run:
+          name: Install system dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y libasound2-dev
       - python/install-packages:
           package-manager: pip
           pip-dependency-file: requirements.txt
       - run:
-          name: Install Nuitka
-          command: pip install nuitka==4.1.3
+          name: Install pytest
+          command: pip install pytest
+      - run:
+          name: Run tests
+          command: pytest tests/ -v
+
+  build-windows:
+    executor: win/server-2022
+    steps:
+      - checkout
+      - run:
+          name: Install Python 3.13
+          command: choco install python313 -y
+      - run:
+          name: Install dependencies
+          command: |
+            python --version
+            python -m pip install --upgrade pip
+            python -m pip install -r requirements.txt
+            python -m pip install nuitka==4.1.3
       - run:
           name: Build Windows
           command: python scripts/build_windows.py
       - store_artifacts:
-          path: bin/win32-x64/tts-sidecar.exe
+          path: dist/tts-sidecar.exe
           destination: tts-sidecar-win32-x64.exe
 
   build-linux-x64:
     docker:
       - image: cimg/python:3.13
-    parameters:
-      py_version:
-        type: string
     steps:
       - checkout
+      - run:
+          name: Install system dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y patchelf libasound2-dev
       - python/install-packages:
           package-manager: pip
           pip-dependency-file: requirements.txt
       - run:
           name: Install Nuitka
           command: pip install nuitka==4.1.3
-      - run:
-          name: Install Linux dependencies
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y patchelf
       - run:
           name: Build Linux x64
           command: python scripts/build_linux.py --arch x86_64
       - store_artifacts:
-          path: bin/linux-x64/tts-sidecar
+          path: dist/tts-sidecar-linux-x86_64
           destination: tts-sidecar-linux-x64
 
   build-linux-arm64:
-    docker:
-      - image: cimg/python:3.13
-    parameters:
-      py_version:
-        type: string
+    machine:
+      image: ubuntu-2204:current
+    resource_class: arm.medium
     steps:
       - checkout
-      - python/install-packages:
-          package-manager: pip
-          pip-dependency-file: requirements.txt
       - run:
-          name: Install Nuitka
-          command: pip install nuitka==4.1.3
-      - run:
-          name: Install Linux dependencies
+          name: Install system dependencies
           command: |
             sudo apt-get update
-            sudo apt-get install -y patchelf gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+            sudo apt-get install -y patchelf libasound2-dev
+      - run:
+          name: Set up Python 3.13
+          command: |
+            pyenv install -s 3.13
+            pyenv global 3.13
+            python --version
+      - run:
+          name: Install dependencies
+          command: |
+            python -m pip install --upgrade pip
+            python -m pip install -r requirements.txt
+            python -m pip install nuitka==4.1.3
       - run:
           name: Build Linux ARM64
           command: python scripts/build_linux.py --arch arm64
       - store_artifacts:
-          path: bin/linux-arm64/tts-sidecar
+          path: dist/tts-sidecar-linux-aarch64
           destination: tts-sidecar-linux-arm64
 
-  build-darwin-x64:
+  build-darwin-universal2:
     macos:
-      xcode: "15.0"
-    parameters:
-      py_version:
-        type: string
+      xcode: "26.4.0"
+    resource_class: m4pro.medium
     steps:
       - checkout
       - run:
@@ -95,51 +115,25 @@ jobs:
           name: Install Nuitka
           command: pip3 install nuitka==4.1.3
       - run:
-          name: Build macOS x64
-          command: python3 scripts/build_macos.py --arch x86_64
+          name: Build macOS universal2
+          command: python3 scripts/build_macos.py --arch universal2
       - store_artifacts:
-          path: bin/darwin-x64/tts-sidecar
-          destination: tts-sidecar-darwin-x64
-
-  build-darwin-arm64:
-    macos:
-      xcode: "14.0"
-    steps:
-      - checkout
-      - run:
-          name: Set up Python
-          command: |
-            python3 --version
-            python3 -m pip install --upgrade pip
-            pip3 install -r requirements.txt
-      - run:
-          name: Install Nuitka
-          command: pip3 install nuitka==4.1.3
-      - run:
-          name: Build macOS ARM64
-          command: python3 scripts/build_macos.py --arch arm64
-      - store_artifacts:
-          path: bin/darwin-arm64/tts-sidecar
-          destination: tts-sidecar-darwin-arm64
+          path: dist/tts-sidecar-macos-universal2
+          destination: tts-sidecar-darwin-universal2
 
 workflows:
-  version: 2
   build-all:
     jobs:
+      - test
       - build-windows:
-          matrix:
-            parameters:
-              py_version: ["3.13"]
+          requires:
+            - test
       - build-linux-x64:
-          matrix:
-            parameters:
-              py_version: ["3.13"]
+          requires:
+            - test
       - build-linux-arm64:
-          matrix:
-            parameters:
-              py_version: ["3.13"]
-      - build-darwin-x64:
-          matrix:
-            parameters:
-              py_version: ["3.13"]
-      - build-darwin-arm64
+          requires:
+            - test
+      - build-darwin-universal2:
+          requires:
+            - test
