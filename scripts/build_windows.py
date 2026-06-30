@@ -20,13 +20,13 @@ from build_utils import log, StageTimer, BuildTimer
 
 
 def check_dependencies():
-    """Check required dependencies are installed."""
-    with StageTimer("CheckDeps", "Checking dependencies"):
+    """Verifica que las dependencias requeridas estén instaladas."""
+    with StageTimer("CheckDeps", "Verificando dependencias"):
         try:
             import PyInstaller
             log(f"PyInstaller: {PyInstaller.__version__}")
         except ImportError:
-            log("PyInstaller not found, installing...")
+            log("PyInstaller no encontrado, instalando...")
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "install", "pyinstaller"],
                 check=True,
@@ -36,10 +36,10 @@ def check_dependencies():
 
 
 def build_windows():
-    """Build Windows x64 with PyInstaller --onedir."""
+    """Compila tts-sidecar para Windows x64 con PyInstaller --onedir."""
     with BuildTimer():
-        with StageTimer("Setup", "Setting up build environment"):
-            log("Platform: Windows x64")
+        with StageTimer("Setup", "Preparando entorno de build"):
+            log("Plataforma: Windows x64")
             DIST_DIR.mkdir(parents=True, exist_ok=True)
             BUILD_DIR.mkdir(parents=True, exist_ok=True)
             entry_point = PROJECT_ROOT / "bin" / "tts-sidecar"
@@ -58,8 +58,8 @@ def build_windows():
                 "--noconfirm",
                 # Entry point
                 str(entry_point),
-                # Collect all packages that PyInstaller can't follow automatically
-                # (lazy imports, C extensions, compiled code)
+                # Recolectar todos los paquetes que PyInstaller no puede seguir
+                # automáticamente (imports perezosos, extensiones C, código compilado)
                 "--collect-all", "chatterbox",
                 "--collect-all", "chatterbox_tts",
                 "--collect-all", "transformers",
@@ -75,53 +75,54 @@ def build_windows():
                 # Data files
                 "--collect-data", "soundfile",
                 "--collect-data", "certifi",
-                # Metadata required by importlib.metadata / pkg_resources
+                # Metadata requerida por importlib.metadata / pkg_resources
                 "--recursive-copy-metadata", "chatterbox-tts",
                 "--copy-metadata", "requests",
-                # Exclude bloat (never loaded at runtime)
+                # Excluir bloat (nunca cargado en runtime)
                 "--exclude-module", "tensorflow",
                 "--exclude-module", "jax",
                 "--exclude-module", "flax",
                 "--exclude-module", "gradio",
                 "--exclude-module", "gradio_client",
             ]
+            # [2:] omite [sys.executable, "-m"] del log para mostrar solo los args de PyInstaller
             log(f"Running: pyinstaller {' '.join(pyinstaller_args[2:])}")
             try:
                 returncode = subprocess.run(
                     pyinstaller_args,
-                    # Inherit console so PyInstaller progress bar renders.
-                    # The parent's [HH:MM:SS] stage headers bracket each phase.
+                    # Heredar la consola para que la barra de progreso de PyInstaller se renderice;
+                    # las cabeceras [HH:MM:SS] del padre enmarcan cada fase.
                 ).returncode
             except KeyboardInterrupt:
-                log("\n[CANCEL] Build cancelled by user.")
+                log("\n[CANCEL] Build cancelado por el usuario.")
                 sys.exit(130)  # 128 + 2 (SIGINT)
 
         if returncode != 0:
             log("PyInstaller failed", returncode)
             sys.exit(1)
 
-        with StageTimer("Size", "Checking bundle size"):
+        with StageTimer("Size", "Verificando tamaño del bundle"):
             onedir = DIST_DIR / "tts-sidecar"
             if onedir.exists():
                 size_mb = sum(f.stat().st_size for f in onedir.rglob("*") if f.is_file()) / 1024 / 1024
-                log(f"Bundle size: {size_mb:.1f} MB ({onedir})")
+                log(f"Tamaño del bundle: {size_mb:.1f} MB ({onedir})")
 
-        with StageTimer("Installer", "Building Inno Setup installer"):
+        with StageTimer("Installer", "Generando instalador Inno Setup"):
             installer_script = PROJECT_ROOT / "scripts" / "create_installer_windows.py"
             result = subprocess.run(
                 [sys.executable, str(installer_script), str(DIST_DIR / "tts-sidecar")],
                 check=False,
             )
             if result.returncode != 0:
-                log(f"Installer build failed (rc={result.returncode})")
+                log(f"Generación del instalador fallida (rc={result.returncode})")
                 if result.stdout:
                     print(result.stdout)
                 if result.stderr:
                     print(result.stderr, file=sys.stderr)
-                # Non-fatal: the onedir bundle is still usable
-                log("WARNING: Installer failed — onedir bundle is still available in dist/")
+                # No fatal: el bundle onedir sigue siendo usable
+                log("WARNING: Instalador no creado — el bundle onedir está disponible en dist/")
             else:
-                log("Installer created successfully")
+                log("Instalador creado correctamente")
 
 
 if __name__ == "__main__":

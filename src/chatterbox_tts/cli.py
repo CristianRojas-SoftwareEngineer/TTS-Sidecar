@@ -1,13 +1,15 @@
 """
-CLI interface for Chatterbox TTS.
-Consumable from any programming language via subprocess.
+Interfaz CLI de Chatterbox TTS.
+Consumible desde cualquier lenguaje de programación vía subprocess.
 
-Output contract (stable across OS and languages):
-  - Data goes to stdout; diagnostics and errors go to stderr.
-  - Read commands (voice list, devices, version, daemon status, doctor) accept
-    --json for machine-readable output.
-  - Exit codes: 0 = success; non-zero = error (doctor returns 1 when a check fails).
-  - stdout/stderr are forced to UTF-8 for consistent encoding on every platform.
+Contrato de salida (estable entre SO y lenguajes):
+  - Los datos van a stdout; los diagnósticos y errores van a stderr.
+  - Los comandos de lectura (voice list, devices, version, daemon status, doctor)
+    aceptan --json para salida legible por máquina.
+  - Códigos de salida: 0 = éxito; distinto de 0 = error (doctor devuelve 1 cuando
+    falla un chequeo).
+  - stdout/stderr se fuerzan a UTF-8 para una codificación consistente en toda
+    plataforma.
 """
 
 import warnings
@@ -21,23 +23,23 @@ from pathlib import Path
 
 from .timing import timed_command, StageTimer, log
 
-# Lazy imports - only loaded when commands are executed
-# This allows --help to work without dependencies installed
+# Imports perezosos (lazy): solo se cargan cuando se ejecutan los comandos.
+# Esto permite que --help funcione sin las dependencias instaladas.
 
 
 def _resolve_voice_paths(args):
-    """Resolve voice audio paths from voice name WITHOUT loading the model."""
+    """Resuelve las rutas de audio de una voz a partir de su nombre SIN cargar el modelo."""
     from . import voices
 
     voice_audio = getattr(args, 'voice_audio', None)
     speech_audio = getattr(args, 'speech_audio', None)
 
     if getattr(args, 'voice', None):
-        # Resolve from filesystem directly - no model needed
+        # Resuelve directamente desde el sistema de archivos: no se necesita el modelo.
         voice_audio, speech_audio = voices.voice_paths(args.voice)
 
-    # Resolve to absolute paths against the client's CWD before they cross the
-    # process boundary to the daemon, which has a different working directory.
+    # Resuelve a rutas absolutas contra el CWD del cliente antes de que crucen la
+    # frontera de proceso hacia el daemon, que tiene otro directorio de trabajo.
     if voice_audio:
         voice_audio = str(Path(voice_audio).resolve())
     if speech_audio:
@@ -47,7 +49,7 @@ def _resolve_voice_paths(args):
 
 
 def _emit_audio(audio_bytes, output):
-    """Play audio bytes, or write them to a file when an output path is given."""
+    """Reproduce los bytes de audio, o los escribe a un archivo si se da una ruta de salida."""
     if output:
         with open(output, 'wb') as f:
             f.write(audio_bytes)
@@ -61,9 +63,9 @@ def _emit_audio(audio_bytes, output):
 
 
 def _synthesize_via_daemon(args, voice_audio, speech_audio):
-    """Try to synthesize via daemon, return True if successful.
+    """Intenta sintetizar vía daemon; devuelve True si tuvo éxito.
 
-    Plays the audio or writes it to a file depending on args.output.
+    Reproduce el audio o lo escribe a un archivo según args.output.
     """
     import time
     import traceback
@@ -95,15 +97,31 @@ def _synthesize_via_daemon(args, voice_audio, speech_audio):
         return False
 
 
+def _require_model_cached(model: str = "es-mx-latam"):
+    """Verifica que el modelo esté en caché y, si no lo está, aborta remitiendo a 'setup'."""
+    from .engine import is_model_cached
+    if not is_model_cached(model):
+        print(
+            f"Error: el modelo '{model}' no está descargado.",
+            file=sys.stderr,
+        )
+        print("Ejecuta 'tts-sidecar setup' para descargarlo antes de continuar.", file=sys.stderr)
+        sys.exit(1)
+
+
 @timed_command
 def cmd_speak(args):
-    """Synthesize text; play the audio, or save it to a file when --output is given."""
+    """Sintetiza texto; reproduce el audio, o lo guarda a un archivo si se da --output."""
 
     try:
-        # Resolve voice audio paths WITHOUT loading model
+        # Exige que el modelo esté en caché antes de sintetizar.
+        # Las descargas son responsabilidad exclusiva de 'setup'.
+        _require_model_cached(getattr(args, "model", "es-mx-latam"))
+
+        # Resuelve las rutas de audio de la voz SIN cargar el modelo.
         voice_audio, speech_audio = _resolve_voice_paths(args)
 
-        # Try daemon if --daemon flag is set (default: try if available)
+        # Intenta el daemon si se pasó la bandera --daemon (default: usarlo si está disponible).
         use_daemon = getattr(args, 'daemon', False) or os.getenv('TTS_DAEMON_AUTOSTART')
         no_daemon = getattr(args, 'no_daemon', False)
 
@@ -111,7 +129,7 @@ def cmd_speak(args):
             if _synthesize_via_daemon(args, voice_audio, speech_audio):
                 return
 
-        # Use direct mode - imports only loaded when daemon not used
+        # Modo directo: los imports solo se cargan cuando no se usa el daemon.
         from .engine import ChatterboxEngine
 
         engine = ChatterboxEngine.get_instance(model=args.model, device=args.device)
@@ -124,8 +142,8 @@ def cmd_speak(args):
         )
 
         if args.output:
-            # engine.speak already wrote the file via output_path
-            print(f"Audio saved to: {args.output}")
+            # engine.speak ya escribió el archivo vía output_path
+            log(f"[I/O] Audio guardado: {args.output}")
         else:
             log("[Playback] Reproduciendo audio...")
             from .audio import AudioPlayer
@@ -135,7 +153,7 @@ def cmd_speak(args):
 
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
-        print("Run 'tts-sidecar install' first.", file=sys.stderr)
+        print("Run 'tts-sidecar setup' first.", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -144,7 +162,7 @@ def cmd_speak(args):
 
 @timed_command
 def cmd_voice_add(args):
-    """Add a voice clone from reference audio."""
+    """Registra una voz clonada a partir de los audios de referencia."""
     try:
         from .engine import ChatterboxEngine
 
@@ -165,7 +183,7 @@ def cmd_voice_add(args):
 
 @timed_command
 def cmd_voice_remove(args):
-    """Remove a registered voice."""
+    """Elimina una voz registrada."""
     from . import voices
 
     try:
@@ -181,7 +199,7 @@ def cmd_voice_remove(args):
 
 
 def cmd_voice_list(args):
-    """List all registered voices."""
+    """Lista todas las voces registradas."""
     from . import voices
 
     try:
@@ -202,7 +220,7 @@ def cmd_voice_list(args):
 
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
-        print("Run 'tts-sidecar install' first.", file=sys.stderr)
+        print("Run 'tts-sidecar setup' first.", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
         print(f"Error listing voices: {e}", file=sys.stderr)
@@ -210,7 +228,7 @@ def cmd_voice_list(args):
 
 
 def cmd_devices(args):
-    """List audio output devices."""
+    """Lista los dispositivos de salida de audio."""
     from .audio import get_audio_devices
 
     devices = get_audio_devices()
@@ -226,7 +244,7 @@ def cmd_devices(args):
 
 
 def cmd_version(args):
-    """Show the tts-sidecar version."""
+    """Muestra la versión de tts-sidecar."""
     from . import __version__
 
     if getattr(args, "json", False):
@@ -237,19 +255,19 @@ def cmd_version(args):
 
 
 def cmd_doctor(args):
-    """Run diagnostic checks."""
+    """Ejecuta los chequeos de diagnóstico."""
     from . import voices
 
-    checks = []  # list of (status, name, detail) with status in PASS/FAIL/SKIP
+    checks = []  # lista de (status, name, detail) con status en PASS/FAIL/SKIP
 
-    # Check Chatterbox
+    # Chequea Chatterbox
     try:
         import chatterbox
         checks.append(("PASS", "Chatterbox TTS", chatterbox.__version__))
     except ImportError:
         checks.append(("FAIL", "Chatterbox TTS", "NOT INSTALLED (pip install chatterbox-tts)"))
 
-    # Check audio library
+    # Chequea la librería de audio
     try:
         if platform.system() == "Windows":
             import pycaw
@@ -266,15 +284,17 @@ def cmd_doctor(args):
     except Exception as e:
         checks.append(("FAIL", "Audio library", str(e)))
 
-    # Check model - verify Chatterbox can load (uses HF cache)
+    # Chequea el modelo: verifica que es-mx-latam esté en caché (sin cargar ni descargar)
     try:
-        from chatterbox.tts import ChatterboxTTS
-        ChatterboxTTS.from_pretrained(device="cpu")
-        checks.append(("PASS", "Chatterbox model", "loaded from cache"))
+        from .engine import is_model_cached
+        if is_model_cached("es-mx-latam"):
+            checks.append(("PASS", "Chatterbox model", "es-mx-latam present in cache"))
+        else:
+            checks.append(("FAIL", "Chatterbox model", "es-mx-latam not cached (run: tts-sidecar setup)"))
     except Exception as e:
-        checks.append(("FAIL", "Chatterbox model", f"{e} (run: tts-sidecar install)"))
+        checks.append(("FAIL", "Chatterbox model", f"{e} (run: tts-sidecar setup)"))
 
-    # Check voices directory (single source of truth)
+    # Chequea el directorio de voces (única fuente de verdad)
     voices_path = voices.voices_root()
     if os.path.exists(voices_path):
         count = len(voices.list_voices())
@@ -311,36 +331,67 @@ def cmd_doctor(args):
         sys.exit(1)
 
 
-def cmd_install(args):
-    """Download and install the Chatterbox model."""
-    print("=== Chatterbox TTS Installer ===\n")
+def cmd_setup(args):
+    """Provisiona el runtime: corre los chequeos de entorno y descarga el modelo si falta."""
+    print("=== Chatterbox TTS Setup ===\n")
 
-    # El modelo se descarga a la caché de HuggingFace (ver engine._download_model),
-    # estable tanto desde fuente como en el ejecutable onefile.
-    model_dir = os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub")
-
-    print(f"Installing to: {model_dir}\n")
+    # 1. Chequeos de entorno (igual que doctor): Chatterbox importable + librería de audio.
+    try:
+        import chatterbox
+        print(f"[PASS] Chatterbox TTS: {chatterbox.__version__}")
+    except ImportError:
+        print("[FAIL] Chatterbox TTS: NOT INSTALLED (pip install chatterbox-tts)", file=sys.stderr)
+        sys.exit(1)
 
     try:
-        from chatterbox.tts import ChatterboxTTS
-        print("Downloading Chatterbox Multilingual V3 model...")
+        if platform.system() == "Windows":
+            import pycaw
+            print("[PASS] Audio library: pycaw (Windows)")
+        elif platform.system() == "Linux":
+            import sounddevice
+            print("[PASS] Audio library: sounddevice (Linux)")
+        elif platform.system() == "Darwin":
+            import subprocess
+            subprocess.run(["afplay"], check=True, capture_output=True)
+            print("[PASS] Audio library: afplay (macOS)")
+    except ImportError:
+        print("[FAIL] Audio library: NOT INSTALLED", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"[FAIL] Audio library: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # 2. Provisión del modelo (idempotente): descarga solo si no está ya en caché.
+    # El modelo se descarga a la caché de HuggingFace (ver engine._download_model),
+    # estable tanto desde fuente como en el ejecutable onedir.
+    model_dir = os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub")
+
+    try:
+        from .engine import is_model_cached, ChatterboxEngine
+
+        if is_model_cached("es-mx-latam"):
+            print(f"\n[PASS] Model 'es-mx-latam' already cached at: {model_dir}")
+            print("Setup complete. Nothing to download.")
+            return
+
+        print("\nDownloading es-mx-latam model...")
         print("(This may take several minutes on first run)\n")
 
-        tts = ChatterboxTTS.from_pretrained(device="cpu")
+        ChatterboxEngine.get_instance(model="es-mx-latam", device="cpu")
 
         print("\n[PASS] Model downloaded successfully!")
         print(f"  Location: {model_dir}")
 
     except Exception as e:
-        print(f"[FAIL] Installation failed: {e}", file=sys.stderr)
+        print(f"[FAIL] Setup failed: {e}", file=sys.stderr)
         sys.exit(1)
 
 
 def cmd_daemon(args):
-    """Manage the tts-sidecar daemon."""
+    """Gestiona el daemon de tts-sidecar."""
     if args.action == "serve":
-        # Foreground server. Used by the frozen executable to self-invoke the
-        # daemon (the .exe cannot run `python -m ...`).
+        # Servidor en primer plano. Lo usa el ejecutable congelado para autoinvocar
+        # el daemon (el .exe no puede ejecutar `python -m ...`).
         from .daemon.run import serve
         serve(
             port=args.port,
@@ -354,6 +405,9 @@ def cmd_daemon(args):
     manager = DaemonManager()
 
     if args.action == "start":
+        # Exige que el modelo esté en caché antes de lanzar el servidor.
+        # Las descargas son responsabilidad exclusiva de 'setup'.
+        _require_model_cached("es-mx-latam")
         success = manager.start(
             background=True,
             auto_restart=args.autorestart,
@@ -397,8 +451,8 @@ def cmd_daemon(args):
 
 
 def main():
-    """Main CLI entry point."""
-    # Force UTF-8 output for consistent encoding across Windows/Linux/macOS.
+    """Punto de entrada principal de la CLI."""
+    # Fuerza salida UTF-8 para una codificación consistente en Windows/Linux/macOS.
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure:
@@ -406,98 +460,98 @@ def main():
 
     parser = argparse.ArgumentParser(
         prog="tts-sidecar",
-        description="Chatterbox TTS - 100% local voice cloning TTS"
+        description="Chatterbox TTS - TTS 100% local con clonación de voz"
     )
 
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    subparsers = parser.add_subparsers(dest="command", help="Comandos disponibles")
 
-    # speak command (unified: plays audio, or saves to file when --output is given)
-    speak_parser = subparsers.add_parser("speak", help="Synthesize speech; play it, or save with --output")
-    speak_parser.add_argument("--text", "-t", required=True, help="Text to synthesize")
-    speak_parser.add_argument("--voice", "-v", help="Voice name to use (auto-loads reference.wav + speech.wav)")
-    speak_parser.add_argument("--output", "-o", help="Output WAV file path (if omitted, audio is played)")
+    # comando speak (unificado: reproduce el audio, o lo guarda a archivo con --output)
+    speak_parser = subparsers.add_parser("speak", help="Sintetiza voz; la reproduce, o la guarda con --output")
+    speak_parser.add_argument("--text", "-t", required=True, help="Texto a sintetizar")
+    speak_parser.add_argument("--voice", "-v", help="Nombre de la voz a usar (auto-carga reference.wav + speech.wav)")
+    speak_parser.add_argument("--output", "-o", help="Ruta del archivo WAV de salida (si se omite, se reproduce el audio)")
     speak_parser.add_argument("--device", "-d", default="cpu",
                               choices=["cpu", "cuda", "mps"],
-                              help="Device for inference (default: cpu)")
-    speak_parser.add_argument("--model", "-m", default="es-latam",
-                              choices=["multilingual", "es-latam"],
-                              help="Model to use: 'es-latam' (LatAm Spanish, RECOMMENDED) or 'multilingual' (default: es-latam)")
+                              help="Dispositivo para inferencia (default: cpu)")
+    speak_parser.add_argument("--model", "-m", default="es-mx-latam",
+                              choices=["multilingual", "es-mx-latam"],
+                              help="Modelo a usar: 'es-mx-latam' (español latinoamericano, RECOMENDADO) o 'multilingual' (default: 'es-mx-latam')")
     speak_parser.add_argument("--voice-audio",
-                              help="Audio file for Voice Encoder (full audio for timbre embedding)")
+                              help="Archivo de audio para el Voice Encoder (audio completo para el embedding de timbre)")
     speak_parser.add_argument("--speech-audio",
-                              help="Audio file for T3 conditioning (6s) + S3Gen decoder (10s). "
-                                   "Use a clean speech segment (10s+ recommended).")
+                              help="Archivo de audio para el conditioning del T3 (6s) + decoder S3Gen (10s). "
+                                   "Usa un segmento de habla limpia (10s+ recomendado).")
     speak_parser.add_argument("--daemon", action="store_true",
-                              help="Use daemon if available (default: auto)")
+                              help="Usar el daemon si está disponible (default: automático)")
     speak_parser.add_argument("--no-daemon", action="store_true",
-                              help="Force direct mode, ignore daemon")
+                              help="Forzar modo directo, ignorar el daemon")
     speak_parser.set_defaults(func=cmd_speak)
 
-    # voice command group (list / add / remove)
-    voice_parser = subparsers.add_parser("voice", help="Manage registered voices")
-    voice_subparsers = voice_parser.add_subparsers(dest="action", help="Voice actions")
+    # grupo de comandos voice (list / add / remove)
+    voice_parser = subparsers.add_parser("voice", help="Gestiona las voces registradas")
+    voice_subparsers = voice_parser.add_subparsers(dest="action", help="Acciones de voz")
 
-    voice_list = voice_subparsers.add_parser("list", help="List registered voices")
-    voice_list.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    voice_list = voice_subparsers.add_parser("list", help="Lista las voces registradas")
+    voice_list.add_argument("--json", action="store_true", help="Emitir JSON legible por máquina")
     voice_list.set_defaults(func=cmd_voice_list)
 
-    voice_add = voice_subparsers.add_parser("add", help="Add a voice clone")
-    voice_add.add_argument("--name", "-n", required=True, help="Voice name")
+    voice_add = voice_subparsers.add_parser("add", help="Registra una voz clonada")
+    voice_add.add_argument("--name", "-n", required=True, help="Nombre de la voz")
     voice_add.add_argument("--reference", "-r", required=True,
-                           help="Reference audio file for voice timbre (any length, full audio used)")
+                           help="Archivo de audio de referencia para el timbre (cualquier largo, se usa el audio completo)")
     voice_add.add_argument("--speech", "-s", required=True,
-                           help="Speech audio file for T3 conditioning (10+ seconds of clean speech)")
+                           help="Archivo de audio de habla para el conditioning del T3 (10+ segundos de habla limpia)")
     voice_add.add_argument("--device", "-d", default="cpu",
                            choices=["cpu", "cuda", "mps"],
-                           help="Device for inference (default: cpu)")
+                           help="Dispositivo para inferencia (default: cpu)")
     voice_add.set_defaults(func=cmd_voice_add)
 
-    voice_remove = voice_subparsers.add_parser("remove", help="Remove a registered voice")
-    voice_remove.add_argument("--name", "-n", required=True, help="Voice name")
+    voice_remove = voice_subparsers.add_parser("remove", help="Elimina una voz registrada")
+    voice_remove.add_argument("--name", "-n", required=True, help="Nombre de la voz")
     voice_remove.set_defaults(func=cmd_voice_remove)
 
-    # devices command
-    devices_parser = subparsers.add_parser("devices", help="List audio devices")
-    devices_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    # comando devices
+    devices_parser = subparsers.add_parser("devices", help="Lista los dispositivos de audio")
+    devices_parser.add_argument("--json", action="store_true", help="Emitir JSON legible por máquina")
     devices_parser.set_defaults(func=cmd_devices)
 
-    # doctor command
-    doctor_parser = subparsers.add_parser("doctor", help="Run diagnostics")
-    doctor_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    # comando doctor
+    doctor_parser = subparsers.add_parser("doctor", help="Ejecuta diagnósticos")
+    doctor_parser.add_argument("--json", action="store_true", help="Emitir JSON legible por máquina")
     doctor_parser.set_defaults(func=cmd_doctor)
 
-    # install command
-    install_parser = subparsers.add_parser("install", help="Install the TTS model")
-    install_parser.set_defaults(func=cmd_install)
+    # comando setup
+    setup_parser = subparsers.add_parser("setup", help="Provisiona el runtime: corre chequeos y descarga el modelo si falta")
+    setup_parser.set_defaults(func=cmd_setup)
 
-    # daemon command
-    daemon_parser = subparsers.add_parser("daemon", help="Daemon lifecycle management")
-    daemon_subparsers = daemon_parser.add_subparsers(dest="action", help="Daemon actions")
+    # comando daemon
+    daemon_parser = subparsers.add_parser("daemon", help="Gestión del ciclo de vida del daemon")
+    daemon_subparsers = daemon_parser.add_subparsers(dest="action", help="Acciones del daemon")
 
-    daemon_start = daemon_subparsers.add_parser("start", help="Start the daemon")
-    daemon_start.add_argument("--autorestart", action="store_true", help="Auto-restart on crash")
-    daemon_start.add_argument("--max-retries", type=int, help="Max restart attempts")
+    daemon_start = daemon_subparsers.add_parser("start", help="Inicia el daemon")
+    daemon_start.add_argument("--autorestart", action="store_true", help="Auto-reinicio en caso de crash")
+    daemon_start.add_argument("--max-retries", type=int, help="Máximo de intentos de reinicio")
     daemon_start.set_defaults(func=cmd_daemon)
 
-    daemon_stop = daemon_subparsers.add_parser("stop", help="Stop the daemon")
+    daemon_stop = daemon_subparsers.add_parser("stop", help="Detiene el daemon")
     daemon_stop.set_defaults(func=cmd_daemon)
 
-    daemon_restart = daemon_subparsers.add_parser("restart", help="Restart the daemon")
+    daemon_restart = daemon_subparsers.add_parser("restart", help="Reinicia el daemon")
     daemon_restart.set_defaults(func=cmd_daemon)
 
-    daemon_status = daemon_subparsers.add_parser("status", help="Show daemon status")
-    daemon_status.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    daemon_status = daemon_subparsers.add_parser("status", help="Muestra el estado del daemon")
+    daemon_status.add_argument("--json", action="store_true", help="Emitir JSON legible por máquina")
     daemon_status.set_defaults(func=cmd_daemon)
 
-    daemon_serve = daemon_subparsers.add_parser("serve", help="Run the daemon server in the foreground")
-    daemon_serve.add_argument("--port", type=int, default=8765, help="TCP port to listen on (default: 8765)")
-    daemon_serve.add_argument("--auto-restart", action="store_true", help="Auto-restart on crash")
-    daemon_serve.add_argument("--max-retries", type=int, default=0, help="Max restart attempts (0 = infinite)")
+    daemon_serve = daemon_subparsers.add_parser("serve", help="Ejecuta el servidor del daemon en primer plano")
+    daemon_serve.add_argument("--port", type=int, default=8765, help="Puerto TCP donde escuchar (default: 8765)")
+    daemon_serve.add_argument("--auto-restart", action="store_true", help="Auto-reinicio en caso de crash")
+    daemon_serve.add_argument("--max-retries", type=int, default=0, help="Máximo de intentos de reinicio (0 = infinito)")
     daemon_serve.set_defaults(func=cmd_daemon)
 
-    # version command
-    version_parser = subparsers.add_parser("version", help="Show version")
-    version_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    # comando version
+    version_parser = subparsers.add_parser("version", help="Muestra la versión")
+    version_parser.add_argument("--json", action="store_true", help="Emitir JSON legible por máquina")
     version_parser.set_defaults(func=cmd_version)
 
     args = parser.parse_args()
@@ -506,7 +560,7 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    # Command groups (voice, daemon) without a sub-action have no func: show help.
+    # Los grupos de comandos (voice, daemon) sin sub-acción no tienen func: mostrar ayuda.
     if not hasattr(args, "func"):
         subparsers.choices[args.command].print_help()
         sys.exit(0)

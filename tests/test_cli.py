@@ -1,4 +1,4 @@
-"""Tests for CLI commands."""
+"""Tests para los comandos del CLI."""
 
 import pytest
 import sys
@@ -15,7 +15,7 @@ class MockArgs:
         self.voice_audio = kwargs.get("voice_audio", None)
         self.speech_audio = kwargs.get("speech_audio", None)
         self.output = kwargs.get("output", None)
-        self.model = kwargs.get("model", "es-latam")
+        self.model = kwargs.get("model", "es-mx-latam")
         self.device = kwargs.get("device", "cpu")
         self.name = kwargs.get("name", "testcli")
         self.reference = kwargs.get("reference", "ref.wav")
@@ -180,8 +180,9 @@ class TestCmdVersion:
 
 
 class TestCmdSpeak:
+    @patch("chatterbox_tts.engine.is_model_cached", return_value=True)
     @patch("chatterbox_tts.engine.ChatterboxEngine")
-    def test_cmd_speak_saves_with_output(self, mock_engine_cls, capsys):
+    def test_cmd_speak_saves_with_output(self, mock_engine_cls, mock_cached, capsys):
         from chatterbox_tts.cli import cmd_speak
 
         engine = MagicMock()
@@ -190,15 +191,16 @@ class TestCmdSpeak:
 
         cmd_speak(MockArgs(text="hola", output="out.wav", no_daemon=True))
 
-        # engine.speak receives the output path so it writes the file itself
+        # engine.speak recibe el output_path y escribe el archivo directamente
         _, kwargs = engine.speak.call_args
         assert kwargs["output_path"] == "out.wav"
         out = capsys.readouterr().out
-        assert "Audio saved to: out.wav" in out
+        assert "Audio guardado: out.wav" in out
 
+    @patch("chatterbox_tts.engine.is_model_cached", return_value=True)
     @patch("chatterbox_tts.audio.AudioPlayer")
     @patch("chatterbox_tts.engine.ChatterboxEngine")
-    def test_cmd_speak_plays_without_output(self, mock_engine_cls, mock_player_cls):
+    def test_cmd_speak_plays_without_output(self, mock_engine_cls, mock_player_cls, mock_cached):
         from chatterbox_tts.cli import cmd_speak
 
         engine = MagicMock()

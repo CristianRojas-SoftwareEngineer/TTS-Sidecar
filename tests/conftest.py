@@ -1,22 +1,22 @@
-"""Pytest fixtures for tts-sidecar tests."""
+"""Fixtures de pytest para los tests de tts-sidecar."""
 
 import pytest
 import sys
 from pathlib import Path
 
-# Ensure src is on path
+# Asegura que src/ esté en el path para imports relativos al proyecto
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 @pytest.fixture
 def mock_engine():
-    """Mock ChatterboxEngine for CLI tests."""
+    """Mock de ChatterboxEngine para los tests del CLI."""
     class MockEngine:
         def __init__(self):
             self.list_voices_calls = []
 
         def speak(self, text, voice_audio=None, speech_audio=None, output_path=None, verbose=False):
-            # Return minimal WAV header (44 bytes)
+            # Devuelve un header WAV mínimo (44 bytes)
             return b"RIFF" + b"\x00" * 40
 
         def add_voice(self, name, reference_audio, speech_audio):
@@ -33,7 +33,7 @@ def mock_engine():
 
 @pytest.fixture
 def mock_daemon_client():
-    """Mock DaemonIPCClient for CLI tests."""
+    """Mock de DaemonIPCClient para los tests del CLI."""
     class MockDaemonClient:
         def __init__(self):
             self.calls = []
@@ -41,7 +41,7 @@ def mock_daemon_client():
         def synthesize(self, text, voice_audio=None, speech_audio=None,
                         model=None, device=None):
             self.calls.append({"text": text})
-            # Return minimal WAV
+            # Devuelve un WAV mínimo
             return b"RIFF" + b"\x00" * 40
 
         def is_running(self):

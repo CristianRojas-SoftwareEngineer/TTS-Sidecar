@@ -11,7 +11,7 @@ Sistema de síntesis de voz (TTS) **100% local** con clonación de voz en **espa
 
 - **Clonación de voz**: ~10 segundos de audio de referencia
 - **100% offline**: Sin APIs externas ni conexiones a internet
-- **Single-file installer**: Un ejecutable por plataforma
+- **Instalador por plataforma**: Un instalador único por SO que despliega el bundle PyInstaller `--onedir` (carpeta de la aplicación)
 - **CLI universal**: `subprocess.run(["./tts-sidecar", "speak", "--text", "..."])`
 - **Audio nativo**: APIs nativas del sistema operativo
 
@@ -22,17 +22,33 @@ Sistema de síntesis de voz (TTS) **100% local** con clonación de voz en **espa
 Descarga el ejecutable para tu plataforma desde [Releases](https://github.com/resemble-ai/tts-sidecar/releases):
 
 ```bash
-# Windows
-tts-sidecar-windows.exe install
+# Windows (instalador): ejecuta el .exe del instalador. Agrega tts-sidecar al PATH,
+# muestra una página informativa sobre el modelo y ofrece una casilla para
+# descargarlo (ejecuta 'tts-sidecar setup') al terminar.
 
-# Linux
+# Linux: deja el binario accesible (p. ej. en el PATH) y provisiona el modelo
 chmod +x tts-sidecar-linux-x86_64
-./tts-sidecar-linux-x86_64 install
+./tts-sidecar-linux-x86_64 setup
 
-# macOS
+# macOS: igual que Linux
 chmod +x tts-sidecar-macos-universal2
-./tts-sidecar-macos-universal2 install
+./tts-sidecar-macos-universal2 setup
 ```
+
+### Provisión del modelo (`setup`)
+
+El modelo de voz **`es-mx-latam`** (varios cientos de MB) **no** viene incluido en
+el ejecutable: se descarga una sola vez a la caché de HuggingFace de tu usuario
+(`~/.cache/huggingface/hub`). Esto es homólogo en los 3 SO:
+
+- **Windows**: el instalador ofrece una casilla post-instalación que ejecuta
+  `setup` por ti, en tu contexto de usuario.
+- **Linux / macOS**: ejecuta `tts-sidecar setup` manualmente tras instalar.
+
+`setup` corre los chequeos de entorno (igual que `doctor`) y descarga el modelo
+solo si falta; si ya está cacheado, termina al instante sin descargar. Hasta que
+el modelo esté provisionado, `speak` y `daemon start` **fallan de inmediato** y te
+remiten a `tts-sidecar setup` (nunca disparan una descarga silenciosa).
 
 ### Opción 2: Compilar desde código
 
@@ -81,7 +97,7 @@ tts-sidecar voice remove --name X       # Eliminar voz
 tts-sidecar voice list                  # Listar voces (--json disponible)
 tts-sidecar devices                     # Dispositivos de audio (--json disponible)
 tts-sidecar doctor                      # Diagnóstico (--json disponible)
-tts-sidecar install                     # Descargar modelo
+tts-sidecar setup                       # Provisionar: chequeos + descargar modelo si falta
 tts-sidecar version                     # Versión (--json disponible)
 ```
 
@@ -113,16 +129,16 @@ new ProcessBuilder("./tts-sidecar", "speak", "--text", "Hola").start()
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│              tts-sidecar (CLI binary)                │
-│   Built with PyInstaller: single-file, no dependencies   │
+│              tts-sidecar (binario CLI)              │
+│   Compilado con PyInstaller --onedir (carpeta de app) │
 └──────────────────────┬──────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────┐
 │           Chatterbox Multilingual V3                 │
-│   Model: ResembleAI/chatterbox-multilingual         │
-│   License: MIT                                      │
-│   Languages: 23+ (incl. Spanish es)                  │
+│   Modelo: es-mx-latam (caché de HuggingFace)        │
+│   Licencia: MIT                                     │
+│   Idiomas: 23+ (incl. español es)                    │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -134,4 +150,6 @@ MIT — Uso comercial libre.
 
 - [docs/GOAL.md](docs/GOAL.md) - Meta del proyecto
 - [docs/DESIGN.md](docs/DESIGN.md) - Diseño técnico
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Arquitectura del sistema
 - [docs/DAEMON-MODE.md](docs/DAEMON-MODE.md) - Daemon mode (servidor persistente)
+- [docs/BUILD.md](docs/BUILD.md) - Guía de compilación PyInstaller

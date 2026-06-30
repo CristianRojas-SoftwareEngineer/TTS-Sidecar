@@ -1,17 +1,18 @@
 """
-Shared timing utilities for tts-sidecar.
+Utilidades de temporización compartidas para tts-sidecar.
 """
 
 import time
 from datetime import datetime
 from functools import wraps
+from typing import Optional
 
 
-def log(msg: str, duration: float = None):
-    """Print a log message with consistent formatting.
+def log(msg: str, duration: Optional[float] = None):
+    """Imprime un mensaje de log con formato consistente.
 
-    Format: [HH:MM:SS] Message -> Done (Xs)
-    If duration is None, just prints: [HH:MM:SS] Message...
+    Sin duration: [HH:MM:SS] Mensaje...
+    Con duration: [HH:MM:SS] Mensaje -> Done (Xs)
     """
     now = datetime.now().strftime("%H:%M:%S")
     if duration is not None:
@@ -21,10 +22,10 @@ def log(msg: str, duration: float = None):
 
 
 def timed_command(func):
-    """Decorator to add timing info to CLI command functions.
+    """Decorador que añade información de tiempo a funciones de comando CLI.
 
-    Logs command start and finish (no [HH:MM:SS] — timestamps are
-    handled by StageTimer/log to avoid duplication).
+    Registra el inicio y el fin del comando. Los timestamps los maneja
+    StageTimer/log para evitar duplicación.
     """
     @wraps(func)
     def wrapper(args):
@@ -43,12 +44,9 @@ def timed_command(func):
 
 
 def timed(stage_name: str):
-    """Decorator that logs timing for a function as a stage.
+    """Decorador que registra el tiempo de ejecución de una función como etapa.
 
-    Usage:
-        @timed("StageName")
-        def my_function():
-            print(f"[HH:MM:SS] [StageName] Doing stuff...")
+    Usa log() para imprimir la duración al terminar la función.
     """
     def decorator(func):
         @wraps(func)
@@ -63,12 +61,13 @@ def timed(stage_name: str):
 
 
 class StageTimer:
-    """Context manager for timing a code block.
+    """Context manager para temporizar un bloque de código.
 
-    Usage:
-        with StageTimer("MyStage", "Description"):
-            # code to time
-            print(f"[HH:MM:SS] [MyStage] Doing stuff...")
+    Imprime el inicio con log() al entrar y la duración al salir.
+
+    Uso:
+        with StageTimer("MiEtapa", "Descripción"):
+            # código a temporizar
     """
 
     def __init__(self, name: str, description: str = None):

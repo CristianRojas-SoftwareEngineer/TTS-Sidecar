@@ -177,6 +177,11 @@ def _get_version():
 
 
 def _info_plist_content(version):
+    """Genera el contenido XML del Info.plist del bundle .app para macOS.
+
+    Define los metadatos del bundle (CFBundleIdentifier, CFBundleVersion, etc.)
+    que macOS usa para identificar la aplicación en el sistema.
+    """
     return f"""\
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

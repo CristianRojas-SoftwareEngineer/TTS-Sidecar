@@ -6,7 +6,7 @@
 
 - **Licencia**: MIT (código y modelo)
 - **Idiomas**: 23+ incluyendo Español (es)
-- **Clonación**: Audio prompt path (~10 segundos)
+- **Clonación**: diseño dual-audio (`reference.wav` + `speech.wav`, ~10 segundos)
 - **Parámetros del modelo**: 500M
 - **Hardware**: CPU, CUDA, MPS (Apple Silicon)
 
@@ -16,26 +16,26 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              tts-sidecar (CLI binary)                       │
-│   Single-file executable per OS (Windows, Linux, macOS)    │
-│   Built with PyInstaller: embedded Python interpreter             │
+│              tts-sidecar (binario CLI)                     │
+│   Instalador por SO (Windows, Linux, macOS)                │
+│   Bundle PyInstaller --onedir con intérprete embebido      │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │           Chatterbox Multilingual V3                         │
-│   Model: ResembleAI/chatterbox-multilingual               │
-│   License: MIT                                            │
-│   Languages: 23+ (Spanish, English, French, etc.)          │
-│   Inference: CPU / CUDA / MPS                             │
+│   Modelo: es-mx-latam (caché de HuggingFace)              │
+│   Licencia: MIT                                           │
+│   Idiomas: 23+ (español, inglés, francés, etc.)            │
+│   Inferencia: CPU / CUDA / MPS                            │
 └─────────────────────────────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│           Audio Playback (Native APIs)                       │
-│   Windows: pycaw (WASAPI) / winsound fallback             │
-│   Linux: sounddevice (PortAudio) / pyalsaaudio            │
-│   macOS: afplay (built-in) / AVFoundation                │
+│           Reproducción de audio (APIs nativas)              │
+│   Windows: pycaw (WASAPI) / winsound (fallback)          │
+│   Linux: sounddevice (PortAudio) / pyalsaaudio          │
+│   macOS: afplay (nativo) / AVFoundation                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -44,34 +44,30 @@
 ```
 tts-sidecar/
 ├── src/
-│   └── chatterbox_tts/           # Python package
-│       ├── __init__.py            # Lazy imports
-│       ├── engine.py              # ChatterboxTTS wrapper
-│       ├── audio.py               # Cross-platform audio playback
-│       ├── timing.py              # Instrumentation and timing
-│       ├── cli.py                 # CLI interface (14 commands)
+│   └── chatterbox_tts/           # Paquete Python
+│       ├── __init__.py            # Imports perezosos (lazy)
+│       ├── engine.py              # Wrapper de ChatterboxTTS
+│       ├── audio.py               # Reproducción de audio multiplataforma
+│       ├── timing.py              # Instrumentación y timing
+│       ├── cli.py                 # Interfaz CLI
 │       └── daemon/                # Daemon mode (FastAPI + IPC)
-│           ├── daemon.py          # Lifecycle manager
-│           ├── server.py          # FastAPI endpoints
-│           ├── ipc.py             # HTTP client for daemon
-│           ├── protocol.py        # Pydantic models
+│           ├── daemon.py          # Gestor del ciclo de vida
+│           ├── server.py          # Endpoints FastAPI
+│           ├── ipc.py             # Cliente HTTP del daemon
+│           ├── protocol.py        # Modelos Pydantic
 │           └── run.py             # Entry point
 ├── bin/
-│   └── tts-sidecar               # Entry point script
+│   └── tts-sidecar               # Script de entry point
 ├── scripts/
-│   ├── build_windows.py          # PyInstaller build for Windows
-│   ├── build_linux.py            # PyInstaller build for Linux
-│   ├── build_macos.py            # PyInstaller build for macOS
-│   └── install.py                 # Model download + setup
-├── models/                       # Chatterbox model cache
-│   └── chatterbox-multilingual/
-├── voices/                       # User voice clones
+│   ├── build_windows.py          # Build PyInstaller para Windows
+│   ├── build_linux.py            # Build PyInstaller para Linux
+│   ├── build_macos.py            # Build PyInstaller para macOS
+│   └── install.py                 # Descarga del modelo + setup
+├── voices/                       # Voces clonadas del usuario
 │   └── mi_voz/
-│       ├── reference.wav         # Voice timbre (any length)
+│       ├── reference.wav         # Timbre de voz (cualquier largo)
 │       └── speech.wav            # Conditioning (10s+)
-├── config/
-│   └── config.toml               # Configuration file
-├── assets/                       # Audio samples
+├── assets/                       # Audios de prueba
 │   ├── Voice Sampler.wav
 │   └── Speech Sampler.wav
 ├── tests/                        # Pytest test suite
@@ -83,43 +79,48 @@ tts-sidecar/
     └── DAEMON-MODE.md            # Daemon mode
 ```
 
+> El modelo `es-mx-latam` no vive en el repo ni en el bundle: reside en la caché
+> de HuggingFace del usuario (`~/.cache/huggingface/hub`) tras `tts-sidecar setup`.
+
 ## Motor Chatterbox Multilingual V3
 
 | Aspecto | Detalle |
 |---------|---------|
-| **Modelo** | `ResembleAI/chatterbox-multilingual` |
+| **Modelo** | `es-mx-latam` (`ResembleAI/Chatterbox-Multilingual-es-mx-latam`) |
 | **Licencia** | MIT |
 | **Parámetros** | 500M |
 | **Idiomas** | 23+ (es, en, fr, de, pt, etc.) |
-| **Clonación de voz** | Audio prompt path (~10s de audio) |
-| **Inference** | CPU, CUDA, MPS |
+| **Clonación de voz** | Diseño dual-audio (`reference.wav` + `speech.wav`, ~10s) |
+| **Inferencia** | CPU, CUDA, MPS |
 
 ## Flujo de síntesis
 
 ```
-1. User runs: tts-sidecar speak --text "Hola" -v mi_voz
+1. El usuario ejecuta: tts-sidecar speak --text "Hola" -v mi_voz
                     │
                     ▼
-2. CLI parses args, loads ChatterboxEngine
+2. La CLI parsea argumentos y carga ChatterboxEngine
                     │
                     ▼
-3. ChatterboxTTS.generate(text, language=es, audio_prompt_path=voices/mi_voz/reference.wav)
+3. ChatterboxTTS.generate(text, language=es,
+       reference.wav → Voice Encoder (timbre),
+       speech.wav    → T3 conditioning + S3Gen decoder)
                     │
                     ▼
-4. Model outputs WAV audio (24kHz, mono)
+4. El modelo produce audio WAV (24kHz, mono)
                     │
                     ▼
-5. AudioPlayer.play() → Native OS audio API
+5. AudioPlayer.play() → API de audio nativa del SO
                     │
                     ▼
-6. User hears speech in Spanish with voice clone
+6. El usuario escucha el habla en español con la voz clonada
 ```
 
 ## Comandos CLI
 
 ```bash
-# Instalación (primera vez)
-tts-sidecar install
+# Provisión (primera vez - chequeos + descarga el modelo si falta)
+tts-sidecar setup
 
 # Síntesis básica
 tts-sidecar speak --text "Hola mundo"
@@ -159,13 +160,16 @@ std::process::Command::new("./tts-sidecar").args(["speak", "--text", "Hola"]).ou
 
 ## Por qué Python + PyInstaller
 
-| Criterio | Rust actual | Python + PyInstaller |
-|----------|-------------|----------------------|
+> La columna «Rust (alternativa descartada)» documenta un enfoque evaluado y
+> abandonado; el proyecto usa Python + PyInstaller.
+
+| Criterio | Rust (alternativa descartada) | Python + PyInstaller (actual) |
+|----------|-------------------------------|-------------------------------|
 | Motor TTS | ONNX (ort) | Chatterbox directo |
 | Licencia | MIT | MIT |
-| Single-file installer | No (Rust no bundlea Python) | ✅ Sí (PyInstaller bundles interpreter) |
-| Dependencias usuario | Rust toolchain | Ninguna |
-| Tamaño estimado | ~100MB binario | ~500MB-1GB (con modelo) |
+| Empaquetado | No bundlea Python | Bundle `--onedir` con intérprete embebido |
+| Dependencias usuario | Toolchain de Rust | Ninguna |
+| Tamaño estimado | ~100MB binario | ~500MB-1GB (sin el modelo, que va aparte) |
 
 ## Compilación PyInstaller
 

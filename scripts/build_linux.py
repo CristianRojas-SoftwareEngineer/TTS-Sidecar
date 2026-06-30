@@ -44,7 +44,7 @@ def check_dependencies():
             if result.returncode != 0:
                 sys.exit(1)
 
-        # appimage-builder is used to generate the AppImage
+        # appimage-builder genera el AppImage a partir del bundle onedir
         try:
             import appimagebuilder
             log("appimage-builder: installed")
@@ -62,7 +62,7 @@ def build_linux(target_arch="x86_64"):
     """Build Linux with PyInstaller --onedir and package as AppImage."""
     arch_map = {"x86_64": "x86_64", "arm64": "aarch64"}
     arch_suffix = arch_map.get(target_arch, "x86_64")
-    appimage_arch = {"x86_64": "x86_64", "arm64": "aarch64"}.get(target_arch, "x86_64")
+    appimage_arch = arch_suffix  # mismo mapeo; alias para mayor claridad en la sección AppImage
 
     with BuildTimer():
         with StageTimer("Setup", "Setting up build environment"):

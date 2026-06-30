@@ -32,24 +32,27 @@ Implementar y validar la síntesis en español latinoamericano con voz propia de
 ```
 tts-sidecar/
 ├── src/
-│   └── chatterbox_tts/       # Python package
+│   └── chatterbox_tts/       # Paquete Python
 │       ├── __init__.py
 │       ├── engine.py         # Wrapper de Chatterbox
-│       ├── audio.py          # Audio playback nativo
+│       ├── audio.py          # Reproducción de audio nativa
 │       ├── cli.py            # Interfaz CLI
-│       ├── timing.py         # Instrumentation y timing
+│       ├── timing.py         # Instrumentación y timing
 │       └── daemon/           # Daemon mode (FastAPI + IPC)
-│           ├── daemon.py    # Lifecycle manager
-│           ├── server.py    # FastAPI endpoints
-│           ├── ipc.py       # HTTP client
-│           ├── protocol.py  # Pydantic models
+│           ├── daemon.py    # Gestor del ciclo de vida
+│           ├── server.py    # Endpoints FastAPI
+│           ├── ipc.py       # Cliente HTTP
+│           ├── protocol.py  # Modelos Pydantic
 │           └── run.py       # Entry point
 ├── bin/
-│   └── tts-sidecar          # Entry point script
-├── scripts/                  # Build scripts por SO
-├── models/                   # Modelos Chatterbox
+│   └── tts-sidecar          # Script de entry point
+├── scripts/                  # Scripts de build por SO
+├── tests/                    # Suite de tests pytest
 └── docs/
 ```
+
+> El modelo `es-mx-latam` no se almacena en el repo: reside en la caché de
+> HuggingFace del usuario (`~/.cache/huggingface/hub`) tras `tts-sidecar setup`.
 
 ---
 
@@ -62,8 +65,8 @@ overhead de carga en cada invocación. Por eso su ciclo de vida envuelve toda la
 sesión: se arranca antes de sintetizar y se detiene al final.
 
 ```bash
-# 1. Instalación (primera vez - descarga el modelo)
-./tts-sidecar install
+# 1. Provisión (primera vez - chequeos + descarga el modelo si falta)
+./tts-sidecar setup
 
 # 2. Diagnóstico del sistema (no depende de nada)
 ./tts-sidecar version              # Versión instalada
@@ -104,15 +107,19 @@ sesión: se arranca antes de sintetizar y se detiene al final.
 
 ## Criterios de Aceptación
 
-1. [x] El instalador de Windows (.exe) funciona en Windows 10/11 sin dependencias
-2. [x] El instalador de Linux funciona en distribuciones principales
-3. [x] El instalador de macOS funciona en macOS 12+
+<!-- Los criterios 1-3 son claims de ejecución por SO: el pipeline de build (CI +
+scripts/build_*.py) produce los instaladores, pero la validación end-to-end sobre
+cada SO no es verificable desde el repo, por eso quedan pendientes. -->
+
+1. [ ] El instalador de Windows (.exe) funciona en Windows 10/11 sin dependencias (validación por SO pendiente)
+2. [ ] El instalador de Linux funciona en distribuciones principales (validación por SO pendiente)
+3. [ ] El instalador de macOS funciona en macOS 12+ (validación por SO pendiente)
 4. [x] `tts-sidecar speak --text "Hola mundo"` reproduce audio en español
 5. [x] `tts-sidecar voice add --name test --reference ref.wav --speech speech.wav` clona la voz
 6. [x] El audio generado suena en español con las características de la voz de referencia
 7. [x] El español latinoamericano suena natural y con buena prosodia
 8. [x] La síntesis funciona sin conexión a internet (modelo en local)
-9. [x] El instalador incluye todo lo necesario (no requiere instalaciones adicionales)
+9. [ ] El instalador incluye todo lo necesario (no requiere instalaciones adicionales) (validación por SO pendiente)
 
 ---
 
@@ -124,19 +131,20 @@ La implementación está completa únicamente cuando:
 - [x] La clonación de voz funciona con una muestra de ~10 segundos
 - [x] El audio generado preserva las características de la voz original
 - [x] El español latinoamericano suena natural
-- [x] Hay un instalador standalone por cada SO (Windows, Linux, macOS)
-- [x] Los instaladores funcionan sin ninguna dependencia externa
+- [x] Hay scripts de build e instalador por cada SO (Windows, Linux, macOS) en el pipeline de CI
+- [ ] Los instaladores funcionan sin ninguna dependencia externa (validación end-to-end por SO pendiente)
 - [x] **README.md** refleja la nueva arquitectura con Chatterbox
 - [x] **docs/DESIGN.md** corresponde al estado implementado
 - [x] El daemon mode está implementado y funciona correctamente
 - [x] Los logs están normalizados con estructura consistente
-- [x] Los tests pytest pasan (31/31)
+- [x] Los tests pytest pasan (37/37)
 
 ---
 
 ## Estado Actual
 
-**Completado (100%):**
+**Implementado y verificable en el repo** (la validación end-to-end de los
+instaladores por SO queda pendiente, ver Criterios de Aceptación):
 - Motor Chatterbox Multilingual V3 implementado (Python)
 - Sistema de audio playback nativo por SO (pycaw/winsound/sounddevice/afplay)
 - Daemon mode con IPC HTTP (FastAPI, puerto 8765)

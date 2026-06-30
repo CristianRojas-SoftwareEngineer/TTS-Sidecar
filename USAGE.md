@@ -2,21 +2,51 @@
 
 ## Instalación
 
-### 1. Instalar dependencias Python
+Hay dos flujos según la audiencia: el del **usuario del binario** (instala el
+ejecutable distribuido por SO) y el del **desarrollador** (ejecuta desde el código
+fuente con dependencias Python).
+
+### Usuario del binario
+
+Instala el ejecutable de tu plataforma desde Releases y déjalo accesible en el
+PATH (en Windows el instalador lo agrega automáticamente). Luego invoca:
 
 ```bash
+tts-sidecar <comando>
+```
+
+### Desarrollador (desde el código fuente)
+
+```bash
+# 1. Instalar dependencias Python
 pip install chatterbox-tts
+
+# 2. Ejecutar desde el código fuente
+python bin/tts-sidecar <comando>
 ```
 
-### 2. Ejecutar
+### 3. Provisionar el modelo (`setup`)
+
+El modelo de voz `es-mx-latam` (varios cientos de MB) no viene incluido: se
+descarga una sola vez a `~/.cache/huggingface/hub` mediante el comando `setup`.
 
 ```bash
-# En desarrollo
-python bin/tts-sidecar <comando>
-
-# En Windows (después de compilar)
-tts-sidecar.exe <comando>
+tts-sidecar setup
 ```
+
+`setup` corre los chequeos de entorno (igual que `doctor`) y descarga el modelo
+solo si falta; si ya está cacheado, termina sin descargar (idempotente).
+
+**Provisión por SO** (experiencia homóloga):
+
+- **Windows**: el instalador agrega `tts-sidecar` al PATH y ofrece una casilla
+  post-instalación que ejecuta `setup` en tu contexto de usuario.
+- **Linux / macOS**: tras instalar y dejar el binario accesible (p. ej. en el
+  PATH), ejecuta `tts-sidecar setup` manualmente.
+
+> **Importante**: hasta que el modelo esté provisionado, `speak` y `daemon start`
+> **abortan de inmediato** con un mensaje que remite a `tts-sidecar setup`. Nunca
+> disparan una descarga silenciosa.
 
 ## Comandos
 
@@ -119,7 +149,7 @@ tts-sidecar speak --text "Hola mundo" --output output.wav
 - `--speech-audio`: Ruta a archivo de audio para conditioning (usa --voice-audio si no se especifica)
 - `--daemon`: Usar el daemon si está disponible (default: automático)
 - `--no-daemon`: Forzar modo directo, ignorar daemon
-- `--device, -d`: Device para inferencia (`cpu`, `cuda`, `mps`)
+- `--device, -d`: Dispositivo para inferencia (`cpu`, `cuda`, `mps`)
 
 **Ejemplo completo:**
 ```bash
@@ -184,7 +214,7 @@ El daemon aplica valores optimizados automáticamente:
 |-----------|-------|-------------|
 | `max_new_tokens` | 500 | Limita el output del T3 (default: 1000) |
 | `n_cfm_timesteps` | 4 | Pasos de flow matching (default: 10) |
-| `exaggeration` | 0.75 | Expressiveness emocional (default: 0.5) |
+| `exaggeration` | 0.75 | Expresividad emocional (default: 0.5) |
 
 Los tiempos de `[Stage 2a]` (T3 autoregresivo) y `[Stage 2b]` (S3Gen vocoder) se muestran en el output cuando se usa el daemon.
 

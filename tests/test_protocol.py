@@ -1,4 +1,4 @@
-"""Tests for daemon/protocol.py Pydantic models."""
+"""Tests para los modelos Pydantic de daemon/protocol.py."""
 
 import pytest
 import sys
@@ -17,7 +17,7 @@ class TestSynthesizeRequest:
     def test_valid_request(self):
         req = SynthesizeRequest(text="hola mundo")
         assert req.text == "hola mundo"
-        assert req.model == "es-latam"
+        assert req.model == "es-mx-latam"
         assert req.device == "cpu"
 
     def test_full_request(self):

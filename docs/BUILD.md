@@ -96,9 +96,18 @@ pytest tests/ -v
 dist/tts-sidecar/tts-sidecar.exe version
 dist/tts-sidecar/tts-sidecar.exe doctor
 
+# Provisionar el modelo es-mx-latam (chequeos + descarga si falta; idempotente)
+dist/tts-sidecar/tts-sidecar.exe setup
+
 # Instalador (Windows)
 dist/tts-sidecar-0.1.0-setup.exe
 ```
+
+> El instalador de Windows agrega `{app}` al `PATH` del sistema, muestra una página
+> informativa sobre el modelo y ofrece una casilla post-instalación que ejecuta
+> `setup` en contexto de usuario. En Linux/macOS, ejecuta `tts-sidecar setup`
+> manualmente tras instalar. El modelo `es-mx-latam` se descarga a
+> `~/.cache/huggingface/hub` y no se empaqueta en el ejecutable.
 
 ---
 
@@ -194,7 +203,8 @@ Los paquetes que requieren `--collect-all` son: `chatterbox`, `transformers`,
 - **PyInstaller --onedir**: genera una carpeta con el ejecutable y todas las dependencias
   (~1.7 GB sin comprimir). Es el artefacto que el script de empaquetado consume.
 - **Tiempo de build**: ~10 min en frío, ~5 min incremental.
-- **Windows**: el instalador Inno Setup es el artefacto que recibe el usuario final.
+- **Windows**: el instalador Inno Setup es el artefacto que recibe el usuario final;
+  ajusta el `PATH`, muestra la página informativa del modelo y ofrece ejecutar `setup`.
 - **Linux**: el AppImage es un único archivo ejecutable, compatible con la mayoría de distribuciones.
 - **macOS**: el `.dmg` es el instalador estándar de macOS; el `.app` bundle es la aplicación.
 - **macOS code signing**: para distribución fuera de App Store se recomienda firmar/notarize el `.app`.

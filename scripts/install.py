@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-Installer script for Chatterbox TTS.
-Downloads the model and configures the environment.
-Run as: python install.py
-Or after compilation: ./tts-sidecar install
+Script de instalación para Chatterbox TTS.
+Descarga el modelo y configura el entorno.
+Ejecutar como: python install.py
+
+Nota: este script es un artefacto histórico. La provisión del modelo se realiza
+hoy con el comando integrado en el CLI: tts-sidecar setup
 """
 
 import os
@@ -12,13 +14,13 @@ import platform
 import subprocess
 from pathlib import Path
 
-# Import shared logging utilities
+# Importar utilidades de logging compartidas
 sys.path.insert(0, str(Path(__file__).parent))
 from build_utils import log, StageTimer
 
 
 def get_install_dir():
-    """Get the installation directory for models and config."""
+    """Devuelve el directorio de instalación de modelos y configuración."""
     install_dir = os.environ.get("TTS_SIDECAR_HOME")
     if install_dir:
         return Path(install_dir)
@@ -37,8 +39,8 @@ def get_install_dir():
 
 
 def install_dependencies():
-    """Install Python dependencies."""
-    with StageTimer("Dependencies", "Installing Python dependencies"):
+    """Instala las dependencias Python."""
+    with StageTimer("Dependencies", "Instalando dependencias Python"):
         deps = ["chatterbox-tts"]
         system = platform.system()
         if system == "Windows":
@@ -53,32 +55,36 @@ def install_dependencies():
 
 
 def download_model(install_dir: Path):
-    """Download the Chatterbox model."""
-    with StageTimer("Download", "Downloading Chatterbox Multilingual V3 model"):
+    """Descarga el modelo Chatterbox."""
+    with StageTimer("Download", "Descargando modelo Chatterbox Multilingual V3"):
         try:
             from chatterbox.tts import ChatterboxTTS
+            # TODO: model_path no se usa; el modelo descargado por from_pretrained
+            # va a la caché de HuggingFace (~/.cache/huggingface/hub), no a este path
             model_path = install_dir / "models" / "chatterbox-multilingual"
             model_path.mkdir(parents=True, exist_ok=True)
-            log(f"Downloading to: {model_path}")
-            ChatterboxTTS.from_pretrained("ResembleAI/chatterbox-multilingual")
+            log(f"Descargando a: {model_path}")
+            ChatterboxTTS.from_pretrained("ResembleAI/Chatterbox-Multilingual-es-mx-latam")
         except Exception as e:
-            log(f"Model download failed: {e}")
+            log(f"Descarga del modelo fallida: {e}")
             raise
 
 
 def create_directories(install_dir: Path):
-    """Create necessary directories."""
-    with StageTimer("Dirs", "Creating directories"):
+    """Crea los directorios necesarios."""
+    with StageTimer("Dirs", "Creando directorios"):
         (install_dir / "models").mkdir(parents=True, exist_ok=True)
         (install_dir / "voices").mkdir(parents=True, exist_ok=True)
         (install_dir / "config").mkdir(parents=True, exist_ok=True)
-        log(f"Install directory: {install_dir}")
+        log(f"Directorio de instalación: {install_dir}")
 
 
 def create_config(install_dir: Path):
-    """Create default configuration."""
+    """Crea la configuración por defecto."""
     import json
-    with StageTimer("Config", "Creating configuration"):
+    with StageTimer("Config", "Creando configuración"):
+        # TODO: config.json no es leído por ningún módulo del engine ni del CLI;
+        # la configuración se gestiona vía argumentos CLI y variables de entorno
         config = {
             "model_path": str(install_dir / "models" / "chatterbox-multilingual"),
             "voices_path": str(install_dir / "voices"),
@@ -89,26 +95,26 @@ def create_config(install_dir: Path):
         config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(config_path, "w") as f:
             json.dump(config, f, indent=2)
-        log(f"Config saved: {config_path}")
+        log(f"Configuración guardada: {config_path}")
 
 
 def main():
     import time
     start = time.time()
     print()
-    log("=== INSTALL STARTED ===")
-    log(f"Platform: {platform.system()} {platform.release()}")
+    log("=== INSTALACIÓN INICIADA ===")
+    log(f"Plataforma: {platform.system()} {platform.release()}")
     log(f"Python: {sys.version.split()[0]}")
 
     install_dir = get_install_dir()
-    log(f"Install directory: {install_dir}")
+    log(f"Directorio de instalación: {install_dir}")
 
     create_directories(install_dir)
     install_dependencies()
     download_model(install_dir)
     create_config(install_dir)
 
-    log("=== INSTALL COMPLETED ===", time.time() - start)
+    log("=== INSTALACIÓN COMPLETADA ===", time.time() - start)
     print()
 
 

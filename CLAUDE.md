@@ -32,7 +32,7 @@ python -m py_compile src/chatterbox_tts/cli.py
 ```
 bin/tts-sidecar              # Entry point (suprime warnings, delegar a cli.main)
 src/chatterbox_tts/
-├── cli.py                   # CLI con argparse (speak, voice, daemon, devices, doctor, install, version)
+├── cli.py                   # CLI con argparse (speak, voice, daemon, devices, doctor, setup, version)
 ├── engine.py                # Wrapper Chatterbox + síntesis
 ├── audio.py                 # Playback multiplataforma
 ├── timing.py                # StageTimer, log(), timed_command
@@ -90,9 +90,22 @@ Cada voz registrada contiene dos archivos:
 tts-sidecar voice add --name mi_voz --reference timbre.wav --speech condicion.wav
 ```
 
+## Modelo y provisión
+
+El alias de modelo expuesto por el CLI es **`es-mx-latam`** (repo oficial
+`ResembleAI/Chatterbox-Multilingual-es-mx-latam`); el modelo no se empaqueta en el
+ejecutable y se descarga a `~/.cache/huggingface/hub` mediante `setup`. `setup`
+corre los chequeos de `doctor` y descarga el modelo solo si falta (idempotente).
+`speak` y `daemon start` **fallan rápido** (vía `is_model_cached`) si el modelo no
+está cacheado, remitiendo a `tts-sidecar setup` sin disparar descargas. En Windows
+el instalador agrega `{app}` al PATH y ofrece una casilla que ejecuta `setup`.
+
 ## Comandos CLI
 
 ```bash
+# Provisión del modelo (chequeos + descarga si falta; idempotente)
+tts-sidecar setup
+
 # Daemon mode
 tts-sidecar daemon start              # Iniciar daemon
 tts-sidecar daemon stop                 # Detener daemon
@@ -129,18 +142,19 @@ assets/                  # Audios de prueba
 └── Voice Sampler.wav
 
 src/chatterbox_tts/      # Código fuente Python
-├── daemon/              # Daemon mode
-├── tests/               # Tests pytest (37 tests)
-│   ├── conftest.py
-│   ├── test_timing.py
-│   ├── test_protocol.py
-│   ├── test_daemon.py
-│   └── test_cli.py
+└── daemon/              # Daemon mode
+
+tests/                   # Tests pytest (37 tests)
+├── conftest.py
+├── test_timing.py
+├── test_protocol.py
+├── test_daemon.py
+└── test_cli.py
 ```
 
 ## Warnings silenciados
 
-`bin/tts-sidecar` silencie:
+`bin/tts-sidecar` silencia:
 - `pkg_resources deprecation`
 - `diffusers LoRACompatibleLinear`
 - `huggingface_hub` HTTP warnings

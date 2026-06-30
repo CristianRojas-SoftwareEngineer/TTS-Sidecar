@@ -1,6 +1,6 @@
 """
-Daemon lifecycle manager for tts-sidecar.
-Handles start/stop/restart/status commands.
+Gestor del ciclo de vida del daemon de tts-sidecar.
+Maneja los comandos start/stop/restart/status.
 """
 
 import os
@@ -20,14 +20,13 @@ from .. import paths
 
 class DaemonManager:
     """
-    Manages the tts-sidecar daemon lifecycle.
+    Gestor del ciclo de vida del daemon de tts-sidecar.
 
-    Handles start/stop/restart/status commands.
-    Works on Windows, Linux, and Mac.
+    Maneja start/stop/restart/status. Funciona en Windows, Linux y macOS.
     """
 
     DEFAULT_PORT = 8765
-    START_TIMEOUT = 120.0  # Model loading + compilation takes 30-90s
+    START_TIMEOUT = 120.0  # La carga del modelo + compilación tarda 30-90s
 
     def __init__(self, port: int = None):
         self.system = platform.system()
@@ -41,14 +40,14 @@ class DaemonManager:
         max_retries: int = 0,
     ) -> bool:
         """
-        Start the daemon. Idempotent - if daemon is already running, returns True.
+        Inicia el daemon. Idempotente: si ya está corriendo, devuelve True.
         """
-        # Check if already running
+        # Si ya está corriendo no hay nada que hacer
         if self.is_running():
-            print("Daemon already running")
+            print("Daemon ya está corriendo")
             return True
 
-        # Prepare command. En modo congelado el ejecutable no acepta `-m módulo`,
+        # En modo congelado el ejecutable no acepta `-m módulo`,
         # así que se auto-invoca mediante su subcomando `daemon serve`.
         if paths.is_frozen():
             cmd = [sys.executable, "daemon", "serve", "--port", str(self.port)]
@@ -69,8 +68,7 @@ class DaemonManager:
             # Modo fuente: fijar PYTHONPATH para que el subproceso encuentre
             # chatterbox_tts. En modo congelado el ejecutable ya es autocontenido.
             if not paths.is_frozen():
-                # __file__ is src/chatterbox_tts/daemon/daemon.py
-                # 3 dirname gives us the src/ directory (project root)
+                # __file__ es src/chatterbox_tts/daemon/daemon.py → 3 dirname = src/
                 src_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                 if os.path.exists(src_path):
                     env["PYTHONPATH"] = src_path
@@ -92,27 +90,30 @@ class DaemonManager:
                     start_new_session=True,
                 )
 
-            # Wait for daemon to be ready (model loading takes time)
+            # Esperar a que el daemon esté listo (la carga del modelo tarda)
             return self._wait_for_ready()
         else:
-            # Foreground mode (for debugging)
+            # Modo primer plano (para depuración)
             subprocess.run(cmd)
             return True
 
     def stop(self, timeout: float = 10.0) -> bool:
         """
-        Stop the daemon. Returns True when stopped.
+        Detiene el daemon. Devuelve True cuando el daemon ya no está corriendo.
+
+        Intenta un cierre graceful vía HTTP; si el proceso sigue en el puerto
+        tras el intento, lo mata por PID.
         """
-        # Check if running
+        # Verificar si está corriendo
         if not self.is_running():
-            # Even if health check fails, check if something is on the port
+            # Aunque el health check falle, comprobar si algo ocupa el puerto
             pid = self._get_pid_from_port()
             if pid:
                 self._kill_pid(pid)
-            print("Daemon not running")
+            print("Daemon no está corriendo")
             return True
 
-        # Try graceful shutdown via HTTP
+        # Cierre graceful vía HTTP
         try:
             requests.post(
                 f"{self.base_url}/shutdown",
@@ -121,10 +122,10 @@ class DaemonManager:
         except requests.RequestException:
             pass
 
-        # Give it a moment to shut down gracefully
+        # Dar tiempo para que el cierre graceful termine
         time.sleep(0.5)
 
-        # If still running, force kill
+        # Si sigue corriendo, forzar terminación por PID
         if self.is_running():
             pid = self._get_pid_from_port()
             if pid:
@@ -133,15 +134,15 @@ class DaemonManager:
         return not self.is_running()
 
     def restart(self) -> bool:
-        """Restart the daemon. Kills existing and starts fresh."""
-        print("Stopping daemon...")
+        """Reinicia el daemon: detiene el existente y arranca uno nuevo."""
+        print("Deteniendo daemon...")
         self.stop()
         time.sleep(1)
-        print("Starting daemon...")
+        print("Iniciando daemon...")
         return self.start()
 
     def status(self) -> dict:
-        """Get daemon status."""
+        """Devuelve el estado del daemon."""
         if not self.is_running():
             return {"running": False}
 
@@ -161,7 +162,7 @@ class DaemonManager:
         return {"running": True, "status": "unknown"}
 
     def is_running(self) -> bool:
-        """Check if daemon is running and healthy."""
+        """Comprueba si el daemon está corriendo y responde al health check."""
         try:
             response = requests.get(f"{self.base_url}/health", timeout=2)
             return response.status_code == 200
@@ -169,25 +170,25 @@ class DaemonManager:
             return False
 
     def _wait_for_ready(self, timeout: float = None) -> bool:
-        """Wait for daemon to be ready to accept connections."""
+        """Espera hasta que el daemon esté listo para aceptar conexiones."""
         timeout = timeout or self.START_TIMEOUT
         start = time.time()
 
-        print(f"Waiting for daemon to be ready (timeout={timeout}s)...")
+        print(f"Esperando que el daemon esté listo (timeout={timeout}s)...")
         while time.time() - start < timeout:
             if self.is_running():
-                print("Daemon ready")
+                print("Daemon listo")
                 return True
             time.sleep(1)
 
-        print("Timeout waiting for daemon")
+        print("Timeout esperando al daemon")
         return False
 
     def _get_pid_from_port(self) -> Optional[int]:
-        """Get PID of process listening on our port."""
+        """Devuelve el PID del proceso que escucha en el puerto del daemon."""
         try:
             if self.system == "Windows":
-                # Use netstat to get PID
+                # netstat -ano lista procesos con sus PIDs
                 result = subprocess.run(
                     ["netstat", "-ano"],
                     capture_output=True,
@@ -200,7 +201,7 @@ class DaemonManager:
                             if part == "LISTENING" and i < len(parts) - 1:
                                 return int(parts[i + 1])
             else:
-                # Unix - use lsof or ss
+                # Unix: ss extrae el PID del campo "pid=NNNN"
                 result = subprocess.run(
                     ["ss", "-tlnp"],
                     capture_output=True,
@@ -208,7 +209,6 @@ class DaemonManager:
                 )
                 for line in result.stdout.splitlines():
                     if f":{self.port}" in line:
-                        # Extract PID from last column like "pid=1234"
                         import re
                         match = re.search(r"pid=(\d+)", line)
                         if match:
@@ -218,7 +218,7 @@ class DaemonManager:
         return None
 
     def _kill_pid(self, pid: int):
-        """Kill a process by PID."""
+        """Mata un proceso por su PID."""
         try:
             if self.system == "Windows":
                 subprocess.run(["taskkill", "/F", "/PID", str(pid)],

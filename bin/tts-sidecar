@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Entry point for tts-sidecar.
+Entry point de tts-sidecar.
 
-In compiled (PyInstaller --onedir) mode: packages are embedded by PyInstaller,
-sys.path is handled automatically by the embedded interpreter.
-In development mode: the project src/ directory is added to sys.path.
+Modo compilado (PyInstaller --onedir): los paquetes están embebidos por
+PyInstaller y sys.path lo gestiona el intérprete embebido automáticamente.
+Modo desarrollo: se añade el directorio src/ del proyecto a sys.path.
 """
 
 import sys
 import os
 from pathlib import Path
 
-# Suppress all warnings before any import
+# Supresión de warnings antes de cualquier import
 import warnings
 warnings.filterwarnings("ignore")
 os.environ["PYTHONWARNINGS"] = "ignore"
@@ -25,23 +25,21 @@ logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 logging.getLogger("chatterbox.models.tokenizers.tokenizer").setLevel(logging.ERROR)
 logging.getLogger("chatterbox.models.t3.inference.alignment_stream_analyzer").setLevel(logging.ERROR)
 
-# In compiled onefile mode, sys.frozen tells us we're running as a bundle.
-# In that case, the embedded interpreter already has all packages.
-# In development mode (not frozen), add the local src/ to path.
+# En modo congelado (onedir), sys.frozen indica que corremos como bundle;
+# los paquetes están embebidos y no se necesita ajustar el path.
+# En modo desarrollo (no congelado), se añade src/ del proyecto al path.
 if getattr(sys, 'frozen', False):
-    # Running as compiled onefile — packages are embedded, no path changes needed
     pass
 else:
-    # Development mode: add project src/ to path
     _script_dir = Path(__file__).parent.resolve()
     _project_root = _script_dir.parent
     _src_path = _project_root / "src"
     if _src_path.exists():
         sys.path.insert(0, str(_src_path))
 
-# Workaround for Python 3.13+ where pkg_resources was removed from setuptools.
-# The perth package (used by chatterbox) imports pkg_resources at import time,
-# causing a fatal error. We provide a minimal mock before perth is imported.
+# Workaround para Python 3.13+ donde pkg_resources fue eliminado de setuptools.
+# El paquete perth (usado por chatterbox) lo importa en tiempo de import,
+# provocando un error fatal. Proveemos un mock mínimo antes de que perth sea importado.
 if 'pkg_resources' not in sys.modules:
     import importlib.util
     if importlib.util.find_spec('pkg_resources') is None:
@@ -54,10 +52,10 @@ if 'pkg_resources' not in sys.modules:
                 return str(Path(spec.submodule_search_locations[0]) / resource)
             return resource
 
-        # A real module with __spec__: a bare object would make any later
-        # importlib.util.find_spec('pkg_resources') raise
-        # "pkg_resources.__spec__ is not set" (e.g. from daemon/run.py when it
-        # runs in-process via the frozen `daemon serve` subcommand).
+        # El mock debe ser un módulo real con __spec__: un objeto bare haría que
+        # cualquier llamada posterior a importlib.util.find_spec('pkg_resources')
+        # lanzara "pkg_resources.__spec__ is not set" (p.ej. desde daemon/run.py
+        # cuando corre en el mismo proceso vía el subcomando congelado `daemon serve`).
         _mock = types.ModuleType('pkg_resources')
         _mock.resource_filename = _resource_filename
         _mock.__spec__ = importlib.machinery.ModuleSpec('pkg_resources', None)

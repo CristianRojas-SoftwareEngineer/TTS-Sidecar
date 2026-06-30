@@ -27,29 +27,29 @@ El daemon es un servidor HTTP persistente que mantiene el modelo cargado:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                           CLI Client                                 │
+│                          Cliente CLI                                 │
 │                            (cmd_speak)                               │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
                                │ ¿Daemon corriendo?
                                ▼
                     ┌──────────────────────┐
-                    │   Daemon Running?     │
+                    │  ¿Daemon corriendo?   │
                     └──────────┬───────────┘
                                │
               ┌────────────────┴────────────────┐
-              │ NO                                 │ YES
+              │ NO                                 │ SÍ
               ▼                                    ▼
     ┌─────────────────┐                ┌─────────────────────────────┐
-    │ Fallback Mode   │                │  IPC (HTTP)                │
-    │ (direct load)   │                │  127.0.0.1:8765           │
+    │ Modo fallback   │                │  IPC (HTTP)                │
+    │ (carga directa) │                │  127.0.0.1:8765           │
     └─────────────────┘                └──────────┬──────────────────┘
                                                   │
                                                   ▼
                                 ┌───────────────────────────────────┐
                                 │     tts-sidecar-daemon            │
                                 │                                   │
-                                │  - ChatterboxEngine (cached)      │
+                                │  - ChatterboxEngine (cacheado)    │
                                 │  - torch.compile (aplicado)      │
                                 │  - Puerto 8765 (TCP)            │
                                 └───────────────────────────────────┘
@@ -67,10 +67,10 @@ src/chatterbox_tts/
 ├── timing.py           # Instrumentation
 └── daemon/
     ├── __init__.py
-    ├── server.py       # FastAPI server
-    ├── daemon.py       # Lifecycle manager (start/stop/restart)
+    ├── server.py       # Servidor FastAPI
+    ├── daemon.py       # Gestor del ciclo de vida (start/stop/restart)
     ├── ipc.py          # Cliente HTTP para CLI → daemon
-    ├── protocol.py     # Pydantic request/response models
+    ├── protocol.py     # Modelos Pydantic de request/response
     └── run.py          # Entry point: python -m chatterbox_tts.daemon.run
 ```
 
@@ -83,7 +83,7 @@ POST /synthesize
   "text": "Hola mundo",
   "voice_audio": "/path/to/reference.wav",
   "speech_audio": "/path/to/speech.wav",
-  "model": "es-latam",
+  "model": "es-mx-latam",
   "device": "cpu",
   "compile_mode": "default"
 }
@@ -129,7 +129,7 @@ El daemon aplica valores optimizados automáticamente:
 |-----------|-------|-------------|
 | `max_new_tokens` | 500 | Limita output del T3 (default: 1000) |
 | `n_cfm_timesteps` | 4 | Pasos de flow matching (default: 10) |
-| `exaggeration` | 0.75 | Expressiveness emocional (default: 0.5) |
+| `exaggeration` | 0.75 | Expresividad emocional (default: 0.5) |
 
 ## Métricas de Rendimiento
 
@@ -149,9 +149,9 @@ El daemon aplica valores optimizados automáticamente:
 | **Resiliencia** | Retry + auto-restart flag | Ninguna |
 | **torch.compile** | Compartido via proceso daemon | Memory-mapped files |
 
-## Backwards Compatibility
+## Compatibilidad hacia atrás
 
-- **100% backwards compatible**
+- **100% compatible hacia atrás**
 - Ningún comando existente cambia su comportamiento
 - Si daemon no está corriendo, el CLI funciona exactamente igual que antes
 - Flag `--no-daemon` permite forzar modo legacy

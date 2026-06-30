@@ -1,14 +1,21 @@
 """
-Chatterbox TTS - Text-to-Speech with voice cloning
-100% local, MIT licensed, Spanish Latin American support
+Chatterbox TTS — síntesis de voz con clonación de voz.
+100% local, licencia MIT, soporte para español latinoamericano.
 """
 
 __version__ = "0.1.0"
 __author__ = "TTS Sidecar Team"
 __license__ = "MIT"
 
-# Lazy imports to allow --help without dependencies installed
+# Imports perezosos: permite ejecutar --help sin que las dependencias pesadas estén instaladas
 def __getattr__(name):
+    """
+    Resuelve imports perezosos de los símbolos públicos del paquete.
+
+    ChatterboxEngine y AudioPlayer se importan solo cuando se acceden por primera
+    vez, evitando cargar torch/chatterbox al invocar subcomandos ligeros como
+    --help, version o devices.
+    """
     if name == "ChatterboxEngine":
         from .engine import ChatterboxEngine
         return ChatterboxEngine

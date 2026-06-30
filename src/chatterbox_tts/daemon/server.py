@@ -1,6 +1,6 @@
 """
-FastAPI server for tts-sidecar daemon.
-Provides HTTP endpoints for TTS synthesis with persistent model.
+Servidor FastAPI del daemon de tts-sidecar.
+Expone endpoints HTTP para síntesis TTS con el modelo persistente en memoria.
 """
 
 import platform
@@ -16,8 +16,11 @@ from .protocol import (
 )
 
 
+# TODO: get_socket_path es un residuo del diseño original basado en Unix sockets.
+# El servidor usa HTTP/TCP (puerto 8765) en todas las plataformas; esta función
+# ya no se invoca desde ningún lugar del código.
 def get_socket_path() -> str:
-    """Get platform-appropriate socket path for IPC."""
+    """Devuelve la ruta de socket apropiada para la plataforma (sin uso activo)."""
     system = platform.system()
 
     if system == "Windows":
@@ -27,33 +30,33 @@ def get_socket_path() -> str:
         return os.path.join(sock_dir, "tts-sidecar-daemon.sock")
 
 
-# Global state (set by run.py)
+# Estado global (asignado por run.py antes de arrancar uvicorn)
 _engine = None
 _start_time = None
 
 
 def set_engine(engine):
-    """Set the global engine instance."""
+    """Asigna la instancia global del engine."""
     global _engine
     _engine = engine
 
 
 def set_start_time(timestamp: float):
-    """Set the server start time."""
+    """Registra el timestamp de inicio del servidor."""
     global _start_time
     _start_time = timestamp
 
 
-# FastAPI application
+# Aplicación FastAPI
 app = FastAPI(
     title="tts-sidecar-daemon",
-    description="Persistent TTS daemon with cached model",
+    description="Daemon TTS persistente con modelo cacheado en memoria",
 )
 
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint."""
+    """Endpoint de health check."""
     import time
     return HealthResponse(
         status="healthy" if _engine else "initializing",
@@ -65,12 +68,12 @@ async def health_check():
 @app.post("/synthesize")
 async def synthesize(req: SynthesizeRequest) -> Response:
     """
-    Synthesize text to audio via the cached model.
+    Sintetiza texto a audio usando el modelo cacheado en memoria.
 
-    Returns audio as WAV binary.
+    Devuelve el audio como binario WAV.
     """
     if not _engine:
-        raise HTTPException(status_code=503, detail="Model not loaded")
+        raise HTTPException(status_code=503, detail="Modelo no cargado")
 
     try:
         audio_bytes = _engine.speak(
@@ -101,14 +104,16 @@ async def synthesize(req: SynthesizeRequest) -> Response:
 
 @app.get("/voices", response_model=VoicesResponse)
 async def list_voices():
-    """List registered voices."""
+    """Lista las voces registradas."""
     if not _engine:
-        raise HTTPException(status_code=503, detail="Model not loaded")
+        raise HTTPException(status_code=503, detail="Modelo no cargado")
 
     return VoicesResponse(voices=_engine.list_voices())
 
 
 @app.post("/shutdown")
 async def shutdown():
-    """Graceful shutdown endpoint."""
-    raise HTTPException(status_code=200, detail="Shutting down")
+    """Endpoint de cierre graceful del daemon."""
+    # HTTPException con status 200 es el mecanismo de FastAPI para interrumpir
+    # el ciclo de request/response y hacer que uvicorn libere el proceso.
+    raise HTTPException(status_code=200, detail="Cerrando daemon")

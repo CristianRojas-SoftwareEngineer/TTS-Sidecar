@@ -1,4 +1,4 @@
-"""Tests for timing.py utilities."""
+"""Tests para las utilidades de timing.py."""
 
 import pytest
 import sys
@@ -14,7 +14,7 @@ class TestLog:
         log("test message")
         out = capsys.readouterr().out
         assert "test message" in out
-        # Format: [HH:MM:SS] test message...
+        # Formato: [HH:MM:SS] test message...
         assert "test message..." in out
 
     def test_log_with_duration(self, capsys):
@@ -88,6 +88,6 @@ class TestStageTimer:
         with pytest.raises(RuntimeError):
             with StageTimer("Fail"):
                 raise RuntimeError("boom")
-        # Should still log the stage end on exception
+        # Debe registrar el fin de la etapa incluso cuando hay excepción
         out = capsys.readouterr().out
         assert "[Fail]" in out

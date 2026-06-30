@@ -1,4 +1,4 @@
-"""Tests for daemon lifecycle manager."""
+"""Tests para el gestor del ciclo de vida del daemon."""
 
 import pytest
 import sys
@@ -72,5 +72,5 @@ class TestDaemonManager:
         mock_post.return_value = mock_resp
 
         client = DaemonIPCClient()
-        with pytest.raises(DaemonIPCError, match="Daemon error: internal error"):
+        with pytest.raises(DaemonIPCError, match="Error del daemon: internal error"):
             client.synthesize(text="hola")

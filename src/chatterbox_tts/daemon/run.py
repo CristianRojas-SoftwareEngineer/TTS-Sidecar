@@ -1,11 +1,11 @@
 """
-Entry point for tts-sidecar daemon.
+Entry point del daemon de tts-sidecar.
 
-Usage:
+Uso:
     python -m chatterbox_tts.daemon.run --port 8765
 """
 
-# Suppress warnings before any other imports
+# Supresión de warnings antes de cualquier otro import
 import warnings
 warnings.filterwarnings("ignore")
 import os
@@ -19,16 +19,17 @@ logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 logging.getLogger("chatterbox.models.tokenizers.tokenizer").setLevel(logging.ERROR)
 logging.getLogger("chatterbox.models.t3.inference.alignment_stream_analyzer").setLevel(logging.ERROR)
 
-# Workaround for Python 3.13+ where pkg_resources was removed.
-# The perth package (used by chatterbox) imports pkg_resources at import time.
-# We provide a minimal mock before perth is imported.
+# Workaround para Python 3.13+ donde pkg_resources fue eliminado.
+# El paquete perth (usado por chatterbox) lo importa en tiempo de import.
+# Proveemos un mock mínimo antes de que perth sea importado.
 #
-# The mock MUST be a real module with a __spec__: when this module runs in the
-# same process as the CLI entry point (e.g. the frozen `daemon serve`
-# subcommand), the entry point may have already installed the mock, and any
-# later importlib.util.find_spec('pkg_resources') would raise
-# "pkg_resources.__spec__ is not set" on a bare object. The `not in sys.modules`
-# guard mirrors bin/tts-sidecar so we never re-check an already-installed mock.
+# El mock DEBE ser un módulo real con __spec__: cuando este módulo corre en el
+# mismo proceso que el entry point del CLI (p.ej. el subcomando congelado
+# `daemon serve`), el entry point puede haber instalado el mock antes, y cualquier
+# llamada posterior a importlib.util.find_spec('pkg_resources') lanzaría
+# "pkg_resources.__spec__ is not set" sobre un objeto bare. El guard
+# `not in sys.modules` replica el comportamiento de bin/tts-sidecar para no
+# reinstalar el mock si ya está presente.
 import sys
 import importlib.util
 if 'pkg_resources' not in sys.modules and importlib.util.find_spec('pkg_resources') is None:
@@ -60,16 +61,16 @@ from ..timing import StageTimer, log
 
 def serve(port: int = 8765, auto_restart: bool = False, max_retries: int = 0):
     """
-    Arrancar el servidor del daemon en primer plano (bloqueante).
+    Arranca el servidor del daemon en primer plano (bloqueante).
 
     Reutilizable tanto por `main()` (modo `python -m chatterbox_tts.daemon.run`)
     como por el subcomando `daemon serve` del ejecutable congelado.
     """
-    # Track restarts
+    # Registrar intentos de reinicio
     retries = 0
 
     def signal_handler(signum, frame):
-        log("Daemon: Received shutdown signal")
+        log("Daemon: señal de cierre recibida")
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, signal_handler)
@@ -78,33 +79,35 @@ def serve(port: int = 8765, auto_restart: bool = False, max_retries: int = 0):
     while True:
         set_start_time(time.time())
 
-        with StageTimer("Startup", "Starting daemon..."):
-            # Stage 1: Load model
-            with StageTimer("1-Daemon", "Stage 1/3: Loading model"):
+        with StageTimer("Startup", "Iniciando daemon..."):
+            # Etapa 1: cargar modelo
+            with StageTimer("1-Daemon", "Etapa 1/3: Cargando modelo"):
                 from ..engine import ChatterboxEngine
 
                 engine = ChatterboxEngine.get_instance(
-                    model="es-latam",
+                    model="es-mx-latam",
                     device="cpu",
                 )
 
-                # Override generate() defaults for faster synthesis
+                # Parches de optimización para síntesis más rápida
                 _patch_generate_defaults(engine)
                 _patch_log_timing(engine)
                 _patch_skip_watermark(engine)
 
                 set_engine(engine)
 
-            # Stage 2: Server startup
-            with StageTimer("2-Daemon", "Stage 2/3: Starting server"):
-                log(f"Daemon ready on http://127.0.0.1:{port}")
+            # Etapa 2: iniciar servidor
+            with StageTimer("2-Daemon", "Etapa 2/3: Iniciando servidor"):
+                log(f"Daemon listo en http://127.0.0.1:{port}")
 
-            # Stage 3: Startup complete
-            with StageTimer("3-Daemon", "Stage 3/3: Startup complete"):
+            # Etapa 3: startup completo
+            # El with vacío cierra el StageTimer de "Startup" total; el log de
+            # duración acumulada se imprime al salir del bloque exterior.
+            with StageTimer("3-Daemon", "Etapa 3/3: Startup completo"):
                 pass
 
         if auto_restart and max_retries > 0 and retries >= max_retries:
-            log(f"Daemon: Max retries ({max_retries}) reached. Exiting.")
+            log(f"Daemon: máximo de intentos alcanzado ({max_retries}). Saliendo.")
             break
 
         try:
@@ -118,36 +121,42 @@ def serve(port: int = 8765, auto_restart: bool = False, max_retries: int = 0):
         except KeyboardInterrupt:
             break
         except Exception as e:
-            log(f"Daemon: Error: {e}")
+            log(f"Daemon: error: {e}")
 
         if not auto_restart:
             break
 
         retries += 1
-        log(f"Daemon: Restarting daemon (attempt {retries})...")
+        log(f"Daemon: reiniciando (intento {retries})...")
         time.sleep(1)
 
-    log("Daemon: Stopped")
+    log("Daemon: detenido")
 
 
 def main():
+    """
+    Punto de entrada CLI del daemon.
+
+    Parsea argumentos y delega en serve(). Se invoca como:
+        python -m chatterbox_tts.daemon.run [--port N] [--auto-restart] [--max-retries N]
+    """
     parser = argparse.ArgumentParser(description="tts-sidecar daemon")
     parser.add_argument(
         "--port",
         type=int,
         default=8765,
-        help="TCP port to listen on (default: 8765)"
+        help="Puerto TCP en el que escuchar (default: 8765)"
     )
     parser.add_argument(
         "--auto-restart",
         action="store_true",
-        help="Auto-restart on crash"
+        help="Reiniciar automáticamente tras un crash"
     )
     parser.add_argument(
         "--max-retries",
         type=int,
         default=0,
-        help="Max restart attempts (0 = infinite)"
+        help="Máximo de intentos de reinicio (0 = infinito)"
     )
     args = parser.parse_args()
 
@@ -160,9 +169,9 @@ def main():
 
 def _patch_generate_defaults(engine):
     """
-    Patch generate() to set exaggeration default.
+    Parcha generate() para establecer el valor por defecto de exaggeration.
 
-    exaggeration=0.75: emotional expressiveness (default=0.5).
+    exaggeration=0.75: expresividad emocional (default del modelo: 0.5).
     """
     import functools
 
@@ -178,15 +187,14 @@ def _patch_generate_defaults(engine):
 
 def _patch_log_timing(engine):
     """
-    Add sub-stage timing logs for Stage 2 (TTS generation) and set
-    optimal synthesis parameters.
+    Añade logs de tiempo por sub-etapa para la Etapa 2 (generación TTS) y
+    aplica parámetros de síntesis óptimos mediante asignación directa en los kwargs:
 
-    Applies:
-    - max_new_tokens=500: caps T3 output (default is 1000)
-    - n_cfm_timesteps=4: flow matching steps (default is 10, 4 is ~2.5x faster)
+    - max_new_tokens=500: limita el output del T3 (default: 1000)
+    - n_cfm_timesteps=4: pasos de flow matching (default: 10, 4 es ~2.5x más rápido)
 
-    Timing is stored in engine._synthesis_timing for HTTP header exposure.
-    Logs: [Stage 2a] T3 autoregresivo, [Stage 2b] S3Gen vocoder.
+    El timing se almacena en engine._synthesis_timing para exponerlo en
+    los headers HTTP. Logs: [Stage 2a] T3 autoregresivo, [Stage 2b] S3Gen vocoder.
     """
     import functools
     import time as time_mod
@@ -222,15 +230,13 @@ def _patch_log_timing(engine):
 
 def _patch_skip_watermark(engine):
     """
-    Skip the PerthImplicitWatermarker step after generation.
+    Omite el paso PerthImplicitWatermarker tras la generación de audio.
 
-    The watermarker runs a second neural network (PerthNet encoder) on the
-    generated audio, adding significant post-processing time. Since this is
-    a local/offline use case, we bypass it entirely by replacing
-    apply_watermark with a no-op that returns the audio unchanged.
+    El watermarker ejecuta una segunda red neuronal (PerthNet encoder) sobre el
+    audio generado, añadiendo tiempo de post-procesado significativo. En este
+    caso de uso local/offline lo bypaseamos reemplazando apply_watermark con
+    un no-op que devuelve el audio sin modificar.
     """
-    _orig_apply = engine._tts.watermarker.apply_watermark
-
     def noop_watermark(wav, sample_rate, **kwargs):
         return wav
 

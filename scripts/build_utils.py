@@ -1,6 +1,6 @@
 """
-Shared logging utilities for build scripts.
-Provides consistent [HH:MM:SS] timestamped logging with stage tracking.
+Utilidades de logging compartidas para los scripts de build.
+Provee logging con timestamp [HH:MM:SS] y tracking de etapas.
 """
 
 import time
@@ -8,7 +8,7 @@ from datetime import datetime
 
 
 def _format_duration(seconds: float) -> str:
-    """Format seconds into human-readable string.
+    """Formatea segundos a string legible.
 
     - < 60s       → '45.2s'
     - 60s–3599s   → '1m 32.5s'
@@ -28,10 +28,10 @@ def _format_duration(seconds: float) -> str:
 
 
 def log(msg: str, duration: float = None):
-    """Print a log message with consistent formatting.
+    """Imprime un mensaje de log con formato consistente.
 
-    Format: [HH:MM:SS] Message -> Done (1m 32s)
-    If duration is None, just prints: [HH:MM:SS] Message...
+    Sin duration: [HH:MM:SS] Mensaje...
+    Con duration: [HH:MM:SS] Mensaje -> Done (1m 32s)
     """
     now = datetime.now().strftime("%H:%M:%S")
     if duration is not None:
@@ -41,11 +41,11 @@ def log(msg: str, duration: float = None):
 
 
 class StageTimer:
-    """Context manager for timing a build stage.
+    """Context manager para temporizar una etapa de build.
 
-    Usage:
-        with StageTimer("StageName", "Description"):
-            # code to time
+    Uso:
+        with StageTimer("NombreEtapa", "Descripción"):
+            # código a temporizar
     """
 
     def __init__(self, name: str, description: str = None):
@@ -67,7 +67,11 @@ class StageTimer:
 
 
 class BuildTimer:
-    """Context manager for the entire build process."""
+    """Context manager para temporizar el proceso de build completo.
+
+    A diferencia de StageTimer (que mide etapas individuales), BuildTimer
+    envuelve todo el build e imprime cabeceras de inicio y fin globales.
+    """
 
     def __init__(self):
         self.start = None
@@ -76,14 +80,14 @@ class BuildTimer:
     def __enter__(self):
         self.start = time.time()
         print()
-        log("=== BUILD STARTED ===")
+        log("=== BUILD INICIADO ===")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.duration = time.time() - self.start
         if exc_type is None:
-            log("=== BUILD COMPLETED ===", self.duration)
+            log("=== BUILD COMPLETADO ===", self.duration)
         else:
-            log("=== BUILD FAILED ===", self.duration)
+            log("=== BUILD FALLIDO ===", self.duration)
         print()
         return False

@@ -4,26 +4,26 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              tts-sidecar (Executable binary)                  │
-│   Single-file executable per OS (Windows, Linux, macOS)      │
-│   Built with PyInstaller: embedded Python interpreter            │
+│              tts-sidecar (binario ejecutable)              │
+│   Instalador por SO (Windows, Linux, macOS)                │
+│   Bundle PyInstaller --onedir con intérprete embebido      │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │           Chatterbox Multilingual V3                         │
-│   Model: ResembleAI/chatterbox-multilingual               │
-│   License: MIT                                            │
-│   Languages: 23+ (Spanish, English, French, etc.)          │
-│   Inference: CPU / CUDA / MPS                            │
+│   Modelo: es-mx-latam (caché de HuggingFace)              │
+│   Licencia: MIT                                           │
+│   Idiomas: 23+ (español, inglés, francés, etc.)            │
+│   Inferencia: CPU / CUDA / MPS                            │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│           Audio Playback (Native APIs)                      │
+│           Reproducción de audio (APIs nativas)             │
 │   Windows: pycaw (WASAPI) / winsound                     │
 │   Linux: sounddevice (PortAudio) / pyalsaaudio          │
-│   macOS: afplay (built-in) / AVFoundation               │
+│   macOS: afplay (nativo) / AVFoundation                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -50,40 +50,42 @@ El archivo no contiene lógica de negocio: prepara el entorno (silencia warnings
 ```
 tts-sidecar/
 ├── src/
-│   └── chatterbox_tts/        # Python package
-│       ├── __init__.py         # Lazy imports
-│       ├── engine.py           # ChatterboxTTS wrapper
-│       ├── audio.py           # Cross-platform audio playback
-│       ├── timing.py           # Instrumentation y timing
-│       ├── cli.py             # CLI interface (14 commands)
+│   └── chatterbox_tts/        # Paquete Python
+│       ├── __init__.py         # Imports perezosos (lazy)
+│       ├── engine.py           # Wrapper de ChatterboxTTS
+│       ├── audio.py           # Reproducción de audio multiplataforma
+│       ├── timing.py           # Instrumentación y timing
+│       ├── cli.py             # Interfaz CLI
 │       └── daemon/            # Daemon mode (FastAPI + IPC)
-│           ├── daemon.py      # Lifecycle manager
-│           ├── server.py      # FastAPI endpoints
-│           ├── ipc.py         # HTTP client for daemon
-│           ├── protocol.py    # Pydantic request/response models
+│           ├── daemon.py      # Gestor del ciclo de vida
+│           ├── server.py      # Endpoints FastAPI
+│           ├── ipc.py         # Cliente HTTP del daemon
+│           ├── protocol.py    # Modelos Pydantic de request/response
 │           └── run.py         # Entry point
 ├── bin/
 │   └── tts-sidecar           # Entry point (Python, sin extensión; semilla de compilación)
 ├── scripts/
-│   ├── build_windows.py      # PyInstaller build for Windows
-│   ├── build_linux.py       # PyInstaller build for Linux
-│   ├── build_macos.py       # PyInstaller build for macOS
-│   └── install.py            # Model download + setup
-├── tests/                    # Pytest test suite
-├── requirements.txt           # Python dependencies
-├── pyproject.toml            # Python project config
+│   ├── build_windows.py      # Build PyInstaller para Windows
+│   ├── build_linux.py       # Build PyInstaller para Linux
+│   ├── build_macos.py       # Build PyInstaller para macOS
+│   └── install.py            # Descarga del modelo + setup
+├── tests/                    # Suite de tests pytest
+├── requirements.txt           # Dependencias Python
+├── pyproject.toml            # Configuración del proyecto Python
 └── docs/
+    ├── ARCHITECTURE.md
+    ├── BUILD.md
+    ├── DAEMON-MODE.md
     ├── DESIGN.md
-    ├── GOAL.md
-    └── DAEMON-MODE.md
+    └── GOAL.md
 ```
 
 ## Modelos Disponibles
 
 | Modelo | Descripción | Licencia |
 |--------|-------------|----------|
-| `multilingual` | Base model, 23+ idiomas | MIT |
-| `es-latam` | Latin American Spanish (RECOMMENDED) | MIT |
+| `multilingual` | Modelo base, 23+ idiomas | MIT |
+| `es-mx-latam` | Español latinoamericano (RECOMENDADO) | MIT |
 
 ## Flujo de Síntesis
 
@@ -95,17 +97,17 @@ speak --text "Hola" -v mi_voz
 │ ChatterboxEngine │
 │ speak()         │
 │                 │
-│ 1. Load model  │
-│ 2. Generate    │
-│ 3. Return WAV  │
+│ 1. Cargar modelo│
+│ 2. Generar     │
+│ 3. Devolver WAV │
 └────────┬────────┘
-         │ WAV bytes
+         │ bytes WAV
          ▼
 ┌──────────────────┐
 │ AudioPlayer      │
 │ play()          │
 │                 │
-│ Native OS API   │
+│ API nativa del SO│
 └─────────────────┘
 ```
 

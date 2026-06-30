@@ -56,7 +56,7 @@ def voice_paths(name: str) -> tuple[str, str]:
     ref_path = os.path.join(target, "reference.wav")
     speech_path = os.path.join(target, "speech.wav")
     if not os.path.exists(ref_path):
-        raise FileNotFoundError(f"Voice '{name}': reference.wav not found at {ref_path}")
+        raise FileNotFoundError(f"Voz '{name}': reference.wav no encontrado en {ref_path}")
     if not os.path.exists(speech_path):
-        raise FileNotFoundError(f"Voice '{name}': speech.wav not found at {speech_path}")
+        raise FileNotFoundError(f"Voz '{name}': speech.wav no encontrado en {speech_path}")
     return (ref_path, speech_path)

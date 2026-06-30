@@ -1,6 +1,6 @@
 """
-IPC client to communicate with tts-sidecar daemon.
-Uses HTTP over TCP (works on all platforms).
+Cliente IPC para comunicarse con el daemon de tts-sidecar.
+Usa HTTP sobre TCP (funciona en todas las plataformas).
 """
 
 from typing import Optional
@@ -9,27 +9,28 @@ import requests
 
 
 class DaemonIPCError(Exception):
-    """IPC communication error with daemon."""
+    """Error de comunicación IPC con el daemon."""
     pass
 
 
 class DaemonIPCClient:
     """
-    IPC client to communicate with tts-sidecar daemon.
+    Cliente IPC para comunicarse con el daemon de tts-sidecar.
 
-    Uses HTTP over TCP (127.0.0.1:8765) - works on Windows, Linux, and Mac.
+    Usa HTTP sobre TCP (127.0.0.1:8765), lo que garantiza compatibilidad
+    con Windows, Linux y macOS sin depender de Unix sockets ni named pipes.
     """
 
     DEFAULT_PORT = 8765
-    TIMEOUT = 5.0  # Connection timeout
-    REQUEST_TIMEOUT = 300.0  # Synthesis timeout (5 min for long audio)
+    TIMEOUT = 5.0          # Timeout de conexión
+    REQUEST_TIMEOUT = 300.0  # Timeout de síntesis (5 min para audio largo)
 
     def __init__(self, port: int = None):
         self.port = port or self.DEFAULT_PORT
         self.base_url = f"http://127.0.0.1:{self.port}"
 
     def is_running(self) -> bool:
-        """Check if daemon is running."""
+        """Comprueba si el daemon está corriendo y responde al health check."""
         try:
             response = requests.get(
                 f"{self.base_url}/health",
@@ -44,16 +45,16 @@ class DaemonIPCClient:
         text: str,
         voice_audio: Optional[str] = None,
         speech_audio: Optional[str] = None,
-        model: str = "es-latam",
+        model: str = "es-mx-latam",
         device: str = "cpu",
     ) -> bytes:
         """
-        Synthesize text via daemon.
+        Sintetiza texto vía daemon.
 
-        Returns WAV audio bytes.
+        Devuelve los bytes del audio WAV.
 
         Raises:
-            DaemonIPCError: If communication fails
+            DaemonIPCError: Si la comunicación falla
         """
         try:
             response = requests.post(
@@ -69,7 +70,7 @@ class DaemonIPCClient:
             )
 
             if response.status_code == 200:
-                # Print sub-stage timing if available
+                # Imprimir timing por sub-etapa si el daemon lo expone en headers
                 t3_time = response.headers.get("X-T3-Time")
                 s3gen_time = response.headers.get("X-S3Gen-Time")
                 if t3_time and s3gen_time:
@@ -77,16 +78,16 @@ class DaemonIPCClient:
                     print(f"   [Stage 2b] S3Gen vocoder:   {s3gen_time}s")
                 return response.content
             else:
-                error = response.json().get("detail", "Unknown error")
-                raise DaemonIPCError(f"Daemon error: {error}")
+                error = response.json().get("detail", "Error desconocido")
+                raise DaemonIPCError(f"Error del daemon: {error}")
 
         except requests.ConnectionError as e:
-            raise DaemonIPCError(f"Cannot connect to daemon: {e}")
+            raise DaemonIPCError(f"No se puede conectar al daemon: {e}")
         except requests.Timeout as e:
-            raise DaemonIPCError(f"Daemon timeout: {e}")
+            raise DaemonIPCError(f"Timeout del daemon: {e}")
 
     def list_voices(self) -> list[str]:
-        """List voices via daemon."""
+        """Lista las voces registradas vía daemon."""
         try:
             response = requests.get(
                 f"{self.base_url}/voices",
@@ -100,7 +101,12 @@ class DaemonIPCClient:
 
 
 def is_daemon_running() -> bool:
-    """Check if daemon is running."""
+    """
+    Comprueba si el daemon está corriendo y responde al health check.
+
+    Función de conveniencia que crea un DaemonIPCClient temporal para
+    verificar el estado sin necesidad de mantener una instancia del cliente.
+    """
     try:
         client = DaemonIPCClient()
         return client.is_running()
