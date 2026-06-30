@@ -4,7 +4,7 @@
 
 ## Requisitos
 
-- **Python 3.12+** ([python.org](https://www.python.org/downloads/))
+- **Python 3.13+** ([python.org](https://www.python.org/downloads/))
 - **Nuitka** (`pip install nuitka`)
 - **Visual Studio Build Tools 2022** (Windows) con:
   - "Desktop development with C++"

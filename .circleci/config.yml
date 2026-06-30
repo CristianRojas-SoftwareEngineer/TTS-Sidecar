@@ -6,7 +6,7 @@ orbs:
 jobs:
   build-windows:
     docker:
-      - image: cimg/python:3.12
+      - image: cimg/python:3.13
     parameters:
       py_version:
         type: string
@@ -27,7 +27,7 @@ jobs:
 
   build-linux-x64:
     docker:
-      - image: cimg/python:3.12
+      - image: cimg/python:3.13
     parameters:
       py_version:
         type: string
@@ -53,7 +53,7 @@ jobs:
 
   build-linux-arm64:
     docker:
-      - image: cimg/python:3.12
+      - image: cimg/python:3.13
     parameters:
       py_version:
         type: string
@@ -129,17 +129,17 @@ workflows:
       - build-windows:
           matrix:
             parameters:
-              py_version: ["3.12"]
+              py_version: ["3.13"]
       - build-linux-x64:
           matrix:
             parameters:
-              py_version: ["3.12"]
+              py_version: ["3.13"]
       - build-linux-arm64:
           matrix:
             parameters:
-              py_version: ["3.12"]
+              py_version: ["3.13"]
       - build-darwin-x64:
           matrix:
             parameters:
-              py_version: ["3.12"]
+              py_version: ["3.13"]
       - build-darwin-arm64
