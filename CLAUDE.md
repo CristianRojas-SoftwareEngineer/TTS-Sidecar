@@ -153,5 +153,6 @@ src/chatterbox_tts/      # Código fuente Python
 - `docs/design.md` - Diseño del motor
 - `docs/goal.md` - Meta del proyecto
 - `docs/daemon-mode.md` - Daemon mode (servidor persistente)
-- `BUILD.md` - Guía de compilación Nuitka
+- `docs/BUILD.md` - Guía de compilación Nuitka
+- `docs/ARCHITECTURE.md` - Arquitectura del sistema
 - `scripts/build_windows.py` - Build Nuitka para Windows
