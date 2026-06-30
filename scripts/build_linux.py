@@ -206,14 +206,26 @@ def build_linux(target_arch="x86_64"):
                 target=stream_output, args=(nuitka_proc, "[nuitka] ")
             )
             stream_thread.start()
-            nuitka_proc.wait()
-            stream_thread.join()
+            try:
+                nuitka_proc.wait()
+                stream_thread.join()
+            except KeyboardInterrupt:
+                log("\n[CANCEL] Build cancelled by user. Terminating Nuitka...")
+                nuitka_proc.terminate()
+                try:
+                    nuitka_proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    nuitka_proc.kill()
+                stream_thread.join()
+                sys.exit(130)
 
         if nuitka_proc.returncode == 0:
             size_mb = output_path.stat().st_size / 1024 / 1024
             output_path.chmod(0o755)
             log(f"Build successful: {output_path}")
             log(f"Size: {size_mb:.1f} MB")
+        elif nuitka_proc.returncode == -2:
+            pass
         else:
             log("Build failed", nuitka_proc.returncode)
             sys.exit(1)
