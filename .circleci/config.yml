@@ -17,7 +17,7 @@ jobs:
           pip-dependency-file: requirements.txt
       - run:
           name: Install Nuitka
-          command: pip install nuitka==2.6.8
+          command: pip install nuitka==4.1.3
       - run:
           name: Build Windows
           command: python scripts/build_windows.py
@@ -38,7 +38,7 @@ jobs:
           pip-dependency-file: requirements.txt
       - run:
           name: Install Nuitka
-          command: pip install nuitka==2.6.8
+          command: pip install nuitka==4.1.3
       - run:
           name: Install Linux dependencies
           command: |
@@ -64,7 +64,7 @@ jobs:
           pip-dependency-file: requirements.txt
       - run:
           name: Install Nuitka
-          command: pip install nuitka==2.6.8
+          command: pip install nuitka==4.1.3
       - run:
           name: Install Linux dependencies
           command: |
@@ -93,7 +93,7 @@ jobs:
             pip3 install -r requirements.txt
       - run:
           name: Install Nuitka
-          command: pip3 install nuitka==2.6.8
+          command: pip3 install nuitka==4.1.3
       - run:
           name: Build macOS x64
           command: python3 scripts/build_macos.py --arch x86_64
@@ -114,7 +114,7 @@ jobs:
             pip3 install -r requirements.txt
       - run:
           name: Install Nuitka
-          command: pip3 install nuitka==2.6.8
+          command: pip3 install nuitka==4.1.3
       - run:
           name: Build macOS ARM64
           command: python3 scripts/build_macos.py --arch arm64

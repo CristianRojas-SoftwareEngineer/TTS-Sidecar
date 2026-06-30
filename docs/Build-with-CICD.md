@@ -39,7 +39,7 @@ Este documento describe el pipeline de CI/CD para compilar `tts-sidecar` en múl
 
 1. **Python 3.13+** con Nuitka instalado:
    ```bash
-   pip install nuitka==2.6.8
+   pip install nuitka==4.1.3
    ```
 
 2. **Visual Studio Build Tools 2022** (Windows) con:
@@ -91,7 +91,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install nuitka==2.6.8
+          pip install nuitka==4.1.3
           pip install -r requirements.txt
 
       - name: Build Windows
@@ -115,7 +115,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install nuitka==2.6.8
+          pip install nuitka==4.1.3
           pip install -r requirements.txt
 
       - name: Build Linux x64
@@ -139,7 +139,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install nuitka==2.6.8
+          pip install nuitka==4.1.3
           pip install -r requirements.txt
 
       - name: Build Linux ARM64
@@ -163,7 +163,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install nuitka==2.6.8
+          pip install nuitka==4.1.3
           pip install -r requirements.txt
 
       - name: Build macOS x64
@@ -187,7 +187,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install nuitka==2.6.8
+          pip install nuitka==4.1.3
           pip install -r requirements.txt
 
       - name: Build macOS ARM64
