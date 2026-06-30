@@ -63,9 +63,9 @@ tts-sidecar/
 ├── requirements.txt           # Python dependencies
 ├── pyproject.toml            # Python project config
 └── docs/
-    ├── design.md
-    ├── goal.md
-    └── daemon-mode.md
+    ├── DESIGN.md
+    ├── GOAL.md
+    └── DAEMON-MODE.md
 ```
 
 ## Modelos Disponibles

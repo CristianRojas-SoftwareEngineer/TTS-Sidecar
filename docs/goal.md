@@ -117,7 +117,7 @@ La implementación está completa únicamente cuando:
 - [x] Hay un instalador standalone por cada SO (Windows, Linux, macOS)
 - [x] Los instaladores funcionan sin ninguna dependencia externa
 - [x] **README.md** refleja la nueva arquitectura con Chatterbox
-- [x] **docs/design.md** corresponde al estado implementado
+- [x] **docs/DESIGN.md** corresponde al estado implementado
 - [x] No queda documentación que haga referencia a XTTS, Kokoro o Rust como motor activo
 - [x] El daemon mode está implementado y funciona correctamente
 - [x] Los logs están normalizados con estructura consistente

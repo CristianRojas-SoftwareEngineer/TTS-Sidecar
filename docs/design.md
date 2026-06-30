@@ -78,9 +78,9 @@ tts-sidecar/
 ├── requirements.txt               # Python dependencies
 ├── pyproject.toml                # Python project config
 └── docs/
-    ├── design.md                 # Este documento
-    ├── goal.md                   # Meta del proyecto
-    └── daemon-mode.md            # Daemon mode
+    ├── DESIGN.md                 # Este documento
+    ├── GOAL.md                   # Meta del proyecto
+    └── DAEMON-MODE.md            # Daemon mode
 ```
 
 ## Motor Chatterbox Multilingual V3
