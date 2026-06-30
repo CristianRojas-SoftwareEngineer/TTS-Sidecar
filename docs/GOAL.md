@@ -55,38 +55,40 @@ tts-sidecar/
 
 ## Comandos CLI objetivo (invocable desde cualquier lenguaje)
 
+Los comandos están ordenados en secuencia de dependencia: cada paso solo
+requiere que los anteriores hayan funcionado. El daemon es el camino principal
+de uso: carga el modelo una sola vez y lo mantiene en memoria, eliminando el
+overhead de carga en cada invocación. Por eso su ciclo de vida envuelve toda la
+sesión: se arranca antes de sintetizar y se detiene al final.
+
 ```bash
 # 1. Instalación (primera vez - descarga el modelo)
 ./tts-sidecar install
 
-# 2. Verificación (diagnóstico del sistema)
-./tts-sidecar doctor
-./tts-sidecar version
-./tts-sidecar devices
+# 2. Diagnóstico del sistema (no depende de nada)
+./tts-sidecar version              # Versión instalada
+./tts-sidecar doctor               # Chequeo de entorno y modelo
+./tts-sidecar devices              # Dispositivos de audio disponibles
 
-# 3. Clonación de voz (requiere dos archivos de audio)
+# 3. Arrancar el daemon (camino principal: carga el modelo en memoria una vez)
+./tts-sidecar daemon start         # Iniciar daemon
+./tts-sidecar daemon status        # Verificar que está activo
+
+# 4. Clonación de voz (requiere dos archivos de audio)
 ./tts-sidecar voice-add --name mi_voz --reference timbre.wav --speech condicion.wav
 
-# 4. Listar voces registradas
+# 5. Listar voces registradas (verifica que la voz quedó registrada)
 ./tts-sidecar voices
 
-# 5. Síntesis y reproducción (usar voz clonada)
-./tts-sidecar speak --text "Hola mundo" -v mi_voz
+# 6. Síntesis a través del daemon (añade -v mi_voz para usar la voz clonada)
+./tts-sidecar speak --text "Hola mundo" [-v mi_voz]                          # Reproducir
+./tts-sidecar synthesize --text "Hola mundo" [-v mi_voz] --output audio.wav  # Exportar WAV
 
-# 6. Síntesis a archivo (exportar WAV)
-./tts-sidecar synthesize --text "Hola mundo" -v mi_voz --output audio.wav
-
-# 7. Síntesis básica (sin clonación)
-./tts-sidecar speak --text "Hola mundo"
-./tts-sidecar synthesize --text "Hola mundo" --output audio.wav
-
-# 8. Daemon mode (mantiene modelo en memoria para respuestas más rápidas)
-./tts-sidecar daemon start
-./tts-sidecar daemon status
-./tts-sidecar daemon stop
-
-# 9. Eliminar voz clonada
+# 7. Eliminar voz clonada (limpieza)
 ./tts-sidecar voice-remove --name mi_voz
+
+# 8. Detener el daemon (cierre de la sesión, libera el modelo de memoria)
+./tts-sidecar daemon stop
 ```
 
 ---

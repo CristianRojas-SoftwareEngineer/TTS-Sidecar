@@ -132,6 +132,6 @@ MIT — Uso comercial libre.
 
 ## Documentación
 
-- [docs/goal.md](docs/goal.md) - Meta del proyecto
-- [docs/design.md](docs/design.md) - Diseño técnico
-- [docs/daemon-mode.md](docs/daemon-mode.md) - Daemon mode (servidor persistente)
+- [docs/GOAL.md](docs/GOAL.md) - Meta del proyecto
+- [docs/DESIGN.md](docs/DESIGN.md) - Diseño técnico
+- [docs/DAEMON-MODE.md](docs/DAEMON-MODE.md) - Daemon mode (servidor persistente)
