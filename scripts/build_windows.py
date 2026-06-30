@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Build script for Windows x64 executable using Nuitka.
-Produces a single-file executable with embedded Python interpreter.
+Build script for Windows x64 using PyInstaller --onedir.
+Produces a folder with the executable + all dependencies, then wraps it
+in an Inno Setup installer.
 """
 
 import os
@@ -11,6 +12,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
 DIST_DIR = PROJECT_ROOT / "dist"
+BUILD_DIR = PROJECT_ROOT / "build"
 
 # Import shared logging utilities
 sys.path.insert(0, str(Path(__file__).parent))
@@ -20,125 +22,106 @@ from build_utils import log, StageTimer, BuildTimer
 def check_dependencies():
     """Check required dependencies are installed."""
     with StageTimer("CheckDeps", "Checking dependencies"):
-        # nuitka --version prompts for Zig download if not found; answer Yes automatically
-        result = subprocess.run(
-            [sys.executable, "-m", "nuitka", "--version"],
-            capture_output=True, text=True, input="Yes\n"
-        )
-        if result.returncode == 0:
-            log(f"Nuitka: {result.stdout.strip().splitlines()[0]}")
-        else:
-            log("Nuitka not found, installing...")
-            # Inherit the console so pip's own progress output renders natively.
-            result = subprocess.run([sys.executable, "-m", "pip", "install", "nuitka"])
+        try:
+            import PyInstaller
+            log(f"PyInstaller: {PyInstaller.__version__}")
+        except ImportError:
+            log("PyInstaller not found, installing...")
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "pyinstaller"],
+                check=True,
+            )
             if result.returncode != 0:
                 sys.exit(1)
 
 
 def build_windows():
-    """Build Windows x64 executable."""
+    """Build Windows x64 with PyInstaller --onedir."""
     with BuildTimer():
         with StageTimer("Setup", "Setting up build environment"):
             log("Platform: Windows x64")
             DIST_DIR.mkdir(parents=True, exist_ok=True)
-            output_path = DIST_DIR / "tts-sidecar.exe"
+            BUILD_DIR.mkdir(parents=True, exist_ok=True)
             entry_point = PROJECT_ROOT / "bin" / "tts-sidecar"
-            env = os.environ.copy()
-            src_path = str(PROJECT_ROOT / "src")
-            env["PYTHONPATH"] = src_path + os.pathsep + env.get("PYTHONPATH", "")
+            log(f"Entry point: {entry_point}")
 
-        with StageTimer("Configure", "Configuring Nuitka options"):
-            # Order: mode → output → includes → excludes → python-flags → module-params → platform → entry
-            nuitka_args = [
-                # Mode
-                sys.executable,
-                "-m", "nuitka",
-                "--standalone",
-                "--onefile",
-                # Output
-                f"--output-filename={output_path.name}",
-                f"--output-dir={DIST_DIR}",
-                # Includes — project package first, then others alphabetically
-                f"--include-plugin-directory={PROJECT_ROOT / 'src'}",
-                "--include-package=chatterbox_tts",
-                "--include-package=chatterbox",
-                "--include-package=certifi",
-                "--include-package=diffusers",
-                "--include-package=huggingface_hub",
-                "--include-package=librosa",
-                "--include-package=numpy",
-                "--include-package=onnx",
-                "--include-package=pandas",
-                "--include-package=perth",
-                "--include-package=pycaw",
-                "--include-package=pydantic",
-                "--include-package=requests",
-                "--include-package=s3tokenizer",
-                "--include-package=safetensors",
-                "--include-package=scipy",
-                "--include-package=sklearn",
-                "--include-package=soundfile",
-                "--include-package=torch",
-                "--include-package=tokenizers",
-                "--include-package=transformers",
-                "--include-package=fastapi",
-                "--include-package=httpx",
-                "--include-package=uvicorn",
-                # Noinclude / nofollow
-                "--noinclude-numba-mode=nofollow",  # only include if imported directly
-                # Excludes — bloat not used by the project.
-                # VERIFIED safe to exclude: gradio/gradio_client are not referenced
-                # anywhere in chatterbox nor loaded by the runtime import trace.
-                # The model-load chain pulls transformers/diffusers/sklearn/pandas/
-                # s3tokenizer/onnx at runtime via lazy/conditional imports
-                # (t3 -> transformers -> sklearn -> pandas; s3gen -> diffusers;
-                #  s3tokenizer -> onnx); they are force-included above (NOT excluded)
-                # so the .exe cannot fail at runtime on a missing lazy submodule.
-                "--nofollow-import-to=gradio",
-                "--nofollow-import-to=gradio_client",
-                # transformers ships modeling_tf_*/modeling_flax_* shims that
-                # Nuitka would try to follow; tensorflow/jax/flax are never
-                # loaded by the runtime trace, so excluding them only silences
-                # warnings and trims weight (VERIFIED: not in the import graph).
-                "--nofollow-import-to=tensorflow",
-                "--nofollow-import-to=jax",
-                "--nofollow-import-to=flax",
-                # Python flags
-                "--python-flag=no_site",
-                # Module parameters
-                "--module-parameter=numba-disable-jit=yes",
-                "--module-parameter=torch-disable-jit=yes",
-                # Platform
-                "--windows-console-mode=attach",
-                "--zig",
-                # Download policy
-                "--assume-yes-for-downloads",
+        with StageTimer("PyInstaller", "Compiling with PyInstaller (9-15 min)"):
+            pyinstaller_args = [
+                sys.executable, "-m", "PyInstaller",
+                "--onedir",
+                "--console",
+                "--name", "tts-sidecar",
+                "--paths", str(PROJECT_ROOT / "src"),
+                "--distpath", str(DIST_DIR),
+                "--workpath", str(BUILD_DIR),
+                "--specpath", str(PROJECT_ROOT / "scripts"),
+                "--noconfirm",
                 # Entry point
                 str(entry_point),
+                # Collect all packages that PyInstaller can't follow automatically
+                # (lazy imports, C extensions, compiled code)
+                "--collect-all", "chatterbox",
+                "--collect-all", "chatterbox_tts",
+                "--collect-all", "transformers",
+                "--collect-all", "diffusers",
+                "--collect-all", "s3tokenizer",
+                "--collect-all", "perth",
+                "--collect-all", "librosa",
+                "--collect-all", "torch",
+                "--collect-all", "sklearn",
+                "--collect-all", "pandas",
+                "--collect-all", "onnx",
+                "--collect-all", "pycaw",
+                # Data files
+                "--collect-data", "soundfile",
+                "--collect-data", "certifi",
+                # Metadata required by importlib.metadata / pkg_resources
+                "--recursive-copy-metadata", "chatterbox-tts",
+                "--copy-metadata", "requests",
+                # Exclude bloat (never loaded at runtime)
+                "--exclude-module", "tensorflow",
+                "--exclude-module", "jax",
+                "--exclude-module", "flax",
+                "--exclude-module", "gradio",
+                "--exclude-module", "gradio_client",
             ]
-            log(f"Entry point: {entry_point}")
-            log(f"Output:     {output_path}")
-
-        with StageTimer("Compile", "Compiling with Nuitka (30-60 min)"):
-            # Inherit the real console (no stdout pipe). Nuitka gates its progress
-            # bar on a TTY, so piping its output suppresses the bar and leaves the
-            # console silent for minutes during import analysis. Letting Nuitka write
-            # directly to the console preserves its native progress bar; the parent's
-            # [HH:MM:SS] stage headers still bracket each phase.
+            log(f"Running: pyinstaller {' '.join(pyinstaller_args[2:])}")
             try:
-                returncode = subprocess.run(nuitka_args, env=env).returncode
+                returncode = subprocess.run(
+                    pyinstaller_args,
+                    # Inherit console so PyInstaller progress bar renders.
+                    # The parent's [HH:MM:SS] stage headers bracket each phase.
+                ).returncode
             except KeyboardInterrupt:
-                # Ctrl+C reaches Nuitka directly (shared console); it exits on its own.
                 log("\n[CANCEL] Build cancelled by user.")
                 sys.exit(130)  # 128 + 2 (SIGINT)
 
-        if returncode == 0:
-            size_mb = output_path.stat().st_size / 1024 / 1024
-            log(f"Build successful: {output_path}")
-            log(f"Size: {size_mb:.1f} MB")
-        else:
-            log("Build failed", returncode)
+        if returncode != 0:
+            log("PyInstaller failed", returncode)
             sys.exit(1)
+
+        with StageTimer("Size", "Checking bundle size"):
+            onedir = DIST_DIR / "tts-sidecar"
+            if onedir.exists():
+                size_mb = sum(f.stat().st_size for f in onedir.rglob("*") if f.is_file()) / 1024 / 1024
+                log(f"Bundle size: {size_mb:.1f} MB ({onedir})")
+
+        with StageTimer("Installer", "Building Inno Setup installer"):
+            installer_script = PROJECT_ROOT / "scripts" / "create_installer_windows.py"
+            result = subprocess.run(
+                [sys.executable, str(installer_script), str(DIST_DIR / "tts-sidecar")],
+                check=False,
+            )
+            if result.returncode != 0:
+                log("Installer build failed", returncode=result.returncode)
+                if result.stdout:
+                    print(result.stdout)
+                if result.stderr:
+                    print(result.stderr, file=sys.stderr)
+                # Non-fatal: the onedir bundle is still usable
+                log("WARNING: Installer failed — onedir bundle is still available in dist/")
+            else:
+                log("Installer created successfully")
 
 
 if __name__ == "__main__":

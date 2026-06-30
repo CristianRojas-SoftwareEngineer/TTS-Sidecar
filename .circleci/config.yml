@@ -38,13 +38,17 @@ jobs:
             python --version
             python -m pip install --upgrade pip
             python -m pip install -r requirements.txt
-            python -m pip install nuitka==4.1.3
+            python -m pip install pyinstaller
+            choco install innosetup -y
       - run:
           name: Build Windows
           command: python scripts/build_windows.py
       - store_artifacts:
-          path: dist/tts-sidecar.exe
-          destination: tts-sidecar-win32-x64.exe
+          path: dist/tts-sidecar-0.1.0-setup.exe
+          destination: tts-sidecar-win32-x64-setup.exe
+      - store_artifacts:
+          path: dist/tts-sidecar
+          destination: tts-sidecar-win32-x64/
 
   build-linux-x64:
     docker:
@@ -60,14 +64,18 @@ jobs:
           package-manager: pip
           pip-dependency-file: requirements.txt
       - run:
-          name: Install Nuitka
-          command: pip install nuitka==4.1.3
+          name: Install PyInstaller and appimage-builder
+          command: |
+            pip install pyinstaller appimage-builder
       - run:
           name: Build Linux x64
           command: python scripts/build_linux.py --arch x86_64
       - store_artifacts:
-          path: dist/tts-sidecar-linux-x86_64
-          destination: tts-sidecar-linux-x64
+          path: dist/tts-sidecar-x86_64.AppImage
+          destination: tts-sidecar-linux-x86_64.AppImage
+      - store_artifacts:
+          path: dist/tts-sidecar
+          destination: tts-sidecar-linux-x86_64/
 
   build-linux-arm64:
     machine:
@@ -91,13 +99,16 @@ jobs:
           command: |
             python -m pip install --upgrade pip
             python -m pip install -r requirements.txt
-            python -m pip install nuitka==4.1.3
+            python -m pip install pyinstaller appimage-builder
       - run:
           name: Build Linux ARM64
           command: python scripts/build_linux.py --arch arm64
       - store_artifacts:
-          path: dist/tts-sidecar-linux-aarch64
-          destination: tts-sidecar-linux-arm64
+          path: dist/tts-sidecar-aarch64.AppImage
+          destination: tts-sidecar-linux-arm64.AppImage
+      - store_artifacts:
+          path: dist/tts-sidecar
+          destination: tts-sidecar-linux-arm64/
 
   build-darwin-universal2:
     macos:
@@ -112,14 +123,18 @@ jobs:
             python3 -m pip install --upgrade pip
             pip3 install -r requirements.txt
       - run:
-          name: Install Nuitka
-          command: pip3 install nuitka==4.1.3
+          name: Install PyInstaller and create-dmg
+          command: |
+            pip3 install pyinstaller create-dmg
       - run:
           name: Build macOS universal2
           command: python3 scripts/build_macos.py --arch universal2
       - store_artifacts:
-          path: dist/tts-sidecar-macos-universal2
-          destination: tts-sidecar-darwin-universal2
+          path: dist/tts-sidecar-universal2.dmg
+          destination: tts-sidecar-darwin-universal2.dmg
+      - store_artifacts:
+          path: dist/tts-sidecar-universal2.app
+          destination: tts-sidecar-darwin-universal2.app/
 
 workflows:
   build-all:
