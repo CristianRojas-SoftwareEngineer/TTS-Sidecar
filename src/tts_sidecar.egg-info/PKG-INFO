@@ -1,5 +1,0 @@
-Metadata-Version: 2.4
-Name: tts-sidecar
-Version: 0.1.0
-Summary: Chatterbox TTS - 100% local voice cloning TTS
-Requires-Python: >=3.12
