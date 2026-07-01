@@ -36,11 +36,19 @@ def voice_dir(name: str) -> str:
     return os.path.join(voices_root(), name)
 
 
+def _is_valid_voice_dir(candidate: str) -> bool:
+    """Una voz es válida solo con sus dos audios: reference.wav (timbre) y
+    speech.wav (conditioning), igual que exige `voice add`."""
+    return os.path.exists(os.path.join(candidate, "reference.wav")) and os.path.exists(
+        os.path.join(candidate, "speech.wav")
+    )
+
+
 def _resolve_voice_dir(name: str) -> str | None:
     """Devuelve el directorio de una voz con precedencia usuario→fábrica, o None."""
     for root in (voices_root(), factory_voices_root()):
         candidate = os.path.join(root, name)
-        if os.path.exists(os.path.join(candidate, "reference.wav")):
+        if _is_valid_voice_dir(candidate):
             return candidate
     return None
 
@@ -52,8 +60,8 @@ def list_voices() -> list[str]:
         if not os.path.exists(root):
             continue
         for entry in sorted(os.listdir(root)):
-            ref_path = os.path.join(root, entry, "reference.wav")
-            if entry not in seen and os.path.isdir(os.path.join(root, entry)) and os.path.exists(ref_path):
+            candidate = os.path.join(root, entry)
+            if entry not in seen and os.path.isdir(candidate) and _is_valid_voice_dir(candidate):
                 seen.append(entry)
     return seen
 
