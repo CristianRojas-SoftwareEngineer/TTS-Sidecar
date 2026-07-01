@@ -27,7 +27,7 @@ from pathlib import Path
 
 
 def is_frozen() -> bool:
-    """True cuando corremos dentro del ejecutable onefile compilado."""
+    """True cuando corremos dentro del ejecutable compilado (onedir)."""
     return getattr(sys, "frozen", False)
 
 
