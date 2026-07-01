@@ -2,12 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+<!-- <project_overview> -->
 ## Proyecto
 
 `tts-sidecar` es un motor de síntesis de voz (TTS) offline en Python usando Chatterbox para clonación de voz en español latinoamericano.
 
 **Rama actual**: `main`
+<!-- </project_overview> -->
 
+<!-- <common_commands> -->
 ## Comandos comunes
 
 ```bash
@@ -24,7 +27,9 @@ pytest tests/ -v
 python -m py_compile src/chatterbox_tts/engine.py
 python -m py_compile src/chatterbox_tts/cli.py
 ```
+<!-- </common_commands> -->
 
+<!-- <architecture> -->
 ## Arquitectura
 
 ### Stack de implementación
@@ -75,7 +80,9 @@ CLI → cmd_speak
               ↓
        AudioPlayer.play() / archivo
 ```
+<!-- </architecture> -->
 
+<!-- <voice_design> -->
 ## Diseño de voz dual-audio
 
 Cada voz registrada contiene dos archivos:
@@ -104,7 +111,9 @@ Las voces se resuelven con precedencia **usuario→fábrica** (`voices.py`):
 Sin `--voice`, `--voice-audio` ni `--speech-audio`, `cmd_speak` resuelve la voz
 `default`, por lo que `tts-sidecar speak --text "Hola"` funciona sin audios.
 El directorio `src/voices/` fue **eliminado** tras el rediseño.
+<!-- </voice_design> -->
 
+<!-- <model_provisioning> -->
 ## Modelo y provisión
 
 El alias de modelo expuesto por el CLI es **`es-mx-latam`** (repo oficial
@@ -114,7 +123,9 @@ corre los chequeos de `doctor` y descarga el modelo solo si falta (idempotente).
 `speak` y `daemon start` **fallan rápido** (vía `is_model_cached`) si el modelo no
 está cacheado, remitiendo a `tts-sidecar setup` sin disparar descargas. En Windows
 el instalador agrega `{app}` al PATH y ofrece una casilla que ejecuta `setup`.
+<!-- </model_provisioning> -->
 
+<!-- <license> -->
 ## Licencia
 
 El código de `tts-sidecar` se distribuye bajo **GPL-3.0-or-later** (ver `LICENSE`). El
@@ -122,7 +133,9 @@ modelo Chatterbox y todas las dependencias empaquetadas conservan sus licencias 
 (MIT/BSD/Apache/ISC/PSF), compatibles con GPLv3; sus atribuciones están en
 `THIRD-PARTY-LICENSES.md`. Al editar documentación, no confundir la licencia del **proyecto**
 (GPLv3) con las menciones «MIT» que describen el **modelo** o las dependencias.
+<!-- </license> -->
 
+<!-- <cli_commands> -->
 ## Comandos CLI
 
 ```bash
@@ -152,7 +165,9 @@ tts-sidecar doctor [--json]
 tts-sidecar devices [--json]
 tts-sidecar version [--json]
 ```
+<!-- </cli_commands> -->
 
+<!-- <directory_structure> -->
 ## Estructura de directorios
 
 ```
@@ -176,7 +191,9 @@ tests/                   # Tests pytest (37 tests)
 ├── test_daemon.py
 └── test_cli.py
 ```
+<!-- </directory_structure> -->
 
+<!-- <silenced_warnings> -->
 ## Warnings silenciados
 
 `bin/tts-sidecar` silencia:
@@ -185,7 +202,9 @@ tests/                   # Tests pytest (37 tests)
 - `huggingface_hub` HTTP warnings
 - `chatterbox.models.tokenizers.tokenizer` pkuseg
 - `chatterbox.models.t3.inference.alignment_stream_analyzer` repetition
+<!-- </silenced_warnings> -->
 
+<!-- <related_docs> -->
 ## Documentación relevante
 
 - `USAGE.md` - Guía de uso detallada
@@ -195,3 +214,4 @@ tests/                   # Tests pytest (37 tests)
 - `docs/BUILD.md` - Guía de compilación PyInstaller
 - `docs/ARCHITECTURE.md` - Arquitectura del sistema
 - `scripts/build_windows.py` - Build PyInstaller para Windows
+<!-- </related_docs> -->
