@@ -33,6 +33,24 @@ def copy_license_files(dest_dir) -> None:
             log(f"WARNING: no se encontró {name} en la raíz; no se empaquetó")
 
 
+def get_version(init_path: Path = None) -> str:
+    """Lee la versión de src/chatterbox_tts/__init__.py.
+
+    Fuente única de versión para los tres scripts de build (Windows, Linux,
+    macOS) y el generador del instalador Inno Setup. `init_path` permite
+    apuntar a otro __init__.py (tests).
+    """
+    if init_path is None:
+        init_path = Path(__file__).parent.parent / "src" / "chatterbox_tts" / "__init__.py"
+    for line in init_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line.startswith("__version__"):
+            parts = line.split("=", 1)
+            if len(parts) == 2:
+                return parts[1].strip().strip('"').strip("'")
+    raise RuntimeError("Could not find __version__ in __init__.py")
+
+
 def _format_duration(seconds: float) -> str:
     """Formatea segundos a string legible.
 

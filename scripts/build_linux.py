@@ -15,7 +15,7 @@ DIST_DIR = PROJECT_ROOT / "dist"
 BUILD_DIR = PROJECT_ROOT / "build"
 
 sys.path.insert(0, str(Path(__file__).parent))
-from build_utils import log, StageTimer, BuildTimer, copy_license_files
+from build_utils import log, StageTimer, BuildTimer, copy_license_files, get_version
 
 
 def check_dependencies():
@@ -141,7 +141,7 @@ def build_linux(target_arch="x86_64"):
 
             # El spec toma la versión y la arquitectura del entorno.
             env = os.environ.copy()
-            env["APP_VERSION"] = _get_version()
+            env["APP_VERSION"] = get_version()
             env["TARGET_ARCH"] = appimage_arch
 
             # appimage-builder requiere un icono presente en el AppDir; genera uno

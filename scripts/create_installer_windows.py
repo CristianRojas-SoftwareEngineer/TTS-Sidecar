@@ -16,19 +16,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-
-def get_version():
-    """Lee la versión de src/chatterbox_tts/__init__.py."""
-    project_root = Path(__file__).parent.parent
-    init_path = project_root / "src" / "chatterbox_tts" / "__init__.py"
-    content = init_path.read_text(encoding="utf-8")
-    for line in content.splitlines():
-        line = line.strip()
-        if line.startswith("__version__"):
-            parts = line.split("=", 1)
-            if len(parts) == 2:
-                return parts[1].strip().strip('"').strip("'")
-    raise RuntimeError("Could not find __version__ in __init__.py")
+sys.path.insert(0, str(Path(__file__).parent))
+from build_utils import get_version
 
 
 def get_inno_setup_path():

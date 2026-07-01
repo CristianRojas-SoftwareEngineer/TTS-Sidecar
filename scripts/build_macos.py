@@ -17,7 +17,7 @@ DIST_DIR = PROJECT_ROOT / "dist"
 BUILD_DIR = PROJECT_ROOT / "build"
 
 sys.path.insert(0, str(Path(__file__).parent))
-from build_utils import log, StageTimer, BuildTimer, copy_license_files
+from build_utils import log, StageTimer, BuildTimer, copy_license_files, get_version
 
 
 def check_dependencies():
@@ -139,7 +139,7 @@ def build_macos(target_arch="universal2"):
 
             # Write Info.plist
             info_plist = app_bundle / "Contents" / "Info.plist"
-            version = _get_version()
+            version = get_version()
             info_plist.write_text(_info_plist_content(version), encoding="utf-8")
 
             # Empaqueta los avisos de licencia dentro de Contents/Resources
@@ -209,18 +209,6 @@ sudo mkdir -p /usr/local/bin
 sudo ln -sf "$TARGET" "$LINK"
 echo "Listo: 'tts-sidecar' está disponible en la terminal (via $LINK)."
 """
-
-
-def _get_version():
-    """Read version from __init__.py."""
-    init_path = PROJECT_ROOT / "src" / "chatterbox_tts" / "__init__.py"
-    for line in init_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line.startswith("__version__"):
-            parts = line.split("=", 1)
-            if len(parts) == 2:
-                return parts[1].strip().strip('"').strip("'")
-    return "0.1.0"
 
 
 def _info_plist_content(version):
