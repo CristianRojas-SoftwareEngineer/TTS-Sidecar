@@ -1,16 +1,6 @@
-# Normalizar archivos de texto a LF en el repositorio
-* text=auto
-
-# Archivos de texto que siempre deben usar LF
-*.md      text eol=lf
-*.ts      text eol=lf
-*.js      text eol=lf
-*.json    text eol=lf
-*.toml    text eol=lf
-*.yml     text eol=lf
-*.yaml    text eol=lf
-*.rs      text eol=lf
-*.sh      text eol=lf
+# Todos los archivos de texto se normalizan a LF en el repo y en el working tree
+# (detección automática de texto/binario; los de texto siempre con final de línea LF).
+* text=auto eol=lf
 
 # Archivos binarios - no modificar
 *.bin     binary
