@@ -175,16 +175,13 @@ def get_audio_devices() -> list[dict]:
         except ImportError:
             return [{"id": 0, "name": "Default", "latency": 0.1}]
 
-    elif system == "Darwin":
-        # TODO: implementar enumeración real vía CoreAudio/AVFoundation;
-        # por ahora devuelve lista fija (afplay usa el dispositivo de salida por defecto)
-        return [{"id": 0, "name": "Built-in Output", "latency": 0.1}]
-
-    elif system == "Linux":
+    elif system in ("Darwin", "Linux"):
+        # sounddevice (PortAudio) enumera en ambas plataformas; se filtran los
+        # dispositivos de salida, análogo al filtro eRender de Windows.
         try:
             import sounddevice as sd
             return [
-                {"id": i, "name": info['name'], "latency": info['default_latency']}
+                {"id": i, "name": info['name'], "latency": info['default_low_output_latency']}
                 for i, info in enumerate(sd.query_devices())
                 if info['max_output_channels'] > 0
             ]
