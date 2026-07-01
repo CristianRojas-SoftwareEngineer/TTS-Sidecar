@@ -269,7 +269,7 @@ The invoker runs another skill as a sub-step and consumes its canonical output (
 3. **Gate propagation** — approval gates belonging to the sub-invoked skill (scope questions, plan approval) are still presented to the user through the outer flow. The invoker never absorbs or skips them.
 4. **Invoker declarations** — the invoker declares whether the sub-invocation is conditional or mandatory, and what it does with the result (e.g. sync it into its own artifacts). Any artifact the invoker owns is updated by the invoker, never by the sub-invoked skill.
 
-Living examples: `investigate` sub-invoking `create-plan` to formalize its read-only investigation plan (and consuming it as the hand-off that drives execution); `apply-specification-delta` sub-invoking `create-plan` before implementing.
+Living examples: `investigate` sub-invoking `create-plan` to formalize its read-only investigation plan (and consuming it as the hand-off that drives execution); `apply-specification-delta` sub-invoking `create-plan` before implementing; `audit-to-plan` orchestrating three delegations in one pipeline — `investigate` (phase 2, read-only findings), `resolve-open-decisions` (phase 4, decision gate) and `create-plan` (phase 5, the plan) — threading the maintenance profile through all three.
 
 ### Pattern B — Shared canonical reference
 

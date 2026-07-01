@@ -96,8 +96,8 @@ add it to the remaining batches — do not silently absorb it.
 
 **Maintenance-profile weighting (optional).** When a maintenance profile is active
 (declared by the user or received from the invoker), weight the option ordering by
-profile. Rather than duplicating the profile tables here, follow the definitions in
-[create-plan](../create-plan/SKILL.md) `<operation>` step 4:
+profile. Rather than duplicating the profile tables here, follow the canonical
+definitions in [investigate](../investigate/SKILL.md) `<maintenance_profiles>`:
 - **correctivo** → weight diff size, reversibility, non-regression.
 - **perfectivo** → weight dominant metric and significance.
 - **preventivo** → weight coverage of risk paths and residual risk.
