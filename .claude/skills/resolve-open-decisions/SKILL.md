@@ -18,7 +18,7 @@ fires one or more `AskUserQuestion` calls covering all open design decisions in 
 workflow, then hands the resolved decisions back to the invoking flow. It **never**
 writes or mutates any file — output is exclusively the interactive form.
 
-This is a **sub-invocable reference skill** (Pattern A of `artifact-structuring`).
+This is a **sub-invocable skill** — invoked at Level 1 (invocation with result consumption) per the composition protocol in `artifact-structuring` `<sub_invocation_protocol>`.
 Any `*-specification-delta` stage or `create-plan` may invoke it when decisions must
 be resolved before continuing; it replaces ad-hoc "¿A o B?" prose with a structured,
 reproducible gate.
@@ -35,8 +35,9 @@ Canonical policy: `<language_policy>` in
 <!-- <form_rules> -->
 ## Form construction rules
 
-These rules are the canonical definition. `create-plan`, `design-specification-delta`,
-and other skills cite this block (Pattern B) instead of restating the rules locally.
+These rules are the canonical definition. Skills that need to apply these rules
+invoke this skill (**Level 1**, invocation with result consumption) so the harness
+loads the rules mechanically — they do not cite or paraphrase them locally.
 
 **One question per decision.** Each `AskUserQuestion` question covers one atomic,
 mutually exclusive concern. Never bundle two unrelated decisions in the same question.
@@ -96,8 +97,12 @@ add it to the remaining batches — do not silently absorb it.
 
 **Maintenance-profile weighting (optional).** When a maintenance profile is active
 (declared by the user or received from the invoker), weight the option ordering by
-profile. Rather than duplicating the profile tables here, follow the canonical
-definitions in [investigate](../investigate/SKILL.md) `<maintenance_profiles>`:
+profile. Before weighting, **read `<maintenance_profiles>` in
+[investigate/SKILL.md](../investigate/SKILL.md)** and extract the profile
+definitions from there (Level 2 of the composition protocol in
+[artifact-structuring](../artifact-structuring/SKILL.md) `<sub_invocation_protocol>`);
+do not reconstruct the tables from memory. Profile summary for quick orientation
+(authoritative version is the source block):
 - **correctivo** → weight diff size, reversibility, non-regression.
 - **perfectivo** → weight dominant metric and significance.
 - **preventivo** → weight coverage of risk paths and residual risk.
@@ -105,7 +110,7 @@ definitions in [investigate](../investigate/SKILL.md) `<maintenance_profiles>`:
 <!-- </gate> -->
 
 <!-- <sub_invocation> -->
-## Sub-invocation contract (Pattern A)
+## Sub-invocation contract (Level 1)
 
 When invoked as a sub-step by another skill:
 

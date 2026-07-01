@@ -256,24 +256,54 @@ If the input file is empty, return an error message instead of empty output.
 <!-- </practical_patterns> -->
 
 <!-- <sub_invocation_protocol> -->
-## Sub-invocation protocol (composition between skills)
+## Composition protocol (levels by enforcement)
 
-Two composition patterns exist in this ecosystem. Skills that compose with others must reference this block instead of defining a local variant.
+Skills that compose with others must reference this block instead of defining a local variant. Three levels exist, each matched to the nature of the target.
 
-### Pattern A — Invocation with result consumption
+**Selection criterion:**
 
-The invoker runs another skill as a sub-step and consumes its canonical output (report, plan). Contract:
+- Is the target a skill with its own invocable workflow and gate? → **Level 1: invocation with result consumption**.
+- Is the target a canonical block of data or structure (lookup table, section template) that does not constitute an independently invocable skill? → **Level 2: mandatory source read**.
+- Is the target a one-sentence invariant already enforced by the always-loaded layer (CLAUDE.md, AGENTS.md)? → **Level 3: lightweight static reference**.
+
+Never use Level 3 for an executable process definition, even if it lives in an always-loaded artifact. Level 3 is for invariants whose full enforcement already happens outside the skill (e.g. a language rule declared in AGENTS.md §0).
+
+---
+
+### Level 1 — Invocation with result consumption
+
+The invoker runs another skill as a sub-step and consumes its canonical output (report, plan, resolved decisions). Strongest enforcement: the harness mechanically injects the sub-invoked `SKILL.md` into context at invocation time, and auto-compaction re-attaches it (first ~5000 tokens) after summarization. Use for any executable process definition that lives in an invocable skill.
+
+**Prerequisite — load before follow**: before executing the sub-step, the invoker must read the sub-invoked skill's `SKILL.md` into context and locate its named canonical blocks. Apply those definitions verbatim. Delegating is *read the source definition and follow it*, never *reconstruct from memory*. A canonical block not read from its source file is a block not followed.
+
+Contract:
 
 1. **Input context** — the invoker passes explicit context in the invocation prompt: which skill is invoking, what is already known (prior findings, active artifacts), and the complete requirements (sources to review, constraints, expected output). The sub-invoked skill never guesses the invoker's workflow.
-2. **Sub-invoked mode** — the sub-invoked skill suppresses its conversational close-out: it delivers its canonical output (report or plan) as a hand-off to the invoker's flow, and does not execute its own closing stages (commits, syncs, follow-up offers) unless the invoker explicitly instructs it to.
+2. **Sub-invoked mode** — the sub-invoked skill suppresses its conversational close-out: it delivers its canonical output as a hand-off to the invoker's flow, and does not execute its own closing stages (commits, syncs, follow-up offers) unless the invoker explicitly instructs it to.
 3. **Gate propagation** — approval gates belonging to the sub-invoked skill (scope questions, plan approval) are still presented to the user through the outer flow. The invoker never absorbs or skips them.
 4. **Invoker declarations** — the invoker declares whether the sub-invocation is conditional or mandatory, and what it does with the result (e.g. sync it into its own artifacts). Any artifact the invoker owns is updated by the invoker, never by the sub-invoked skill.
 
-Living examples: `investigate` sub-invoking `create-plan` to formalize its read-only investigation plan (and consuming it as the hand-off that drives execution); `apply-specification-delta` sub-invoking `create-plan` before implementing; `audit-to-plan` orchestrating three delegations in one pipeline — `investigate` (phase 2, read-only findings), `resolve-open-decisions` (phase 4, decision gate) and `create-plan` (phase 5, the plan) — threading the maintenance profile through all three.
+Living examples: `investigate` sub-invoking `create-plan` to formalize its read-only investigation plan; `audit-to-plan` orchestrating three Level-1 delegations — `investigate` (phase 2, findings), `resolve-open-decisions` (phase 4, decision gate), and `create-plan` (phase 5, the plan); `create-plan` invoking `resolve-open-decisions` before drafting when design decisions are open.
 
-### Pattern B — Shared canonical reference
+---
 
-The invoker neither invokes nor inlines another skill: it cites a canonical block as the single source of truth for a rule or structure and follows it in place. There is no transfer of control and no output to consume — the reference points at the authoritative definition so the invoker does not restate or fork it. Examples: `conventional-commits` referencing the `Propósito` section of `create-plan` as the canonical narrative structure; skills citing the `<language_policy>` block of this artifact instead of redefining the language rule locally.
+### Level 2 — Mandatory source read
+
+The target is a canonical block of data or structure (lookup table, section template, profile table) that does not constitute an independently invocable skill. No transfer of control; the invoker applies the block's definitions in its own flow — but must **read the source file** before applying them. Never reconstruct or paraphrase from memory.
+
+Required: before applying the definitions, read the file that contains the canonical block (via the harness Read tool or equivalent) and extract the definitions from there. A block not read from its source is a block not followed.
+
+Examples: reading `investigate` `<maintenance_profiles>` before weighting options; reading `create-plan` `<plan_template>` § Propósito before drafting a commit body section with the same structure.
+
+---
+
+### Level 3 — Lightweight static reference
+
+The target is a one-sentence rule already enforced by the always-loaded layer (CLAUDE.md, AGENTS.md) or whose paraphrase causes no meaningful harm beyond what that layer catches. No file read required. The reference points at the authoritative source so the artifact does not restate or fork it.
+
+Use only when: (a) the invariant is stated in the always-loaded layer, and (b) a paraphrase or omission causes no meaningful harm beyond what the always-loaded layer already catches.
+
+Example: skills citing `<language_policy>` of this artifact instead of redefining the language rule locally — AGENTS.md §0 already enforces the invariant.
 <!-- </sub_invocation_protocol> -->
 
 <!-- <tag_naming> -->
@@ -357,5 +387,5 @@ If the whole document is short (< ~500 tokens), linear, and without distinct con
 - `.md` files (SKILL.md, commands, CLAUDE.md): `<!-- <tag_name> -->` ... `<!-- </tag_name> -->` — HTML comments preserve semantic structure without breaking Markdown rendering.
 - Non-Markdown (API strings, JSON/YAML payloads, hook configs): raw `<tag_name>` ... `</tag_name>`.
 
-**Composition between skills:** see `<sub_invocation_protocol>` above — two patterns (invocation with result consumption; shared canonical reference) and the contract for the sub-invocation pattern.
+**Composition between skills:** see `<sub_invocation_protocol>` above — three enforcement levels (Level 1: invocation with result consumption for executable skills; Level 2: mandatory source read for canonical data/structure blocks; Level 3: lightweight static reference for one-sentence invariants in the always-loaded layer) with a selection criterion and the full Level-1 invocation contract.
 <!-- </artifact_reference> -->

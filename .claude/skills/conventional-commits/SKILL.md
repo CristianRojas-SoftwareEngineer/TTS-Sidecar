@@ -66,7 +66,7 @@ Separate from the first line with a blank line. Include these three blocks **in 
 | **Objetivos** | Bullet list of concrete goals fulfilled by this commit. |
 | **Resumen de cambios** | Files or components modified: what was added, updated, or removed and where. |
 
-Canonical narrative rules: `.claude/skills/create-plan/SKILL.md` `<plan_template>` § Propósito.
+Canonical narrative rules: before drafting this section, **read `<plan_template>` § Propósito in `.claude/skills/create-plan/SKILL.md`** and apply its two-component definition from there (Level 2 of the composition protocol in `.claude/skills/artifact-structuring/SKILL.md` `<sub_invocation_protocol>`). Do not reconstruct the rule from memory.
 <!-- </body_structure> -->
 
 <!-- <footer> -->

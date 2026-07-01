@@ -103,9 +103,10 @@ profile**.
   relevant surface; the index is a full report with many findings across areas.
 
 Also determine the **maintenance profile** (correctivo / perfectivo / preventivo
-/ adaptativo, or none) per the canonical table in
-[investigate](../investigate/SKILL.md) `<maintenance_profiles>` — do not restate
-it here. The profile is threaded into phases 2, 4 and 5 to modulate exploration
+/ adaptativo, or none). The canonical table lives in
+[investigate](../investigate/SKILL.md) `<maintenance_profiles>` — **read that
+block from its source file before applying its categories** (Level 2 of the
+composition protocol; do not reconstruct the table from memory). The profile is threaded into phases 2, 4 and 5 to modulate exploration
 focus, decision weighting, and plan risk posture.
 
 If the intended scope, target surface, the audit lens (what class of problems to
@@ -135,12 +136,14 @@ failure. Do not audit-resolve-plan in one silent pass.
 read-only investigation, and documentation; phase 5 produces a *plan*, not the
 fix. Execution of the plan is a separate flow the user starts after approval.
 
-**Composition.** Phases 2, 4 and 5 sub-invoke sibling skills following Pattern A
-(invocation with result consumption) of the `<sub_invocation_protocol>` in
-[artifact-structuring](../artifact-structuring/SKILL.md): pass explicit input,
-let the sub-skill deliver its canonical output as a hand-off, and surface its
-approval gates to the user through this outer flow. The **maintenance profile**
-determined in phase 1 is the thread that runs
+**Composition.** Phases 2, 4 and 5 sub-invoke sibling skills at **Level 1**
+(invocation with result consumption) of the composition protocol in
+[artifact-structuring](../artifact-structuring/SKILL.md) `<sub_invocation_protocol>`:
+pass explicit input, let the sub-skill deliver its canonical output as a hand-off,
+and surface its approval gates to the user through this outer flow. References to
+`<maintenance_profiles>` throughout use **Level 2** (mandatory source read from
+`investigate/SKILL.md` — never reconstruct from memory). The **maintenance
+profile** determined in phase 1 is the thread that runs
 calibration → `investigate` → `resolve-open-decisions` → `create-plan`: pass it
 to each delegation so exploration focus, decision weighting, and plan risk
 posture stay aligned.
@@ -149,18 +152,20 @@ posture stay aligned.
 <!-- <phase_2_investigate> -->
 ## Phase 2 — Investigation (delegated)
 
-Delegate the read-only investigation to [investigate](../investigate/SKILL.md).
-Do **not** reimplement its discovery, evidence discipline, or reporting here —
-follow that skill (no duplication).
+Delegate the read-only investigation to [investigate](../investigate/SKILL.md)
+at **Level 1** (invocation with result consumption). Before invoking, read its
+`SKILL.md` into context and apply its discovery, evidence, and reporting blocks
+directly — do not reimplement or re-derive them from memory.
 
-Sub-invocation input this skill provides (Pattern A):
+Level-1 invocation input this skill provides:
 
 - The **lens** (what class of problems to look for) and the **target surface**
   from phase 1, expressed as concrete sources (entry points, platform-specific
   branches, build/CI config, dependency manifests, docs — whatever the lens
   demands).
 - The active **maintenance profile**, so `investigate` modulates each task's
-  focus, required evidence, and depth per its `<maintenance_profiles>` table.
+  focus, required evidence, and depth per its `<maintenance_profiles>` table
+  (that table was read at Level 2 in phase 1).
 
 Consume as the hand-off the **proven findings** `investigate` reports (facts vs.
 interpretations, each with its source), which become the raw material phase 3
@@ -216,8 +221,14 @@ recommended-order phases) and confirm with the user before entering resolution.
 <!-- <phase_4_resolve> -->
 ## Phase 4 — Resolve decisions 1×1 (human in the loop)
 
-Delegate to [resolve-open-decisions](../resolve-open-decisions/SKILL.md). Do
-**not** restate its form rules, batching, or gate here — follow that skill.
+Delegate to [resolve-open-decisions](../resolve-open-decisions/SKILL.md) at
+**Level 1** (invocation with result consumption). Before invoking, load its
+`SKILL.md` into context and apply `<form_rules>`, `<batching>`, and `<gate>`
+verbatim. The form must satisfy these rules drawn directly from those blocks:
+options ordered most-to-least recommended; the first option's `label` appends
+`(Recomendada)`; every option's `description` declares both pros and cons
+(explicit trade-offs, not just benefits); and `AskUserQuestion` calls are capped
+at ≤4 questions per batch.
 
 **Skip branch.** If no finding in the index requires an owner decision (every fix
 is self-evident), **omit phase 4 and proceed to phase 5** — record in the index
@@ -229,8 +240,9 @@ Sub-invocation input this skill provides:
   chosen approach is not self-evident), each with its candidate corrections from
   the index as the option set.
 - The active review name and the **maintenance profile** from phase 1, which
-  weights the option ordering per that skill's `<gate>` (profile definitions:
-  [investigate](../investigate/SKILL.md) `<maintenance_profiles>`).
+  weights the option ordering per that skill's `<gate>` (profile definitions live
+  in [investigate](../investigate/SKILL.md) `<maintenance_profiles>` — read at
+  Level 2 in phase 1; pass the chosen profile label, not the full table).
 
 Contract:
 
@@ -251,8 +263,21 @@ choices from one source of truth.
 <!-- <phase_5_plan> -->
 ## Phase 5 — Define the correction plan (delegated)
 
-Delegate to [create-plan](../create-plan/SKILL.md) in sub-invoked mode. Do not
-restate its template or rules here.
+Delegate to [create-plan](../create-plan/SKILL.md) at **Level 1** (invocation
+with result consumption). Before drafting the plan, load its `SKILL.md` into
+context and apply `<plan_template>`, `<content_rules>`, and `<verification>`
+verbatim: produce the plan strictly against the eight H2 sections in template
+order (Contexto del proyecto → Tabla de contenidos → Consideraciones
+fundamentales → Propósito del plan → Objetivos del plan → Fase de ejecución →
+Dependencias y orden de ejecución → Fase de cierre), and run `<verification>`
+before exposing the plan-approval gate.
+
+**No double decision gate.** The resolved approaches from phase 4 (or the direct
+fixes when phase 4 was skipped) are passed to `create-plan` as **closed
+requirements** — not open decisions. `create-plan`'s own step 4 (invoke
+`resolve-open-decisions` for open design decisions) applies only to
+implementation-level choices that phase 4 did not surface; it must **not** reopen
+the audit decisions already resolved above.
 
 Sub-invocation input this skill provides:
 
@@ -360,7 +385,7 @@ establecida.}}
 
 1. Was the scope calibrated with the user in phase 1 (mode, lens, target surface,
    maintenance profile) before investigating?
-2. Was the investigation delegated to `investigate` (Pattern A) with lens,
+2. Was the investigation delegated to `investigate` (Level 1 invocation) with lens,
    surface and profile as input, and consumed as proven findings — not
    reimplemented here?
 3. Does every finding carry a group-derived ID (`CRITICAL-`/`WARNING-`/
@@ -369,12 +394,18 @@ establecida.}}
 4. Was the index report persisted to disk and summarized to the user (counts per
    group) before entering resolution?
 5. If any finding required a decision, were they resolved via
-   `resolve-open-decisions` (one question each, trade-offs, ≤4 per batch) and
+   `resolve-open-decisions` with its canonical `<form_rules>` applied — does
+   every form question show at least one option labeled `(Recomendada)` and does
+   every option's description declare explicit trade-offs (both pros and cons, not
+   just benefits)? Were questions batched ≤4 per call per `<batching>` and
    emergent escalations surfaced rather than absorbed — or, if none required a
    decision, was phase 4 explicitly skipped?
-6. Was the plan produced via `create-plan` from the resolved approaches, with each
-   task citing the finding IDs it resolves, and the approval gate surfaced to the
-   user?
+6. Was the plan produced via `create-plan` following its `<plan_template>` (H1
+   plus the eight H2 sections in template order: Contexto del proyecto → Tabla de
+   contenidos → Consideraciones fundamentales → Propósito del plan → Objetivos del
+   plan → Fase de ejecución → Dependencias y orden de ejecución → Fase de cierre)?
+   Was `<verification>` run before exposing the approval gate, and does every
+   plan task cite the finding IDs it resolves?
 7. Did the workflow stay read-only (no code mutations) through to plan approval?
 8. Is all user-facing output in Spanish, with identifiers and paths verbatim, and
    no internal XML block names leaked?

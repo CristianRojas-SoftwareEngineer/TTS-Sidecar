@@ -56,7 +56,7 @@ This skill is **self-contained**: it formalizes an internal investigation plan (
 <!-- <maintenance_profiles> -->
 ## Maintenance profiles (optional exploration modes)
 
-This block is the **canonical source** of the maintenance-profile definitions for the skill ecosystem; other skills (`resolve-open-decisions`, `create-plan`, `audit-to-plan`) reference it (Pattern B) instead of restating the tables.
+This block is the **canonical source** of the maintenance-profile definitions for the skill ecosystem. Any skill that applies these profiles (`resolve-open-decisions`, `create-plan`, `audit-to-plan`) must **read this block from this file** before weighting options or modulating tasks (Level 2 of the composition protocol in [artifact-structuring](../artifact-structuring/SKILL.md) `<sub_invocation_protocol>`). Do not reconstruct the profile tables from memory.
 
 When the investigation is tied to a software-maintenance problem, an active profile modulates the exploration focus, the minimum evidence required, and the reasoning effort of the internal plan's tasks:
 
