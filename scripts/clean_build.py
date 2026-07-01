@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Clean build script — removes PyInstaller artifacts (dist/, build/, *.spec)
-and the cached model.
+Clean build script — removes PyInstaller artifacts (dist/, build/, *.spec),
+__pycache__ directories and the cached model.
 Usage: python scripts/clean_build.py
        npm run clean-build
 """
@@ -58,6 +58,10 @@ def main():
             log(f"Deleted: {spec}")
         except Exception as e:
             log(f"Error deleting {spec}: {e}")
+
+    log("Removing __pycache__ directories...")
+    for cache_dir in PROJECT_ROOT.rglob("__pycache__"):
+        delete_folder(cache_dir)
 
     log("Removing HuggingFace model cache...")
     for name in MODEL_CACHE_NAMES:
