@@ -1,206 +1,131 @@
-# Revisión: auditoría sistémica de tts-sidecar (compatibilidad · corrección · UX/DX · calidad)
+# Revisión: auditoría sistémica de tts-sidecar (corrección · compatibilidad · mantenibilidad · seguridad)
 
 ## Resumen ejecutivo
 
-Se auditó todo el repositorio `tts-sidecar` bajo una lente combinada de compatibilidad
-multiplataforma, corrección/bugs, UX/DX y calidad/deuda técnica, con perfil **preventivo**
-(hardening y clases de defectos antes de los builds de CI). Veredicto global: el núcleo del
-CLI y del engine está sólido y bien documentado, pero hay **dos defectos que rompen rutas de
-build/instalación completas** (dependencias del daemon sin declarar y un `NameError` en el build
-de Linux) que materializarían fallos en CI, más deuda de acoplamiento y rutas heredadas
-divergentes. Conteo: **2 críticos, 4 advertencias, 4 sugerencias**.
+Se auditó todo el repositorio `tts-sidecar` bajo una lente combinada de corrección/bugs,
+compatibilidad multiplataforma, mantenibilidad/deuda técnica y seguridad, con perfil
+**preventivo**. Se partió de una auditoría previa (`CRITICAL-01`, `CRITICAL-02`, `WARNING-02`,
+`WARNING-03` del histórico en `git show HEAD:docs/PROJECT-REVIEW.md`) cuyas correcciones se
+verificaron **todas vigentes** (sin regresiones). Esta ronda encontró **1 defecto crítico**
+que rompe la promesa de funcionamiento offline para el modelo `multilingual`, **1 advertencia**
+sobre el mecanismo de auto-restart del daemon, y **4 sugerencias** de limpieza/mantenibilidad.
+No se hallaron problemas de seguridad nuevos (path traversal, `shell=True`, deserialización)
+tras revisar `voices.py`, `daemon/server.py` y los scripts de build.
 
 | ID | Título | Grupo | Área/plataforma | Decisión requerida |
 |----|--------|-------|-----------------|--------------------|
-| CRITICAL-01 | Dependencias del daemon (fastapi/uvicorn/pydantic) sin declarar | Crítico | Empaquetado / todas | Sí |
-| CRITICAL-02 | `_get_version()` indefinido en `build_linux.py` (NameError) | Crítico | Build Linux (AppImage) | No |
-| WARNING-01 | CI cablea la ruta del artefacto con versión fija `0.1.0` | Advertencia | CI / Windows | No |
-| WARNING-02 | `install.py` (`npm run install-model`) provisiona por una vía divergente y probablemente rota | Advertencia | Provisión / todas | Sí |
-| WARNING-03 | `snapshots[0]` elige un snapshot arbitrario de la caché HF | Advertencia | Engine / todas | Sí |
-| WARNING-04 | La validez de una voz solo comprueba `reference.wav`, no `speech.wav` | Advertencia | Voces / todas | No |
-| SUGGESTION-01 | URL de repositorio placeholder `your-org` en `package.json` | Sugerencia | Metadatos | No |
-| SUGGESTION-02 | Código muerto `get_socket_path` (residuo de Unix sockets) | Sugerencia | Daemon | No |
-| SUGGESTION-03 | Comentario de `tts-sidecar.yml` cita `--appimage-spec`; el código usa `--recipe` | Sugerencia | Build Linux | No |
-| SUGGESTION-04 | `devices` en macOS devuelve una lista fija simulada | Sugerencia | Audio / macOS | No |
+| CRITICAL-01 | `_download_model` re-descarga el modelo `multilingual` aunque esté cacheado | Crítico | Engine / todas | No |
+| WARNING-01 | `--auto-restart` del daemon no recarga el modelo tras un crash (caché de clase persiste) | Advertencia | Daemon / todas | No |
+| SUGGESTION-01 | Ruta del voice-encoder de fallback hardcodea la caché de HF en vez de reusar `hub_cache_path()` | Sugerencia | Engine | No |
+| SUGGESTION-02 | `AudioPlayer` no soporta plataformas fuera de Win/Linux/macOS sin diagnóstico en `doctor` | Sugerencia | Audio / otras plataformas | No |
+| SUGGESTION-03 | Handlers de señal en `daemon/run.py` quedan sin efecto claro tras arrancar uvicorn | Sugerencia | Daemon | No |
+| SUGGESTION-04 | Traducción redundante de alias de modelo en `_download_model` (código confuso, no alcanzable) | Sugerencia | Engine | No |
 
 ## Hallazgos por grupo
 
 ### Críticos
 
-#### CRITICAL-01 — Dependencias del daemon sin declarar en los manifiestos
-- **Área/plataforma**: empaquetado y ejecución del daemon; todas las plataformas.
-- **Evidencia**: `src/chatterbox_tts/daemon/server.py:10` (`from fastapi import ...`),
-  `src/chatterbox_tts/daemon/run.py:56` (`import uvicorn`),
-  `src/chatterbox_tts/daemon/protocol.py:5` (`from pydantic import BaseModel`), frente a
-  `pyproject.toml:15-21` y `requirements.txt:9-18`, que **no** listan `fastapi`, `uvicorn`
-  ni `pydantic`. Además `daemon/__init__.py:16` importa `.server` de forma ansiosa, y
-  `tests/test_daemon.py:14` hace `from chatterbox_tts.daemon import DaemonIPCClient`, por lo
-  que importar el paquete daemon arrastra fastapi+pydantic al recolectar los tests.
-- **Causa**: la funcionalidad del daemon (FastAPI + uvicorn + pydantic) se añadió sin
-  declarar sus dependencias de runtime en la fuente única (`pyproject.toml`) ni en su espejo
-  (`requirements.txt`). Los scripts de build tampoco hacen `--collect-all fastapi/uvicorn`
-  (PyInstaller las alcanza por el grafo de imports, pero `pip install .` no).
-- **Impacto**: `pip install .`, la ejecución desde fuente y el job `test` de CI dependen de
-  que alguna dependencia transitiva (p. ej. de `chatterbox-tts`) arrastre estos paquetes.
-  `pydantic` es plausible como transitiva; `fastapi`/`uvicorn` no lo son. Si no se resuelven,
-  la recolección de `tests/test_daemon.py` y `tests/test_protocol.py` falla con `ImportError`
-  y el daemon no arranca. Es un defecto de robustez aunque hoy CI pasara por azar transitivo.
+#### CRITICAL-01 — `_download_model` re-descarga el modelo `multilingual` aunque esté cacheado
+- **Área/plataforma**: `src/chatterbox_tts/engine.py`; todas las plataformas.
+- **Evidencia**: `engine.py:240-248`. La rama que acepta un snapshot cacheado y evita la
+  descarga solo retorna explícitamente cuando el modelo es `es-mx-latam` (verifica
+  `t3_es_mx_latam.safetensors`, línea 245). Para cualquier otro modelo (p. ej. `multilingual`),
+  si `cached is not None`, el `if` de la línea 244 no cubre ese caso y el flujo cae igual hacia
+  el bloque de descarga (líneas 249+). Esto contradice `is_model_cached()`
+  (`src/chatterbox_tts/model_cache.py:63-81`), que sí acepta cualquier snapshot no vacío para
+  modelos distintos de `es-mx-latam` (línea 81: `return True`).
+- **Causa**: al añadir la verificación específica de `es-mx-latam` no se generalizó el `return`
+  del snapshot cacheado para el resto de modelos.
+- **Impacto**: con `--model multilingual`, el motor descarga desde HuggingFace en **cada**
+  instanciación (cada `speak`/`daemon start`) aunque el modelo ya esté en caché local. Si no hay
+  red disponible, la síntesis falla pese a que `tts-sidecar doctor`/`is_model_cached` reportan el
+  modelo como "cacheado" — rompe la promesa de funcionamiento offline documentada en `CLAUDE.md`
+  para ese modelo, y desperdicia ancho de banda/tiempo en el caso con red.
 - **Corrección(es) propuesta(s)**:
-  1. *(recomendada)* Declarar `fastapi`, `uvicorn` (o `uvicorn[standard]`) y `pydantic` con
-     pines en `[project.dependencies]` de `pyproject.toml` y reflejarlos en `requirements.txt`.
-  2. Declararlos solo en `requirements.txt` (rechazada: rompe la regla de fuente única).
-- **Decisión requerida**: Sí — confirmar el conjunto/forma de los pines y si `uvicorn` va con
-  el extra `[standard]`.
-
-#### CRITICAL-02 — `_get_version()` indefinido en `build_linux.py` (NameError)
-- **Área/plataforma**: build de Linux (etapa AppImage); jobs `build-linux-x64` y
-  `build-linux-arm64` de CI.
-- **Evidencia**: `scripts/build_linux.py:144` (`env["APP_VERSION"] = _get_version()`) invoca
-  `_get_version()`, que **no** está definido en el módulo ni en su import de `build_utils`
-  (`scripts/build_linux.py:18` importa solo `log, StageTimer, BuildTimer, copy_license_files`).
-  La función solo existe en `scripts/build_macos.py:214`.
-- **Causa**: `_get_version` se definió en `build_macos.py` y se usó en `build_linux.py` sin
-  moverla a un hogar compartido ni importarla.
-- **Impacto**: la etapa AppImage aborta con `NameError: name '_get_version' is not defined`
-  en cuanto existe `scripts/tts-sidecar.yml` (existe), es decir siempre. El bundle onedir se
-  genera, pero el AppImage nunca se produce y el build de Linux termina en error.
-- **Corrección(es) propuesta(s)**:
-  1. *(recomendada)* Mover `_get_version()` a `scripts/build_utils.py` e importarla en los tres
-     scripts de build (elimina la duplicación con `create_installer_windows.get_version`).
-  2. Duplicar `_get_version()` dentro de `build_linux.py` (rechazada: perpetúa la duplicación).
-- **Decisión requerida**: No — corrección evidente (centralizar en `build_utils`).
+  1. *(recomendada)* En `_download_model`, cuando `cached is not None` y el modelo no es
+     `es-mx-latam`, retornar `cached` directamente (igual que ya hace `is_model_cached`), en vez
+     de dejar caer el flujo hacia la descarga.
+- **Decisión requerida**: No — corrección evidente (alinear con `is_model_cached`).
 
 ### Advertencias
 
-#### WARNING-01 — CI cablea la ruta del artefacto con la versión fija `0.1.0`
-- **Área/plataforma**: `.circleci/config.yml`, job `build-windows`.
-- **Evidencia**: `.circleci/config.yml:47` (`path: dist/tts-sidecar-0.1.0-setup.exe`). El nombre
-  real lo genera `create_installer_windows.py` a partir de `__version__` (`__init__.py:6`).
-- **Causa**: la ruta del artefacto se escribió literal en lugar de derivarla de la versión.
-- **Impacto**: al subir la versión en `__init__.py`, `store_artifacts` apunta a un archivo que
-  ya no existe y la subida del instalador falla/queda vacía silenciosamente.
-- **Corrección(es) propuesta(s)**: usar un glob (`dist/tts-sidecar-*-setup.exe`) o exportar la
-  versión a una variable de entorno de CI. *(recomendada: glob)*.
-- **Decisión requerida**: No.
-
-#### WARNING-02 — `install.py` provisiona por una vía divergente y probablemente rota
-- **Área/plataforma**: `scripts/install.py`, expuesto como `npm run install-model`
-  (`package.json:17`); todas las plataformas.
-- **Evidencia**: `scripts/install.py:67`
-  (`ChatterboxTTS.from_pretrained("ResembleAI/Chatterbox-Multilingual-es-mx-latam")`), frente
-  al loader propio que el engine exige para es-mx-latam (`engine.py:220` `_load_es_latam`,
-  vocab de 2454 tokens). El comando canónico `setup` usa `ChatterboxEngine.get_instance`
-  (`cli.py:393`), no `from_pretrained`.
-- **Causa**: `install.py` es un artefacto heredado (así lo declara su docstring, `install.py:7`)
-  que no se actualizó cuando la provisión pasó a `tts-sidecar setup` y al loader es-mx-latam.
-- **Impacto**: la ruta `npm run install-model` puede fallar al construir el modelo es-mx-latam
-  con el loader base, instala dependencias de forma redundante y escribe un `config.json` que
-  ningún módulo lee (`install.py:86`). Divergencia de dos vías de provisión que confunde y
-  puede romper la re-descarga del modelo.
-- **Corrección(es) propuesta(s)**:
-  1. *(recomendada)* Reapuntar `install-model` a `tts-sidecar setup` y eliminar/reducir
-     `install.py` (o convertirlo en un thin wrapper de `cmd_setup`).
-  2. Corregir `download_model` para usar el engine, conservando el resto.
-- **Decisión requerida**: Sí — elegir entre eliminar `install.py`, convertirlo en wrapper de
-  `setup`, o corregir su descarga.
-
-#### WARNING-03 — `snapshots[0]` elige un snapshot arbitrario de la caché HF
-- **Área/plataforma**: `engine.py`; todas las plataformas.
-- **Evidencia**: `engine.py:187` (`cached = snap_path / snapshots[0]`) y `engine.py:624`
-  (idéntico en `is_model_cached`). `snapshots` proviene de `os.listdir`, sin orden garantizado.
-- **Causa**: se asume un único snapshot; con varias revisiones en caché se toma una al azar.
-- **Impacto**: tras una actualización del repo del modelo pueden coexistir varios snapshots; se
-  podría cargar/validar una revisión obsoleta de forma no determinista entre ejecuciones.
-- **Corrección(es) propuesta(s)**: resolver la revisión actual (leer `refs/main`) o elegir el
-  snapshot más reciente por `mtime` en lugar de `[0]`. *(recomendada: refs/main)*.
-- **Decisión requerida**: Sí — estrategia de selección (refs vs. mtime).
-
-#### WARNING-04 — La validez de una voz solo comprueba `reference.wav`
-- **Área/plataforma**: `voices.py`; todas las plataformas.
-- **Evidencia**: `voices.py:43` (`_resolve_voice_dir` valida solo `reference.wav`) y
-  `voices.py:56` (`list_voices` idem), mientras que `voice_paths` exige además `speech.wav`
-  (`voices.py:89`) y el diseño dual-audio requiere ambos.
-- **Causa**: criterio de existencia incompleto (un solo archivo en vez de los dos requeridos).
-- **Impacto**: un directorio con solo `reference.wav` se lista y resuelve como voz válida, pero
-  luego `voice_paths` lanza `FileNotFoundError` en un punto posterior → validez inconsistente y
-  fallo confuso para el usuario.
-- **Corrección(es) propuesta(s)**: exigir la existencia de `reference.wav` **y** `speech.wav`
-  en `_resolve_voice_dir` y `list_voices`.
+#### WARNING-01 — `--auto-restart` del daemon no recarga el modelo tras un crash
+- **Área/plataforma**: `src/chatterbox_tts/daemon/run.py` + `src/chatterbox_tts/engine.py`;
+  todas las plataformas.
+- **Evidencia**: `run.py:79-93` reintenta `ChatterboxEngine.get_instance(model="es-mx-latam",
+  device="cpu")` dentro del bucle `while True:` de `serve()`, pero `get_instance`
+  (`engine.py:136-151`) usa una caché **a nivel de clase** (`_cache`, línea 134) que persiste
+  durante todo el proceso; con la misma `cache_key`, devuelve la instancia ya existente sin
+  reconstruirla (líneas 149-150).
+- **Causa**: el mecanismo de reintento no invalida la caché de instancia antes de reintentar.
+- **Impacto**: si el crash que dispara `--auto-restart` (`cli.py:557`) se debe a un estado
+  interno corrupto del motor (p. ej. tras una excepción en `speak()`), el reinicio vuelve a
+  levantar el mismo objeto potencialmente dañado en memoria en vez de recargar el modelo desde
+  cero, anulando el propósito de la opción para esa clase de fallos.
+- **Corrección(es) propuesta(s)**: invalidar explícitamente la entrada correspondiente de
+  `ChatterboxEngine._cache` antes de reintentar en `run.py`, forzando una recarga real.
 - **Decisión requerida**: No.
 
 ### Sugerencias
 
-#### SUGGESTION-01 — URL de repositorio placeholder en `package.json`
-- **Evidencia**: `package.json:35` (`"url": "https://github.com/your-org/tts-sidecar"`).
-- **Impacto**: metadato incorrecto en el paquete publicable. **Corrección**: fijar la URL real.
+#### SUGGESTION-01 — Ruta del voice-encoder de fallback duplica la construcción de `hub_cache_path()`
+- **Evidencia**: `engine.py:294-299` construye manualmente
+  `~/.cache/huggingface/hub/models--ResembleAI--chatterbox/snapshots`, en vez de reutilizar
+  `hub_cache_path()` (`model_cache.py:28-30`), ya centralizada.
+- **Impacto**: dos fuentes de verdad para la misma ruta; una futura corrección de
+  `hub_cache_path()` (p. ej. soporte de `HF_HOME`) dejaría esta ruta desactualizada.
+  **Corrección**: reemplazar por `hub_cache_path() / cache_folder_for(...) / "snapshots"`.
 - **Decisión requerida**: No.
 
-#### SUGGESTION-02 — Código muerto `get_socket_path`
-- **Evidencia**: `src/chatterbox_tts/daemon/server.py:22` (marcado como residuo en `:19`), aún
-  exportado en `daemon/__init__.py:16,28`.
-- **Impacto**: deuda/confusión; el daemon usa HTTP/TCP en todas las plataformas.
-  **Corrección**: eliminar la función y su export.
+#### SUGGESTION-02 — `AudioPlayer` no soporta plataformas fuera de Win/Linux/macOS sin diagnóstico
+- **Evidencia**: `audio.py:32-41` lanza `RuntimeError` para cualquier otra plataforma;
+  `cli.py:264-300` (`_environment_checks`) no cubre esa rama en `doctor`.
+- **Impacto**: laguna de diagnóstico (bajo, fuera del alcance declarado Win/Linux/macOS).
+  **Corrección**: opcional, no prioritaria dado el alcance del proyecto.
 - **Decisión requerida**: No.
 
-#### SUGGESTION-03 — Comentario obsoleto en `tts-sidecar.yml`
-- **Evidencia**: `scripts/tts-sidecar.yml:7` cita `appimage-builder --appimage-spec ...`, pero
-  `scripts/build_linux.py:152` invoca `--recipe ... --skip-test`.
-- **Impacto**: documentación engañosa. **Corrección**: actualizar el comentario a `--recipe`.
+#### SUGGESTION-03 — Handlers de señal en `daemon/run.py` quedan sin efecto claro tras uvicorn
+- **Evidencia**: `run.py:72-77` registra `SIGTERM`/`SIGINT` antes de `uvicorn.Server.run()`
+  (línea 123), que instala sus propios manejadores por defecto y puede sobrescribirlos.
+- **Impacto**: deuda de claridad sobre qué mecanismo controla realmente el apagado (bajo,
+  especulativo — no verificado en runtime). **Corrección**: documentar o unificar en una sola
+  fuente de verdad para el apagado por señal.
 - **Decisión requerida**: No.
 
-#### SUGGESTION-04 — `devices` en macOS devuelve una lista fija simulada
-- **Evidencia**: `src/chatterbox_tts/audio.py:178-181` (TODO; retorna un único dispositivo
-  «Built-in Output» fijo).
-- **Impacto**: UX: `tts-sidecar devices` en macOS no refleja los dispositivos reales.
-  **Corrección**: implementar enumeración vía CoreAudio/AVFoundation o documentar la limitación.
+#### SUGGESTION-04 — Traducción redundante de alias de modelo en `_download_model`
+- **Evidencia**: `engine.py:251-252` reimplementa el mapeo de alias corto → repo-id completo que
+  ya resuelve `self.MODELS.get(model, model)` en `__init__` (`engine.py:170`) antes de llegar a
+  `_download_model`; ese branch normalmente no es alcanzable en el flujo actual.
+- **Impacto**: código confuso, no un bug activo. **Corrección**: eliminar la traducción
+  redundante o comentar que es una red de seguridad para llamadas directas hipotéticas.
 - **Decisión requerida**: No.
 
 ## Orden de corrección recomendado
 
-- **Fase 1 (desbloquear CI)**: CRITICAL-02 (NameError del build Linux) y CRITICAL-01
-  (dependencias del daemon). Ambos gatean los jobs de CI; bajo esfuerzo, impacto máximo.
-- **Fase 2 (robustez y coherencia)**: WARNING-03 (selección de snapshot), WARNING-04 (validez
-  de voz), WARNING-02 (unificar provisión), WARNING-01 (ruta de artefacto en CI).
-- **Fase 3 (limpieza)**: SUGGESTION-01…04 (metadatos, código muerto, comentario, UX macOS).
+- **Fase 1 (corrección funcional)**: CRITICAL-01 (rompe offline para `multilingual`) y
+  WARNING-01 (auto-restart no efectivo) — bajo esfuerzo, impacto alto en confiabilidad.
+- **Fase 2 (limpieza)**: SUGGESTION-01, SUGGESTION-03, SUGGESTION-04 (consolidar rutas,
+  clarificar señales, quitar código confuso).
+- **Fase 3 (opcional)**: SUGGESTION-02 (fuera del alcance declarado del proyecto; no priorizar).
 
 ## Decisiones del propietario
 
-Resueltas en la Fase 4 (resolución 1×1):
+Ningún hallazgo de esta ronda requirió decisión del propietario — todas las correcciones
+propuestas son directas y de bajo riesgo (alinear ramas de código existentes, sin alternativas
+de diseño en competencia). Se omite la Fase 4 (`resolve-open-decisions`) y los hallazgos pasan
+directos a la Fase 5 como requisitos cerrados del plan.
 
-- **CRITICAL-01** → *Declarar en pyproject + espejo en requirements.* Añadir `fastapi`,
-  `uvicorn[standard]` y `pydantic` (con pines) a `[project.dependencies]` de `pyproject.toml`
-  y reflejarlos en la sección runtime de `requirements.txt`. Respeta la regla de fuente única.
-- **WARNING-02** → *Reapuntar `install-model` a `tts-sidecar setup`.* Cambiar el script
-  `install-model` de `package.json` para invocar el comando canónico `setup` y eliminar
-  `scripts/install.py` (artefacto heredado; nada lo importa), dejando una sola vía de provisión.
-- **WARNING-03** → *Leer `refs/main`.* Resolver la revisión apuntada por `refs/main` del repo
-  cacheado y usar ese snapshot en `_download_model` (`engine.py:187`) e `is_model_cached`
-  (`engine.py:624`), en lugar de `snapshots[0]`.
-
-El resto de hallazgos (CRITICAL-02, WARNING-01, WARNING-04, SUGGESTION-02…03) son correcciones
-evidentes que se llevan directas al plan sin decisión del propietario.
-
-Decisiones emergentes resueltas durante la planificación (Fase 5):
-
-- **SUGGESTION-01** → *Publicar el repo y fijar la URL real.* El repo local no tenía remote,
-  así que la URL no era derivable: se decidió publicarlo como repo nuevo bajo el usuario
-  `CristianRojas-SoftwareEngineer`, instalando GitHub CLI (`gh`) para automatizar la creación
-  (`gh repo create`), y fijar `https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar`
-  en `package.json`.
-- **SUGGESTION-04** → *Reusar `sounddevice`.* En vez de documentar la limitación o implementar
-  CoreAudio, la rama macOS de `get_audio_devices` se unifica con la de Linux vía
-  `sounddevice.query_devices()` (dependencia ya declarada, mismo patrón, diff mínimo).
-  Verificación end-to-end pendiente de un entorno macOS real.
-- **Alcance de tests** → *Tests dirigidos incluidos.* Perfil preventivo: se añaden
-  `tests/test_voices.py`, `tests/test_engine_cache.py` y `tests/test_build_utils.py` para
-  fijar el comportamiento corregido de WARNING-03/04 y CRITICAL-02.
+Del histórico previo, quedan confirmados sin regresión (no requieren nueva decisión):
+`CRITICAL-01` (deps del daemon declaradas en `pyproject.toml:16-23`/`requirements.txt:11-13`),
+`CRITICAL-02` (`get_version()` centralizado en `scripts/build_utils.py:36-51`), `WARNING-02`
+(`scripts/install.py` eliminado) y `WARNING-03` (`_resolve_cached_snapshot()` en
+`model_cache.py:50-60` lee `refs/main`).
 
 ## Confirmación en CI
 
-- **CRITICAL-01**: probado por lectura (imports vs. manifiestos). El que el job `test` de CI
-  pase o falle hoy depende de la resolución transitiva de `pydantic`/`fastapi`/`uvicorn`; se
-  confirma revisando la salida de recolección de `pytest` en el job `test`.
-- **CRITICAL-02**: probado por lectura (símbolo indefinido). Se confirma en los jobs
-  `build-linux-x64` / `build-linux-arm64`, que abortarían en la etapa AppImage con `NameError`.
-- **WARNING-01**: se confirma en el job `build-windows` tras un bump de versión, observando si
-  `store_artifacts` encuentra el `.exe`.
+- **CRITICAL-01**: probado por lectura de código (comparación de ramas en `_download_model` vs.
+  `is_model_cached`). Se confirma ejecutando `tts-sidecar speak --model multilingual` dos veces
+  seguidas con red deshabilitada la segunda vez, o instrumentando un log de descarga.
+- **WARNING-01**: probado por lectura (semántica de caché de clase). Se confirma provocando un
+  crash controlado del daemon con `--auto-restart` y observando si el proceso reinicia con un
+  motor nuevo (log de carga de modelo) o reutiliza el existente.

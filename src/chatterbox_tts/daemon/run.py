@@ -73,6 +73,10 @@ def serve(port: int = 8765, auto_restart: bool = False, max_retries: int = 0):
         log("Daemon: señal de cierre recibida")
         sys.exit(0)
 
+    # Estos handlers solo cubren la ventana entre este registro y el arranque
+    # de server.run(): uvicorn.Server instala sus propios manejadores de
+    # SIGTERM/SIGINT al iniciar su event loop y, desde ese momento, es su
+    # mecanismo (should_exit) el que gobierna el apagado ordenado.
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -131,6 +135,13 @@ def serve(port: int = 8765, auto_restart: bool = False, max_retries: int = 0):
 
         retries += 1
         log(f"Daemon: reiniciando (intento {retries})...")
+
+        # Invalida la instancia cacheada para forzar una recarga real del
+        # motor: si el crash se debió a un estado interno corrupto, revivir
+        # el mismo objeto anularía el propósito de --auto-restart.
+        from ..engine import ChatterboxEngine
+        ChatterboxEngine._cache.pop("es-mx-latam:cpu:None", None)
+
         time.sleep(1)
 
     log("Daemon: detenido")

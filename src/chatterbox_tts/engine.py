@@ -245,11 +245,12 @@ class ChatterboxEngine:
                 if (cached / "t3_es_mx_latam.safetensors").exists():
                     log(f"Using cached model: {model_name} ({cached})")
                     return cached
+            else:
+                log(f"Using cached model: {model_name} ({cached})")
+                return cached
 
         # Descarga desde HuggingFace
         log(f"Downloading {model_name} from HuggingFace")
-        if model_name == "es-mx-latam":
-            model_name = "ResembleAI/Chatterbox-Multilingual-es-mx-latam"
 
         cached_path = Path(
             snapshot_download(
@@ -292,7 +293,7 @@ class ChatterboxEngine:
         if not ve_path.exists():
             # Intenta la caché del modelo base
             import os as _os
-            base_ve = Path(_os.path.expanduser("~/.cache/huggingface/hub/models--ResembleAI--chatterbox/snapshots"))
+            base_ve = hub_cache_path() / cache_folder_for("ResembleAI/chatterbox") / "snapshots"
             if base_ve.exists():
                 snaps = [d for d in _os.listdir(base_ve) if (base_ve / d).is_dir()]
                 if snaps:
