@@ -549,7 +549,14 @@ class ChatterboxEngine:
         with open(path, 'wb') as f:
             f.write(wav_bytes)
 
-    def add_voice(self, name: str, reference_audio: str, speech_audio: str, precompute: bool = True) -> tuple[str, str]:
+    def add_voice(
+        self,
+        name: str,
+        reference_audio: str,
+        speech_audio: str,
+        precompute: bool = True,
+        force: bool = False,
+    ) -> tuple[str, str]:
         """
         Registra una voz clonada a partir de dos archivos de audio.
 
@@ -558,10 +565,30 @@ class ChatterboxEngine:
             reference_audio: Ruta al archivo de audio de referencia (cualquier largo, audio completo para el timbre)
             speech_audio: Ruta al archivo de audio de habla (10+ segundos, habla limpia para el conditioning)
             precompute: Si es True, precomputa y cachea los conditionals (default True)
+            force: Si es True, sobrescribe una voz existente con el mismo nombre
 
         Returns:
             Tupla de (reference_path, speech_path)
+
+        Raises:
+            ValueError: si algún audio no es cargable, o si la voz ya existe
+                        (usuario o fábrica) y no se pasó force.
         """
+        # Valida ANTES de copiar: un WAV ilegible no debe dejar una voz rota
+        # que falle recién en la síntesis.
+        import librosa
+        for label, path in (("reference", reference_audio), ("speech", speech_audio)):
+            try:
+                librosa.load(path, sr=24000, duration=1.0)
+            except Exception as e:
+                raise ValueError(f"El audio de {label} ({path}) no es cargable: {e}")
+
+        # La colisión con una voz existente (usuario o fábrica homónima) exige --force
+        if not force and voices._resolve_voice_dir(name) is not None:
+            raise ValueError(
+                f"La voz '{name}' ya existe. Usa --force para sobrescribirla."
+            )
+
         voices_dir = voices.voice_dir(name)
         Path(voices_dir).mkdir(parents=True, exist_ok=True)
 

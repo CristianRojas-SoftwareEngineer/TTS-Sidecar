@@ -152,7 +152,11 @@ def cmd_speak(args):
 
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
-        print("Ejecuta 'tts-sidecar setup' primero.", file=sys.stderr)
+        # Remitir a setup solo cuando el faltante es el modelo: un audio o una
+        # voz ausentes no se resuelven descargando el modelo.
+        from .model_cache import is_model_cached
+        if not is_model_cached(getattr(args, "model", "es-mx-latam")):
+            print("Ejecuta 'tts-sidecar setup' primero.", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -170,6 +174,7 @@ def cmd_voice_add(args):
             name=args.name,
             reference_audio=args.reference,
             speech_audio=args.speech,
+            force=getattr(args, "force", False),
         )
         print(f"Voz '{args.name}' registrada:")
         print(f"  timbre (reference): {ref_path}")
@@ -188,6 +193,13 @@ def cmd_voice_remove(args):
     try:
         if voices.remove_voice(args.name):
             print(f"Voz '{args.name}' eliminada.")
+        elif voices._resolve_voice_dir(args.name) is not None:
+            # Existe pero no como voz de usuario: es una voz de fábrica
+            print(
+                f"Voz '{args.name}' es una voz de fábrica (solo lectura) y no puede eliminarse.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         else:
             print(f"Voz '{args.name}' no encontrada.", file=sys.stderr)
             sys.exit(1)
@@ -514,6 +526,8 @@ def main():
     voice_add.add_argument("--device", "-d", default="cpu",
                            choices=["cpu", "cuda", "mps"],
                            help="Dispositivo para inferencia (default: cpu)")
+    voice_add.add_argument("--force", "-f", action="store_true",
+                           help="Sobrescribir la voz si ya existe (usuario o fábrica homónima)")
     voice_add.set_defaults(func=cmd_voice_add)
 
     voice_remove = voice_subparsers.add_parser("remove", help="Elimina una voz registrada")

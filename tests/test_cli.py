@@ -129,6 +129,35 @@ class TestCmdVoiceRemove:
             cmd_voice_remove(MockArgs(name="nonexistent"))
 
 
+class TestMensajesDeVoces:
+    @patch("chatterbox_tts.voices._resolve_voice_dir")
+    @patch("chatterbox_tts.voices.remove_voice", return_value=False)
+    def test_remove_de_voz_de_fabrica_explica_solo_lectura(
+        self, mock_remove, mock_resolve, capsys
+    ):
+        from chatterbox_tts.cli import cmd_voice_remove
+
+        mock_resolve.return_value = "/fabrica/default"
+
+        with pytest.raises(SystemExit):
+            cmd_voice_remove(MockArgs(name="default"))
+
+        err = capsys.readouterr().err
+        assert "voz de fábrica" in err
+        assert "no encontrada" not in err
+
+    @patch("chatterbox_tts.model_cache.is_model_cached", return_value=True)
+    def test_speak_no_remite_a_setup_si_falta_un_audio_de_usuario(self, _cached, capsys):
+        from chatterbox_tts.cli import cmd_speak
+
+        with pytest.raises(SystemExit):
+            cmd_speak(MockArgs(text="hola", voice="voz_inexistente", no_daemon=True))
+
+        err = capsys.readouterr().err
+        assert "Error:" in err
+        assert "setup" not in err
+
+
 class TestCmdDevices:
     @patch("chatterbox_tts.audio.get_audio_devices")
     def test_cmd_devices(self, mock_get_devices, capsys):
