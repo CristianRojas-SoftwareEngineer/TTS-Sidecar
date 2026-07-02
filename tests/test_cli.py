@@ -180,6 +180,77 @@ class TestCmdVersion:
         assert json.loads(out) == {"name": "tts-sidecar", "version": __version__}
 
 
+class TestCmdSpeakDaemonDispatch:
+    """Las tres ramas del despacho daemon/auto/directo (WARNING-06)."""
+
+    def _args(self, **kw):
+        kw.setdefault("voice_audio", "v.wav")
+        kw.setdefault("speech_audio", "s.wav")
+        kw.setdefault("output", "out.wav")
+        return MockArgs(**kw)
+
+    @patch("chatterbox_tts.model_cache.is_model_cached", return_value=True)
+    @patch("chatterbox_tts.daemon.DaemonIPCClient")
+    @patch("chatterbox_tts.daemon.is_daemon_running", return_value=True)
+    def test_sin_flags_usa_daemon_si_responde(self, mock_running, mock_client_cls, _cached, tmp_path):
+        from chatterbox_tts.cli import cmd_speak
+
+        client = MagicMock()
+        client.synthesize.return_value = b"RIFF"
+        mock_client_cls.return_value = client
+
+        cmd_speak(self._args(output=str(tmp_path / "out.wav")))
+
+        mock_running.assert_called_once()
+        client.synthesize.assert_called_once()
+
+    @patch("chatterbox_tts.model_cache.is_model_cached", return_value=True)
+    @patch("chatterbox_tts.engine.ChatterboxEngine")
+    @patch("chatterbox_tts.daemon.is_daemon_running", return_value=False)
+    def test_sin_flags_cae_a_directo_si_no_responde(self, mock_running, mock_engine_cls, _cached, tmp_path):
+        from chatterbox_tts.cli import cmd_speak
+
+        engine = MagicMock()
+        engine.speak.return_value = b"RIFF"
+        mock_engine_cls.get_instance.return_value = engine
+
+        cmd_speak(self._args(output=str(tmp_path / "out.wav")))
+
+        mock_running.assert_called_once()
+        engine.speak.assert_called_once()
+
+    @patch("chatterbox_tts.model_cache.is_model_cached", return_value=True)
+    @patch("chatterbox_tts.daemon.DaemonIPCClient")
+    @patch("chatterbox_tts.daemon.is_daemon_running")
+    def test_daemon_explicito_no_sondea_y_falla_en_error(self, mock_running, mock_client_cls, _cached):
+        from chatterbox_tts.cli import cmd_speak
+        from chatterbox_tts.daemon import DaemonIPCError
+
+        client = MagicMock()
+        client.synthesize.side_effect = DaemonIPCError("no conecta")
+        mock_client_cls.return_value = client
+
+        with pytest.raises(SystemExit):
+            cmd_speak(self._args(daemon=True))
+
+        mock_running.assert_not_called()
+
+    @patch("chatterbox_tts.model_cache.is_model_cached", return_value=True)
+    @patch("chatterbox_tts.engine.ChatterboxEngine")
+    @patch("chatterbox_tts.daemon.is_daemon_running")
+    def test_no_daemon_no_sondea(self, mock_running, mock_engine_cls, _cached, tmp_path):
+        from chatterbox_tts.cli import cmd_speak
+
+        engine = MagicMock()
+        engine.speak.return_value = b"RIFF"
+        mock_engine_cls.get_instance.return_value = engine
+
+        cmd_speak(self._args(no_daemon=True, output=str(tmp_path / "out.wav")))
+
+        mock_running.assert_not_called()
+        engine.speak.assert_called_once()
+
+
 class TestCmdSpeak:
     @patch("chatterbox_tts.model_cache.is_model_cached", return_value=True)
     @patch("chatterbox_tts.engine.ChatterboxEngine")

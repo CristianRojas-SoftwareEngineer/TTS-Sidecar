@@ -67,36 +67,27 @@ def _emit_audio(audio_bytes, output):
 
 
 def _synthesize_via_daemon(args, voice_audio, speech_audio):
-    """Intenta sintetizar vía daemon; devuelve True si tuvo éxito.
+    """Sintetiza vía daemon y emite el audio (reproducción o archivo).
 
-    Reproduce el audio o lo escribe a un archivo según args.output.
+    Asume el daemon disponible: cualquier fallo de comunicación o síntesis
+    propaga la excepción al llamador (sin fallback silencioso a modo directo).
     """
     import time
-    import traceback
 
-    try:
-        from .daemon import DaemonIPCClient, is_daemon_running
-        if not is_daemon_running():
-            log("[Daemon] Daemon no está corriendo")
-            return False
+    from .daemon import DaemonIPCClient
 
-        synth_start = time.time()
-        log("[Daemon] Enviando solicitud de síntesis...")
-        client = DaemonIPCClient()
-        audio_bytes = client.synthesize(
-            text=args.text,
-            voice_audio=voice_audio,
-            speech_audio=speech_audio,
-        )
-        elapsed = time.time() - synth_start
-        log(f"[Daemon] Síntesis completada ({elapsed:.1f}s)")
+    synth_start = time.time()
+    log("[Daemon] Enviando solicitud de síntesis...")
+    client = DaemonIPCClient()
+    audio_bytes = client.synthesize(
+        text=args.text,
+        voice_audio=voice_audio,
+        speech_audio=speech_audio,
+    )
+    elapsed = time.time() - synth_start
+    log(f"[Daemon] Síntesis completada ({elapsed:.1f}s)")
 
-        _emit_audio(audio_bytes, args.output)
-        return True
-    except Exception as e:
-        log(f"[Daemon] Error: {e}")
-        traceback.print_exc()
-        return False
+    _emit_audio(audio_bytes, args.output)
 
 
 def _require_model_cached(model: str = "es-mx-latam"):
@@ -123,13 +114,19 @@ def cmd_speak(args):
         # Resuelve las rutas de audio de la voz SIN cargar el modelo.
         voice_audio, speech_audio = _resolve_voice_paths(args)
 
-        # Intenta el daemon si se pasó la bandera --daemon (default: usarlo si está disponible).
-        use_daemon = getattr(args, 'daemon', False) or os.getenv('TTS_DAEMON_AUTOSTART')
-        no_daemon = getattr(args, 'no_daemon', False)
-
-        if use_daemon and not no_daemon:
-            if _synthesize_via_daemon(args, voice_audio, speech_audio):
+        # Despacho de tres ramas:
+        #   --daemon:    usar el daemon sin sondeo previo; un fallo se reporta.
+        #   --no-daemon: modo directo sin sondear.
+        #   sin flags:   health check corto; daemon si responde, directo si no.
+        if getattr(args, 'daemon', False):
+            _synthesize_via_daemon(args, voice_audio, speech_audio)
+            return
+        if not getattr(args, 'no_daemon', False):
+            from .daemon import is_daemon_running
+            if is_daemon_running():
+                _synthesize_via_daemon(args, voice_audio, speech_audio)
                 return
+            log("[Daemon] Daemon no disponible; usando modo directo")
 
         # Modo directo: los imports solo se cargan cuando no se usa el daemon.
         from .engine import ChatterboxEngine
@@ -494,9 +491,10 @@ def main():
                               help="Archivo de audio para el conditioning del T3 (6s) + decoder S3Gen (10s). "
                                    "Usa un segmento de habla limpia (10s+ recomendado).")
     speak_parser.add_argument("--daemon", action="store_true",
-                              help="Usar el daemon si está disponible (default: automático)")
+                              help="Usar el daemon sin sondeo previo; si falla, se reporta el error "
+                                   "(sin flags, se sondea el daemon y se usa solo si responde)")
     speak_parser.add_argument("--no-daemon", action="store_true",
-                              help="Forzar modo directo, ignorar el daemon")
+                              help="Forzar modo directo, sin sondear el daemon")
     speak_parser.set_defaults(func=cmd_speak)
 
     # grupo de comandos voice (list / add / remove)
