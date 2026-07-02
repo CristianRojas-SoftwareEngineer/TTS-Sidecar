@@ -76,6 +76,37 @@ class TestListVoices:
         assert voices.list_voices() == ["default"]
 
 
+class TestSanitizacionDeNombres:
+    @pytest.mark.parametrize("name", ["..", "../x", "a/b", "a\\b", "C:\\abs", "/abs", "", "."])
+    def test_voice_dir_rechaza_nombres_maliciosos(self, voice_roots, name):
+        with pytest.raises(ValueError):
+            voices.voice_dir(name)
+
+    @pytest.mark.parametrize("name", ["..", "../x", "a/b", "a\\b", "C:\\abs"])
+    def test_remove_voice_rechaza_nombres_maliciosos(self, voice_roots, name):
+        with pytest.raises(ValueError):
+            voices.remove_voice(name)
+
+    @pytest.mark.parametrize("name", ["..", "../x", "a/b"])
+    def test_voice_paths_rechaza_nombres_maliciosos(self, voice_roots, name):
+        with pytest.raises(ValueError):
+            voices.voice_paths(name)
+
+    def test_remove_voice_no_borra_directorios_que_no_son_voces(self, voice_roots):
+        user_root, _ = voice_roots
+        intruso = user_root / "no_es_voz"
+        intruso.mkdir()
+        (intruso / "datos.txt").write_text("importante")
+        assert voices.remove_voice("no_es_voz") is False
+        assert intruso.exists()
+
+    def test_remove_voice_borra_voz_valida(self, voice_roots):
+        user_root, _ = voice_roots
+        _make_voice(user_root, "mia")
+        assert voices.remove_voice("mia") is True
+        assert not (user_root / "mia").exists()
+
+
 def test_voice_paths_de_voz_listada_nunca_falla(voice_roots):
     """La invariante que motivó el cambio: toda voz listada es resoluble."""
     user_root, _ = voice_roots

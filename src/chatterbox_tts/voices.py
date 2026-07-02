@@ -16,9 +16,28 @@ puras de sistema de archivos.
 """
 
 import os
+import re
 import shutil
 
 from . import paths
+
+# Nombres de voz admitidos: un único segmento de ruta sin separadores ni escapes.
+_VOICE_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _validate_voice_name(name: str) -> str:
+    """Valida un nombre de voz antes de componer cualquier ruta con él.
+
+    Rechaza nombres vacíos, con separadores de ruta, rutas absolutas o `..`,
+    eliminando la clase de escapes de ruta (p. ej. `voice remove --name ..`
+    resolvería al padre del registro y lo borraría).
+    """
+    if not name or not _VOICE_NAME_RE.match(name) or ".." in name or name == ".":
+        raise ValueError(
+            f"Nombre de voz inválido: {name!r}. "
+            "Usa solo letras, números, punto, guion y guion bajo (sin '..' ni separadores de ruta)."
+        )
+    return name
 
 
 def voices_root() -> str:
@@ -33,7 +52,14 @@ def factory_voices_root() -> str:
 
 def voice_dir(name: str) -> str:
     """Directorio de una voz de usuario concreta (destino de escritura)."""
-    return os.path.join(voices_root(), name)
+    _validate_voice_name(name)
+    root = voices_root()
+    target = os.path.join(root, name)
+    # Defensa en profundidad: la ruta resuelta debe quedar dentro del registro.
+    real_root = os.path.realpath(root)
+    if os.path.realpath(target) != os.path.join(real_root, name):
+        raise ValueError(f"Nombre de voz inválido: {name!r} (escapa del registro de voces)")
+    return target
 
 
 def _is_valid_voice_dir(candidate: str) -> bool:
@@ -46,6 +72,7 @@ def _is_valid_voice_dir(candidate: str) -> bool:
 
 def _resolve_voice_dir(name: str) -> str | None:
     """Devuelve el directorio de una voz con precedencia usuario→fábrica, o None."""
+    _validate_voice_name(name)
     for root in (voices_root(), factory_voices_root()):
         candidate = os.path.join(root, name)
         if _is_valid_voice_dir(candidate):
@@ -72,7 +99,9 @@ def remove_voice(name: str) -> bool:
     Solo opera sobre voces de usuario; las de fábrica son de solo lectura.
     """
     target = voice_dir(name)
-    if os.path.exists(target):
+    # Solo se borran directorios que sean voces válidas: un directorio arbitrario
+    # dentro del registro (o el registro mismo) nunca es objetivo de rmtree.
+    if os.path.exists(target) and _is_valid_voice_dir(target):
         shutil.rmtree(target)
         return True
     return False
