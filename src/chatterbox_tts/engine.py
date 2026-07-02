@@ -4,10 +4,12 @@ Wrapper de Chatterbox Multilingual TTS desde HuggingFace.
 Soporta el language pack es-mx-latam vía un loader propio.
 
 Arquitectura: T3 (autoregresivo, ~0.4B params) + S3Gen (vocoder de flow matching).
-Parámetros de síntesis por defecto (sobrescritos en el daemon):
+Parámetros de síntesis optimizados, propios del engine (aplican en modo directo
+y en el daemon por igual):
   - max_new_tokens=500  (tope de output del T3; el default es 1000)
   - n_cfm_timesteps=4  (pasos de flow matching; el default es 10)
   - exaggeration=0.75   (expresividad emocional; el default es 0.5)
+  - bypass del watermark PerthNet (post-procesado innecesario en uso local)
 
 Optimizaciones multiplataforma para Windows, Linux y Mac.
 """
@@ -123,6 +125,11 @@ class ChatterboxEngine:
     # Configuraciones de modelo (mapa único en model_cache)
     MODELS = _MODEL_ALIASES
 
+    # Parámetros de síntesis optimizados (compartidos por modo directo y daemon)
+    MAX_NEW_TOKENS = 500     # tope de output del T3 (default del modelo: 1000)
+    N_CFM_TIMESTEPS = 4      # pasos de flow matching (default: 10; 4 es ~2.5x más rápido)
+    EXAGGERATION = 0.75      # expresividad emocional (default: 0.5)
+
     # Caché a nivel de clase para los modelos cargados (evita recargar en cada speak)
     _cache: dict[str, "ChatterboxEngine"] = {}
 
@@ -138,7 +145,7 @@ class ChatterboxEngine:
             device: Dispositivo para inferencia ("cpu", "cuda", "mps")
             models_dir: Directorio donde cachear los modelos
         """
-        cache_key = f"{model}:{device}"
+        cache_key = f"{model}:{device}:{models_dir}"
         if cache_key not in cls._cache:
             cls._cache[cache_key] = cls(model=model, device=device, models_dir=models_dir)
         return cls._cache[cache_key]
@@ -167,6 +174,62 @@ class ChatterboxEngine:
 
         # Carga el modelo desde los archivos locales usando el loader correcto
         self._tts = self._load_model(self._cache_dir, self.model_name, device)
+
+        # Memoización en memoria de los conditionals precomputados: clave
+        # (voice_dir, mtime de conditionals.pt) de la última carga exitosa.
+        self._conds_cache_key = None
+
+        # Aplica los parámetros de síntesis optimizados y el timing por sub-etapa
+        self._apply_synthesis_optimizations()
+
+    def _apply_synthesis_optimizations(self):
+        """
+        Instrumenta el modelo con los parámetros de síntesis optimizados y el
+        timing por sub-etapa (antes monkey-patches del daemon en daemon/run.py):
+
+        - t3.inference con max_new_tokens=MAX_NEW_TOKENS y medición de tiempo
+        - s3gen.inference con n_cfm_timesteps=N_CFM_TIMESTEPS y medición de tiempo
+        - bypass del watermarker PerthNet (segunda red neuronal de post-procesado)
+
+        El timing queda en self._synthesis_timing ({'t3': s, 's3gen': s}), que el
+        daemon expone en los headers HTTP X-T3-Time / X-S3Gen-Time.
+        """
+        import functools
+        import time as time_mod
+
+        self._synthesis_timing = {'t3': 0.0, 's3gen': 0.0}
+        tts = self._tts
+
+        _orig_t3 = tts.t3.inference
+
+        @functools.wraps(_orig_t3)
+        def timed_t3(*args, **kwargs):
+            kwargs['max_new_tokens'] = self.MAX_NEW_TOKENS
+            t0 = time_mod.time()
+            result = _orig_t3(*args, **kwargs)
+            self._synthesis_timing['t3'] = time_mod.time() - t0
+            log(f"   [Stage 2a] T3 autoregresivo: {self._synthesis_timing['t3']:.1f}s")
+            return result
+
+        tts.t3.inference = timed_t3
+
+        _orig_s3gen = tts.s3gen.inference
+
+        @functools.wraps(_orig_s3gen)
+        def timed_s3gen(*args, **kwargs):
+            kwargs['n_cfm_timesteps'] = self.N_CFM_TIMESTEPS
+            t0 = time_mod.time()
+            result = _orig_s3gen(*args, **kwargs)
+            self._synthesis_timing['s3gen'] = time_mod.time() - t0
+            log(f"   [Stage 2b] S3Gen vocoder:   {self._synthesis_timing['s3gen']:.1f}s")
+            return result
+
+        tts.s3gen.inference = timed_s3gen
+
+        def noop_watermark(wav, sample_rate=None, **kwargs):
+            return wav
+
+        tts.watermarker.apply_watermark = noop_watermark
 
     def _download_model(self, model_name: str, models_dir: Optional[str] = None) -> Path:
         """Descarga el modelo desde HuggingFace o lo obtiene de la caché local."""
@@ -331,34 +394,44 @@ class ChatterboxEngine:
                 voice_dir = os.path.dirname(speech_audio)
                 conditionals_path = os.path.join(voice_dir, "conditionals.pt")
                 if os.path.exists(conditionals_path):
-                    if self.load_precomputed_conditionals(voice_dir):
+                    conds_key = (voice_dir, os.path.getmtime(conditionals_path))
+                    if (
+                        getattr(self, "_conds_cache_key", None) == conds_key
+                        and getattr(self._tts, "conds", None) is not None
+                    ):
+                        # Misma voz consecutiva: los conds ya están en memoria
+                        log("   -> Precomputed conditionals (memoized, no disk read)")
+                    elif self.load_precomputed_conditionals(voice_dir):
+                        self._conds_cache_key = conds_key
                         log("   -> Precomputed conditionals loaded")
                     else:
                         # conditionals.pt ilegible: degradar al cómputo on-the-fly
                         # en vez de sintetizar en silencio con los conds previos.
                         log("   -> conditionals.pt inválido, recomputando on-the-fly...")
+                        self._conds_cache_key = None
                         self._prepare_conditionals_multi(
                             voice_audio_path=voice_audio,
                             speech_audio_path=speech_audio,
                         )
                 else:
                     log("   -> Computing conditionals on-the-fly...")
+                    self._conds_cache_key = None
                     self._prepare_conditionals_multi(
                         voice_audio_path=voice_audio,
                         speech_audio_path=speech_audio,
                     )
             else:
+                self._conds_cache_key = None
                 self._prepare_conditionals_multi(
                     voice_audio_path=voice_audio,
                     speech_audio_path=speech_audio,
                 )
 
-        # Stage 2: Generación TTS
-        # El daemon fuerza n_cfm_timesteps=4 mediante una asignación directa en su
-        # parche de s3gen.inference (ver daemon/run.py); no usa setdefault.
-        # En modo directo (sin daemon), Chatterbox aplica sus defaults internamente.
+        # Stage 2: Generación TTS con los parámetros optimizados del engine.
+        # max_new_tokens y n_cfm_timesteps se inyectan en t3/s3gen.inference
+        # vía _apply_synthesis_optimizations; exaggeration se pasa aquí.
         with StageTimer("2-Speak", "Stage 2/4: Generating audio (TTS)"):
-            wav = self._tts.generate(text, language_id="es")
+            wav = self._tts.generate(text, language_id="es", exaggeration=self.EXAGGERATION)
 
         # Stage 3: Conversión a WAV
         with StageTimer("3-Speak", "Stage 3/4: Converting to WAV"):
@@ -390,16 +463,21 @@ class ChatterboxEngine:
 
         tts = self._tts
 
-        # --- Carga el audio UNA vez a 24kHz, luego lo baja a 16kHz ---
-        # Esto evita cargar el mismo archivo dos veces
+        # --- Carga el audio UNA vez a 24kHz ---
         ref_24k_speech, _ = librosa.load(speech_audio_path, sr=24000)
-        ref_16k_speech = librosa.resample(ref_24k_speech, orig_sr=24000, target_sr=16000)
 
         # --- Voice Encoder: usa el audio completo para el timbre ---
         if voice_audio_path:
             ref_24k_voice, _ = librosa.load(voice_audio_path, sr=24000)
             ref_16k_voice = librosa.resample(ref_24k_voice, orig_sr=24000, target_sr=16000)
+            # El conditioning del T3 solo consume ENC_COND_LEN muestras a 16k:
+            # se recorta a 24k antes de resamplear en vez de bajar el audio completo.
+            head_24k = ref_24k_speech[: tts.ENC_COND_LEN * 24000 // 16000]
+            ref_16k_speech = librosa.resample(head_24k, orig_sr=24000, target_sr=16000)
         else:
+            # Sin voice_audio, el timbre exige el audio completo a 16k; el
+            # conditioning del T3 reutiliza ese mismo buffer.
+            ref_16k_speech = librosa.resample(ref_24k_speech, orig_sr=24000, target_sr=16000)
             ref_16k_voice = ref_16k_speech
 
         ve_embed = torch.from_numpy(

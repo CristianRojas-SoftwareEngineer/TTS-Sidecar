@@ -94,6 +94,83 @@ class TestConditionalsCorruptos:
         assert recomputos, "speak debe recomputar los conditionals cuando el .pt es corrupto"
 
 
+class TestParametrosUnificados:
+    def _engine_stub(self, tmp_path):
+        from chatterbox_tts.engine import ChatterboxEngine
+
+        eng = ChatterboxEngine.__new__(ChatterboxEngine)
+        eng.device = "cpu"
+        eng._conds_cache_key = None
+
+        class FakeTTS:
+            conds = None
+
+            def generate(self, text, **kwargs):
+                self.last_generate_kwargs = kwargs
+                return [0.0]
+
+        eng._tts = FakeTTS()
+        return eng
+
+    def test_get_instance_incluye_models_dir_en_la_clave(self, monkeypatch):
+        from chatterbox_tts.engine import ChatterboxEngine
+
+        monkeypatch.setattr(ChatterboxEngine, "_cache", {})
+        monkeypatch.setattr(
+            ChatterboxEngine, "__init__", lambda self, model, device, models_dir=None: None
+        )
+        a = ChatterboxEngine.get_instance(models_dir="/ruta/a")
+        b = ChatterboxEngine.get_instance(models_dir="/ruta/b")
+        assert a is not b
+        assert ChatterboxEngine.get_instance(models_dir="/ruta/a") is a
+
+    def test_modo_directo_usa_exaggeration_unificada(self, tmp_path, monkeypatch):
+        from chatterbox_tts.engine import ChatterboxEngine
+
+        eng = self._engine_stub(tmp_path)
+        monkeypatch.setattr(ChatterboxEngine, "_audio_to_wav", lambda self, w: b"RIFF")
+        speech = tmp_path / "speech.wav"
+        speech.write_bytes(b"RIFF")
+        eng._prepare_conditionals_multi = lambda **kw: None
+
+        eng.speak("hola", speech_audio=str(speech))
+
+        assert eng._tts.last_generate_kwargs["exaggeration"] == ChatterboxEngine.EXAGGERATION
+
+    def test_memoizacion_de_conditionals_por_mtime(self, tmp_path, monkeypatch):
+        import os
+        from chatterbox_tts.engine import ChatterboxEngine
+
+        eng = self._engine_stub(tmp_path)
+        monkeypatch.setattr(ChatterboxEngine, "_audio_to_wav", lambda self, w: b"RIFF")
+
+        voice = tmp_path / "voz"
+        voice.mkdir()
+        conds = voice / "conditionals.pt"
+        conds.write_bytes(b"valido")
+        speech = voice / "speech.wav"
+        speech.write_bytes(b"RIFF")
+
+        loads = []
+
+        def fake_load(voice_dir):
+            loads.append(voice_dir)
+            eng._tts.conds = object()
+            return True
+
+        eng.load_precomputed_conditionals = fake_load
+
+        eng.speak("hola", speech_audio=str(speech))
+        eng.speak("hola otra vez", speech_audio=str(speech))
+        assert len(loads) == 1, "la segunda síntesis de la misma voz no debe releer disco"
+
+        # Un conditionals.pt regenerado (mtime nuevo) invalida la memoización
+        mtime = os.path.getmtime(conds) + 10
+        os.utime(conds, (mtime, mtime))
+        eng.speak("hola de nuevo", speech_audio=str(speech))
+        assert len(loads) == 2
+
+
 class TestIsModelCached:
     def _fake_hub(self, tmp_path, monkeypatch):
         """Redirige ~/.cache/huggingface/hub a una caché sintética."""

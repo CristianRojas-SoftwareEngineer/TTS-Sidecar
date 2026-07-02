@@ -84,15 +84,13 @@ def serve(port: int = 8765, auto_restart: bool = False, max_retries: int = 0):
             with StageTimer("1-Daemon", "Etapa 1/3: Cargando modelo"):
                 from ..engine import ChatterboxEngine
 
+                # El engine ya aplica los parámetros de síntesis optimizados,
+                # el timing por sub-etapa (_synthesis_timing) y el bypass del
+                # watermark como comportamiento propio.
                 engine = ChatterboxEngine.get_instance(
                     model="es-mx-latam",
                     device="cpu",
                 )
-
-                # Parches de optimización para síntesis más rápida
-                _patch_generate_defaults(engine)
-                _patch_log_timing(engine)
-                _patch_skip_watermark(engine)
 
                 set_engine(engine)
 
@@ -170,82 +168,6 @@ def main():
         auto_restart=args.auto_restart,
         max_retries=args.max_retries,
     )
-
-
-def _patch_generate_defaults(engine):
-    """
-    Parcha generate() para establecer el valor por defecto de exaggeration.
-
-    exaggeration=0.75: expresividad emocional (default del modelo: 0.5).
-    """
-    import functools
-
-    _orig_generate = engine._tts.generate
-
-    @functools.wraps(_orig_generate)
-    def patched_generate(*args, **kwargs):
-        kwargs.setdefault('exaggeration', 0.75)
-        return _orig_generate(*args, **kwargs)
-
-    engine._tts.generate = patched_generate
-
-
-def _patch_log_timing(engine):
-    """
-    Añade logs de tiempo por sub-etapa para la Etapa 2 (generación TTS) y
-    aplica parámetros de síntesis óptimos mediante asignación directa en los kwargs:
-
-    - max_new_tokens=500: limita el output del T3 (default: 1000)
-    - n_cfm_timesteps=4: pasos de flow matching (default: 10, 4 es ~2.5x más rápido)
-
-    El timing se almacena en engine._synthesis_timing para exponerlo en
-    los headers HTTP. Logs: [Stage 2a] T3 autoregresivo, [Stage 2b] S3Gen vocoder.
-    """
-    import functools
-    import time as time_mod
-
-    engine._synthesis_timing = {'t3': 0.0, 's3gen': 0.0}
-
-    _orig_t3 = engine._tts.t3.inference
-
-    @functools.wraps(_orig_t3)
-    def timed_t3(*args, **kwargs):
-        kwargs['max_new_tokens'] = 500
-        t0 = time_mod.time()
-        result = _orig_t3(*args, **kwargs)
-        engine._synthesis_timing['t3'] = time_mod.time() - t0
-        log(f"   [Stage 2a] T3 autoregresivo: {engine._synthesis_timing['t3']:.1f}s")
-        return result
-
-    engine._tts.t3.inference = timed_t3
-
-    _orig_s3gen = engine._tts.s3gen.inference
-
-    @functools.wraps(_orig_s3gen)
-    def timed_s3gen(*args, **kwargs):
-        kwargs['n_cfm_timesteps'] = 4
-        t0 = time_mod.time()
-        result = _orig_s3gen(*args, **kwargs)
-        engine._synthesis_timing['s3gen'] = time_mod.time() - t0
-        log(f"   [Stage 2b] S3Gen vocoder:   {engine._synthesis_timing['s3gen']:.1f}s")
-        return result
-
-    engine._tts.s3gen.inference = timed_s3gen
-
-
-def _patch_skip_watermark(engine):
-    """
-    Omite el paso PerthImplicitWatermarker tras la generación de audio.
-
-    El watermarker ejecuta una segunda red neuronal (PerthNet encoder) sobre el
-    audio generado, añadiendo tiempo de post-procesado significativo. En este
-    caso de uso local/offline lo bypaseamos reemplazando apply_watermark con
-    un no-op que devuelve el audio sin modificar.
-    """
-    def noop_watermark(wav, sample_rate, **kwargs):
-        return wav
-
-    engine._tts.watermarker.apply_watermark = noop_watermark
 
 
 if __name__ == "__main__":
