@@ -5,6 +5,8 @@ de los avisos de licencia en el bundle distribuible.
 """
 
 import shutil
+import subprocess
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -12,6 +14,89 @@ from pathlib import Path
 # Archivos de cumplimiento de licencia que deben viajar dentro de cada artefacto
 # distribuible (PyInstaller elimina los avisos de licencia de las dependencias).
 LICENSE_FILES = ("LICENSE", "THIRD-PARTY-LICENSES.md")
+
+# Timeout aplicado a los subprocesos de empaquetado de plataforma (appimage-builder
+# en Linux, create-dmg en macOS) para que un empaquetador colgado no cuelgue el job
+# de CI indefinidamente; consistente con el timeout ya usado por el instalador de
+# Windows (create_installer_windows.py) (SUGGESTION-05).
+BUILD_SUBPROCESS_TIMEOUT = 600
+
+
+def check_pyinstaller() -> None:
+    """Verifica que PyInstaller esté instalado (e instala si falta).
+
+    Fuente única para los tres scripts de build: antes cada uno duplicaba este
+    mismo bloque de try/except (SUGGESTION-04).
+    """
+    with StageTimer("CheckDeps", "Verificando dependencias"):
+        try:
+            import PyInstaller
+            log(f"PyInstaller: {PyInstaller.__version__}")
+        except ImportError:
+            log("PyInstaller no encontrado, instalando...")
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "pyinstaller"],
+                check=True,
+            )
+            if result.returncode != 0:
+                sys.exit(1)
+
+
+def common_pyinstaller_args(
+    entry_point: Path,
+    project_root: Path,
+    dist_dir: Path,
+    build_dir: Path,
+    data_sep: str,
+    extra_collect_all=(),
+) -> list:
+    """Flags de PyInstaller compartidas por los tres scripts de build (SUGGESTION-04).
+
+    `data_sep` es el separador de `--add-data` según el SO: ';' en Windows,
+    ':' en Linux/macOS. `extra_collect_all` añade paquetes `--collect-all`
+    específicos de la plataforma (p. ej. pycaw en Windows, sounddevice en Linux).
+    """
+    return [
+        sys.executable, "-m", "PyInstaller",
+        "--onedir",
+        "--console",
+        "--name", "tts-sidecar",
+        "--paths", str(project_root / "src"),
+        "--distpath", str(dist_dir),
+        "--workpath", str(build_dir),
+        "--specpath", str(project_root / "scripts"),
+        "--noconfirm",
+        str(entry_point),
+        # Recolectar todos los paquetes que PyInstaller no puede seguir
+        # automáticamente (imports perezosos, extensiones C, código compilado)
+        "--collect-all", "chatterbox",
+        "--collect-all", "chatterbox_tts",
+        "--collect-all", "transformers",
+        "--collect-all", "diffusers",
+        "--collect-all", "s3tokenizer",
+        "--collect-all", "perth",
+        "--collect-all", "librosa",
+        "--collect-all", "torch",
+        "--collect-all", "sklearn",
+        "--collect-all", "pandas",
+        "--collect-all", "onnx",
+        *[flag for pkg in extra_collect_all for flag in ("--collect-all", pkg)],
+        # Data files
+        "--collect-data", "soundfile",
+        "--collect-data", "certifi",
+        # Voces de fábrica (incluida la voz 'default') en la raíz del bundle,
+        # resueltas en runtime por paths.bundled_voices_dir() (sys._MEIPASS).
+        "--add-data", f"{project_root / 'voices'}{data_sep}voices",
+        # Metadata requerida por importlib.metadata / pkg_resources
+        "--recursive-copy-metadata", "chatterbox-tts",
+        "--copy-metadata", "requests",
+        # Excluir bloat (nunca cargado en runtime)
+        "--exclude-module", "tensorflow",
+        "--exclude-module", "jax",
+        "--exclude-module", "flax",
+        "--exclude-module", "gradio",
+        "--exclude-module", "gradio_client",
+    ]
 
 
 def copy_license_files(dest_dir) -> None:

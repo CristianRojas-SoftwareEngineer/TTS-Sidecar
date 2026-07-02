@@ -50,6 +50,18 @@ def factory_voices_root() -> str:
     return paths.bundled_voices_dir()
 
 
+def allowed_audio_dirs() -> list[str]:
+    """Directorios desde los que el daemon puede leer audio de entrada.
+
+    Usado por `/synthesize` (WARNING-02) para acotar `voice_audio`/`speech_audio`
+    a rutas confiables: el registro de voces (usuario y fábrica) y el directorio
+    temporal del SO, de donde los clientes IPC pueden preparar audio de sesión.
+    """
+    import tempfile
+
+    return [voices_root(), factory_voices_root(), tempfile.gettempdir()]
+
+
 def voice_dir(name: str) -> str:
     """Directorio de una voz de usuario concreta (destino de escritura)."""
     _validate_voice_name(name)

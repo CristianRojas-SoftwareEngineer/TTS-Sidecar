@@ -9,6 +9,12 @@ from typing import Optional
 # trivial de un payload ilimitado.
 MAX_TEXT_LENGTH = 5000
 
+# Tope de longitud para las rutas de audio: por encima del límite práctico de
+# ruta en los tres SO soportados (Windows MAX_PATH extendido, Linux/macOS
+# PATH_MAX), evita payloads desproporcionados antes de que lleguen a la
+# validación de directorio permitido de /synthesize (SUGGESTION-01).
+MAX_AUDIO_PATH_LENGTH = 4096
+
 
 class SynthesizeRequest(BaseModel):
     """Request de síntesis de habla.
@@ -17,8 +23,8 @@ class SynthesizeRequest(BaseModel):
     no lleva `model` ni `device` (el servidor los ignoraría).
     """
     text: str = Field(min_length=1, max_length=MAX_TEXT_LENGTH)
-    voice_audio: Optional[str] = None
-    speech_audio: Optional[str] = None
+    voice_audio: Optional[str] = Field(default=None, max_length=MAX_AUDIO_PATH_LENGTH)
+    speech_audio: Optional[str] = Field(default=None, max_length=MAX_AUDIO_PATH_LENGTH)
 
 
 class HealthResponse(BaseModel):

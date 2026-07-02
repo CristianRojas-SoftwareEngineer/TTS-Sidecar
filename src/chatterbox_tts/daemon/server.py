@@ -9,6 +9,7 @@ import threading
 
 from fastapi import FastAPI, HTTPException, Response
 
+from .. import voices
 from .protocol import (
     SynthesizeRequest,
     HealthResponse,
@@ -77,7 +78,11 @@ def synthesize(req: SynthesizeRequest) -> Response:
         raise HTTPException(status_code=503, detail="Modelo no cargado")
 
     # Valida las rutas de audio antes de que lleguen a librosa.load: deben
-    # existir y ser .wav. Los mensajes de error no exponen rutas del sistema.
+    # existir, ser .wav y quedar contenidas en un directorio permitido
+    # (WARNING-02: sin esto, cualquier proceso local podía hacer que el daemon
+    # leyera un .wav arbitrario del sistema de archivos). Los mensajes de error
+    # no exponen rutas del sistema.
+    allowed_dirs = [os.path.realpath(d) for d in voices.allowed_audio_dirs()]
     for field, path in (("voice_audio", req.voice_audio), ("speech_audio", req.speech_audio)):
         if path is None:
             continue
@@ -85,6 +90,14 @@ def synthesize(req: SynthesizeRequest) -> Response:
             raise HTTPException(
                 status_code=400,
                 detail=f"{field}: se requiere una ruta a un archivo .wav existente",
+            )
+        real_path = os.path.realpath(path)
+        if not any(
+            real_path == d or real_path.startswith(d + os.sep) for d in allowed_dirs
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=f"{field}: la ruta no está en un directorio permitido",
             )
 
     try:
@@ -134,6 +147,12 @@ async def shutdown():
     Señaliza `should_exit` sobre la instancia de uvicorn.Server para que el
     servidor termine su ciclo de vida de forma ordenada. Se responde antes de
     que uvicorn cierre: el flag se procesa en la siguiente iteración del loop.
+
+    Riesgo aceptado (SUGGESTION-02): no lleva token ni confirmación explícita.
+    El daemon bindea exclusivamente a 127.0.0.1 (ver run.py), por lo que solo
+    un proceso con acceso local a la máquina puede invocarlo; se acepta ese
+    riesgo residual en vez de añadir un secreto que el propio cliente IPC
+    tendría que gestionar y persistir.
     """
     if _server is not None:
         _server.should_exit = True

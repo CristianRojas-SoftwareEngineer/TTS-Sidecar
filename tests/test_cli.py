@@ -313,3 +313,38 @@ class TestCmdSpeak:
         cmd_speak(MockArgs(text="hola", output=None, no_daemon=True))
 
         player.play.assert_called_once_with(b"RIFF")
+
+
+class TestEnvironmentChecksAudio:
+    """WARNING-03: el chequeo de audio de doctor/setup refleja el estado real
+    de la enumeración COM en Windows, no solo la disponibilidad del import."""
+
+    def test_windows_audio_real_da_pass(self, monkeypatch):
+        import platform as platform_module
+        from chatterbox_tts import cli
+
+        monkeypatch.setattr(platform_module, "system", lambda: "Windows")
+        monkeypatch.setattr(
+            "chatterbox_tts.audio.get_audio_devices_with_status",
+            lambda: ([{"id": 0, "name": "Altavoces"}], False),
+        )
+
+        checks = cli._environment_checks()
+        audio_check = next(c for c in checks if c[1] == "Audio library")
+        assert audio_check[0] == "PASS"
+        assert "1 dispositivo" in audio_check[2]
+
+    def test_windows_audio_degradado_da_fail(self, monkeypatch):
+        import platform as platform_module
+        from chatterbox_tts import cli
+
+        monkeypatch.setattr(platform_module, "system", lambda: "Windows")
+        monkeypatch.setattr(
+            "chatterbox_tts.audio.get_audio_devices_with_status",
+            lambda: ([{"id": 0, "name": "Default", "latency": 0.1}], True),
+        )
+
+        checks = cli._environment_checks()
+        audio_check = next(c for c in checks if c[1] == "Audio library")
+        assert audio_check[0] == "FAIL"
+        assert "no se pudo enumerar" in audio_check[2]

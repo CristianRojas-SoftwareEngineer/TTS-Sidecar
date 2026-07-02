@@ -16,23 +16,15 @@ BUILD_DIR = PROJECT_ROOT / "build"
 
 # Import shared logging utilities
 sys.path.insert(0, str(Path(__file__).parent))
-from build_utils import log, StageTimer, BuildTimer, copy_license_files
+from build_utils import (
+    log, StageTimer, BuildTimer, copy_license_files,
+    check_pyinstaller, common_pyinstaller_args,
+)
 
 
 def check_dependencies():
     """Verifica que las dependencias requeridas estén instaladas."""
-    with StageTimer("CheckDeps", "Verificando dependencias"):
-        try:
-            import PyInstaller
-            log(f"PyInstaller: {PyInstaller.__version__}")
-        except ImportError:
-            log("PyInstaller no encontrado, instalando...")
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "pyinstaller"],
-                check=True,
-            )
-            if result.returncode != 0:
-                sys.exit(1)
+    check_pyinstaller()
 
 
 def build_windows():
@@ -46,48 +38,11 @@ def build_windows():
             log(f"Entry point: {entry_point}")
 
         with StageTimer("PyInstaller", "Compiling with PyInstaller (9-15 min)"):
-            pyinstaller_args = [
-                sys.executable, "-m", "PyInstaller",
-                "--onedir",
-                "--console",
-                "--name", "tts-sidecar",
-                "--paths", str(PROJECT_ROOT / "src"),
-                "--distpath", str(DIST_DIR),
-                "--workpath", str(BUILD_DIR),
-                "--specpath", str(PROJECT_ROOT / "scripts"),
-                "--noconfirm",
-                # Entry point
-                str(entry_point),
-                # Recolectar todos los paquetes que PyInstaller no puede seguir
-                # automáticamente (imports perezosos, extensiones C, código compilado)
-                "--collect-all", "chatterbox",
-                "--collect-all", "chatterbox_tts",
-                "--collect-all", "transformers",
-                "--collect-all", "diffusers",
-                "--collect-all", "s3tokenizer",
-                "--collect-all", "perth",
-                "--collect-all", "librosa",
-                "--collect-all", "torch",
-                "--collect-all", "sklearn",
-                "--collect-all", "pandas",
-                "--collect-all", "onnx",
-                "--collect-all", "pycaw",
-                # Data files
-                "--collect-data", "soundfile",
-                "--collect-data", "certifi",
-                # Voces de fábrica (incluida la voz 'default') en la raíz del bundle,
-                # resueltas en runtime por paths.bundled_voices_dir() (sys._MEIPASS).
-                "--add-data", f"{PROJECT_ROOT / 'voices'};voices",
-                # Metadata requerida por importlib.metadata / pkg_resources
-                "--recursive-copy-metadata", "chatterbox-tts",
-                "--copy-metadata", "requests",
-                # Excluir bloat (nunca cargado en runtime)
-                "--exclude-module", "tensorflow",
-                "--exclude-module", "jax",
-                "--exclude-module", "flax",
-                "--exclude-module", "gradio",
-                "--exclude-module", "gradio_client",
-            ]
+            pyinstaller_args = common_pyinstaller_args(
+                entry_point, PROJECT_ROOT, DIST_DIR, BUILD_DIR,
+                data_sep=";",
+                extra_collect_all=["pycaw"],
+            )
             # [2:] omite [sys.executable, "-m"] del log para mostrar solo los args de PyInstaller
             log(f"Running: pyinstaller {' '.join(pyinstaller_args[2:])}")
             try:

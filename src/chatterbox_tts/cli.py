@@ -200,6 +200,18 @@ def cmd_voice_remove(args):
             print(f"Voz '{args.name}' no encontrada.", file=sys.stderr)
             sys.exit(1)
 
+    except (PermissionError, OSError) as e:
+        # WARNING-01: en Windows, shutil.rmtree falla con PermissionError si
+        # reference.wav/speech.wav están abiertos por otro proceso (p. ej. el
+        # daemon o un reproductor). Sin esta rama, el except genérico de abajo
+        # reportaba el mismo mensaje que un nombre de voz inválido.
+        print(
+            f"Error al eliminar la voz '{args.name}': uno de sus archivos parece "
+            "estar en uso (por ejemplo, por el daemon u otro proceso). "
+            f"Ciérralo y vuelve a intentarlo. Detalle: {e}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     except Exception as e:
         print(f"Error al eliminar la voz: {e}", file=sys.stderr)
         sys.exit(1)
@@ -279,8 +291,23 @@ def _environment_checks() -> list[tuple[str, str, str]]:
     # Chequea la librería de audio
     try:
         if platform.system() == "Windows":
-            import pycaw
-            checks.append(("PASS", "Audio library", "pycaw (Windows)"))
+            # No basta con `import pycaw`: un host sin audio real (sesiones RDP,
+            # servidores sin tarjeta de sonido) importa la librería sin problema
+            # pero falla al enumerar endpoints COM en runtime. Se reutiliza la
+            # enumeración real de audio.py para que el chequeo refleje el estado
+            # efectivo del subsistema, no solo la disponibilidad del import
+            # (WARNING-03).
+            from .audio import get_audio_devices_with_status
+            devices, degraded = get_audio_devices_with_status()
+            if degraded:
+                checks.append((
+                    "FAIL",
+                    "Audio library",
+                    "pycaw importado pero no se pudo enumerar ningún dispositivo COM real "
+                    "(host sin audio o sesión sin subsistema de sonido)",
+                ))
+            else:
+                checks.append(("PASS", "Audio library", f"pycaw (Windows) — {len(devices)} dispositivo(s)"))
         elif platform.system() == "Linux":
             import sounddevice
             checks.append(("PASS", "Audio library", "sounddevice (Linux)"))

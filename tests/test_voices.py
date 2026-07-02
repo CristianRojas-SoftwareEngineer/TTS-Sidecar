@@ -107,6 +107,45 @@ class TestSanitizacionDeNombres:
         assert not (user_root / "mia").exists()
 
 
+class TestCmdVoiceRemoveErroresDeIO:
+    """WARNING-01: cmd_voice_remove distingue un archivo en uso de un error genérico."""
+
+    def _args(self, name):
+        import argparse
+        return argparse.Namespace(name=name)
+
+    def test_permission_error_da_mensaje_distinto_y_sale_1(self, voice_roots, monkeypatch, capsys):
+        import shutil as shutil_module
+        from chatterbox_tts import cli
+
+        user_root, _ = voice_roots
+        _make_voice(user_root, "mia")
+
+        def _raise_permission_error(path):
+            raise PermissionError("[WinError 32] archivo en uso")
+
+        monkeypatch.setattr(shutil_module, "rmtree", _raise_permission_error)
+
+        with pytest.raises(SystemExit) as exc_info:
+            cli.cmd_voice_remove(self._args("mia"))
+
+        assert exc_info.value.code == 1
+        err = capsys.readouterr().err
+        assert "en uso" in err
+        assert "no encontrada" not in err
+
+    def test_voz_inexistente_da_mensaje_distinto(self, voice_roots, capsys):
+        from chatterbox_tts import cli
+
+        with pytest.raises(SystemExit) as exc_info:
+            cli.cmd_voice_remove(self._args("no_existe"))
+
+        assert exc_info.value.code == 1
+        err = capsys.readouterr().err
+        assert "no encontrada" in err
+        assert "en uso" not in err
+
+
 def test_voice_paths_de_voz_listada_nunca_falla(voice_roots):
     """La invariante que motivó el cambio: toda voz listada es resoluble."""
     user_root, _ = voice_roots

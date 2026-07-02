@@ -22,6 +22,12 @@ jobs:
           name: Install pytest
           command: pip install pytest
       - run:
+          # WARNING-04: CLAUDE.md documenta py_compile como chequeo de verificación,
+          # pero no corría en CI; compileall detecta errores de sintaxis en módulos
+          # sin tests propios o importados condicionalmente, antes del build.
+          name: Check syntax (py_compile)
+          command: python -m compileall src/
+      - run:
           name: Run tests
           command: pytest tests/ -v
 
@@ -30,8 +36,11 @@ jobs:
     steps:
       - checkout
       - run:
+          # SUGGESTION-06: sin pin, un release nuevo de Chocolatey puede romper
+          # el build sin cambios en el repo. Versión fijada al momento de escribir
+          # este pin; actualizar deliberadamente cuando se quiera adoptar una nueva.
           name: Install Python 3.13
-          command: choco install python313 -y
+          command: choco install python313 -y --version=3.13.14
       - run:
           name: Install dependencies
           command: |
@@ -39,7 +48,7 @@ jobs:
             python -m pip install --upgrade pip
             python -m pip install -r requirements.txt
             python -m pip install pyinstaller
-            choco install innosetup -y
+            choco install innosetup -y --version=6.3.3
       - run:
           name: Build Windows
           command: python scripts/build_windows.py

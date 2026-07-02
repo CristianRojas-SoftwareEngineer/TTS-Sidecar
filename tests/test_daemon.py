@@ -54,6 +54,62 @@ class TestServerConcurrency:
             server.set_engine(old_engine)
 
 
+class TestSynthesizeRutasPermitidas:
+    def test_rechaza_ruta_fuera_de_directorios_permitidos(self, tmp_path, monkeypatch):
+        """WARNING-02: una ruta .wav fuera de voices_root()/tempdir se rechaza con 400."""
+        from fastapi.testclient import TestClient
+        from chatterbox_tts.daemon import server
+        from chatterbox_tts import voices
+
+        # Directorio ajeno a los permitidos (no es voices_root, factory ni tempdir).
+        outside_root = tmp_path / "fuera_de_lo_permitido"
+        outside_root.mkdir()
+        wav = outside_root / "voz.wav"
+        wav.write_bytes(b"RIFF")
+
+        monkeypatch.setattr(voices, "allowed_audio_dirs", lambda: [str(tmp_path / "voices_permitido")])
+
+        old_engine = server._engine
+        server.set_engine(MagicMock())
+        try:
+            with TestClient(server.app) as client:
+                resp = client.post(
+                    "/synthesize", json={"text": "hola", "speech_audio": str(wav)}
+                )
+                assert resp.status_code == 400
+                assert str(wav) not in resp.text
+        finally:
+            server.set_engine(old_engine)
+
+    def test_acepta_ruta_dentro_de_voices_root(self, tmp_path, monkeypatch):
+        """Una ruta dentro de voices_root() sigue siendo aceptada tras WARNING-02."""
+        from fastapi.testclient import TestClient
+        from chatterbox_tts.daemon import server
+        from chatterbox_tts import voices
+
+        allowed_root = tmp_path / "voices_permitido"
+        allowed_root.mkdir()
+        wav = allowed_root / "voz.wav"
+        wav.write_bytes(b"RIFF")
+
+        monkeypatch.setattr(voices, "allowed_audio_dirs", lambda: [str(allowed_root)])
+
+        fake_engine = MagicMock()
+        fake_engine.speak.return_value = b"RIFF" + b"\x00" * 40
+        fake_engine._synthesis_timing = {}
+
+        old_engine = server._engine
+        server.set_engine(fake_engine)
+        try:
+            with TestClient(server.app) as client:
+                resp = client.post(
+                    "/synthesize", json={"text": "hola", "speech_audio": str(wav)}
+                )
+                assert resp.status_code == 200
+        finally:
+            server.set_engine(old_engine)
+
+
 class TestKillPidVerificado:
     def _fake_psutil(self, cmdline):
         proc = MagicMock()

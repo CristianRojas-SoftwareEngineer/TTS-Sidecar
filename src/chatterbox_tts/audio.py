@@ -144,12 +144,15 @@ class SoundDevicePlayer:
         self.sd.play(audio_np, samplerate=sample_rate, blocking=True)
 
 
-def get_audio_devices() -> list[dict]:
+def get_audio_devices_with_status() -> tuple[list[dict], bool]:
     """
     Lista los dispositivos de salida de audio disponibles.
 
     Returns:
-        Lista de dicts con claves 'id', 'name', 'latency'
+        Tupla (dispositivos, degraded): `degraded` es True cuando la enumeración
+        real falló y se devolvió el fallback genérico "Default" — usado por
+        `doctor`/`setup` (WARNING-03) para distinguir un subsistema de audio
+        real de uno degradado, algo que `import pycaw` por sí solo no revela.
     """
     system = platform.system()
 
@@ -172,11 +175,11 @@ def get_audio_devices() -> list[dict]:
                     "name": dev.FriendlyName,
                     "latency": getattr(dev, "Latency", 0.0),
                 })
-            return result
+            return result, False
         except Exception:
             # No solo ImportError: un fallo COM de pycaw (sesiones RDP, hosts
             # sin audio) también debe degradar al fallback, no crashear.
-            return [{"id": 0, "name": "Default", "latency": 0.1}]
+            return [{"id": 0, "name": "Default", "latency": 0.1}], True
 
     elif system in ("Darwin", "Linux"):
         # sounddevice (PortAudio) enumera en ambas plataformas; se filtran los
@@ -187,8 +190,19 @@ def get_audio_devices() -> list[dict]:
                 {"id": i, "name": info['name'], "latency": info['default_low_output_latency']}
                 for i, info in enumerate(sd.query_devices())
                 if info['max_output_channels'] > 0
-            ]
+            ], False
         except ImportError:
-            return [{"id": 0, "name": "Default", "latency": 0.1}]
+            return [{"id": 0, "name": "Default", "latency": 0.1}], True
 
-    return [{"id": 0, "name": "Default", "latency": 0.1}]
+    return [{"id": 0, "name": "Default", "latency": 0.1}], True
+
+
+def get_audio_devices() -> list[dict]:
+    """
+    Lista los dispositivos de salida de audio disponibles.
+
+    Returns:
+        Lista de dicts con claves 'id', 'name', 'latency'
+    """
+    devices, _degraded = get_audio_devices_with_status()
+    return devices

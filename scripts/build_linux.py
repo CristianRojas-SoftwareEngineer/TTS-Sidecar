@@ -15,24 +15,17 @@ DIST_DIR = PROJECT_ROOT / "dist"
 BUILD_DIR = PROJECT_ROOT / "build"
 
 sys.path.insert(0, str(Path(__file__).parent))
-from build_utils import log, StageTimer, BuildTimer, copy_license_files, get_version
+from build_utils import (
+    log, StageTimer, BuildTimer, copy_license_files, get_version,
+    check_pyinstaller, common_pyinstaller_args, BUILD_SUBPROCESS_TIMEOUT,
+)
 
 
 def check_dependencies():
     """Check required dependencies are installed."""
-    with StageTimer("CheckDeps", "Checking dependencies"):
-        try:
-            import PyInstaller
-            log(f"PyInstaller: {PyInstaller.__version__}")
-        except ImportError:
-            log("PyInstaller not found, installing...")
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "pyinstaller"],
-                check=True,
-            )
-            if result.returncode != 0:
-                sys.exit(1)
+    check_pyinstaller()
 
+    with StageTimer("CheckDeps", "Checking dependencies"):
         try:
             import sounddevice
         except ImportError:
@@ -72,44 +65,11 @@ def build_linux(target_arch="x86_64"):
             entry_point = PROJECT_ROOT / "bin" / "tts-sidecar"
 
         with StageTimer("PyInstaller", "Compiling with PyInstaller (9-15 min)"):
-            pyinstaller_args = [
-                sys.executable, "-m", "PyInstaller",
-                "--onedir",
-                "--console",
-                "--name", "tts-sidecar",
-                "--paths", str(PROJECT_ROOT / "src"),
-                "--distpath", str(DIST_DIR),
-                "--workpath", str(BUILD_DIR),
-                "--specpath", str(PROJECT_ROOT / "scripts"),
-                "--noconfirm",
-                str(entry_point),
-                # Collect all packages
-                "--collect-all", "chatterbox",
-                "--collect-all", "chatterbox_tts",
-                "--collect-all", "transformers",
-                "--collect-all", "diffusers",
-                "--collect-all", "s3tokenizer",
-                "--collect-all", "perth",
-                "--collect-all", "librosa",
-                "--collect-all", "torch",
-                "--collect-all", "sklearn",
-                "--collect-all", "pandas",
-                "--collect-all", "onnx",
-                "--collect-all", "sounddevice",
-                "--collect-data", "soundfile",
-                "--collect-data", "certifi",
-                # Voces de fábrica (incluida 'default') en la raíz del bundle,
-                # resueltas en runtime por paths.bundled_voices_dir() (sys._MEIPASS).
-                "--add-data", f"{PROJECT_ROOT / 'voices'}:voices",
-                "--recursive-copy-metadata", "chatterbox-tts",
-                "--copy-metadata", "requests",
-                # Exclude bloat
-                "--exclude-module", "tensorflow",
-                "--exclude-module", "jax",
-                "--exclude-module", "flax",
-                "--exclude-module", "gradio",
-                "--exclude-module", "gradio_client",
-            ]
+            pyinstaller_args = common_pyinstaller_args(
+                entry_point, PROJECT_ROOT, DIST_DIR, BUILD_DIR,
+                data_sep=":",
+                extra_collect_all=["sounddevice"],
+            )
             log(f"Running: pyinstaller {' '.join(pyinstaller_args[2:])}")
             try:
                 returncode = subprocess.run(pyinstaller_args).returncode
@@ -153,6 +113,7 @@ def build_linux(target_arch="x86_64"):
                 cwd=str(PROJECT_ROOT),
                 env=env,
                 capture_output=True, text=True,
+                timeout=BUILD_SUBPROCESS_TIMEOUT,
             )
             if result.returncode != 0:
                 log(f"AppImage build failed (rc={result.returncode})")

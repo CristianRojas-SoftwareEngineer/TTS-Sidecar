@@ -41,6 +41,14 @@ class DaemonManager:
     ) -> bool:
         """
         Inicia el daemon. Idempotente: si ya está corriendo, devuelve True.
+
+        Ventana de carrera conocida (SUGGESTION-03): entre este chequeo de
+        `is_running()` y el lanzamiento del subproceso más abajo no hay lock,
+        así que dos invocaciones concurrentes de `start()` podrían lanzar dos
+        procesos que compitan por el mismo puerto. Riesgo de bajo impacto: el
+        segundo proceso falla al bindear el puerto y termina, sin corromper
+        estado; no se introduce un archivo de lock multiplataforma por el
+        costo de mantenimiento que no se justifica frente a esta probabilidad.
         """
         # Si ya está corriendo no hay nada que hacer
         if self.is_running():
