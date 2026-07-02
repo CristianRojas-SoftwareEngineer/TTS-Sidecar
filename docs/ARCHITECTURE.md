@@ -89,8 +89,11 @@ tts-sidecar/
 
 | Modelo | Descripción | Licencia |
 |--------|-------------|----------|
-| `multilingual` | Modelo base, 23+ idiomas | MIT |
 | `es-mx-latam` | Español latinoamericano (RECOMENDADO) | MIT |
+
+> El modelo `multilingual` es el modelo base de Chatterbox y forma parte del
+> language pack. No está expuesto como opción del CLI: `tts-sidecar` está
+> especializado en español latinoamericano y usa siempre este modelo.
 
 ## Flujo de Síntesis
 

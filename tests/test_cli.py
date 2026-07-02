@@ -16,7 +16,7 @@ class MockArgs:
         self.speech_audio = kwargs.get("speech_audio", None)
         self.output = kwargs.get("output", None)
         self.model = kwargs.get("model", "es-mx-latam")
-        self.device = kwargs.get("device", "cpu")
+        self.compute_backend = kwargs.get("compute_backend", "auto")
         self.name = kwargs.get("name", "testcli")
         self.reference = kwargs.get("reference", "ref.wav")
         self.speech = kwargs.get("speech", "speech.wav")

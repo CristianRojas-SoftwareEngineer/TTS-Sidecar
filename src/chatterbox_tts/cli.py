@@ -113,7 +113,7 @@ def cmd_speak(args):
 
         # Exige que el modelo esté en caché antes de sintetizar.
         # Las descargas son responsabilidad exclusiva de 'setup'.
-        _require_model_cached(getattr(args, "model", "es-mx-latam"))
+        _require_model_cached()
 
         # Resuelve las rutas de audio de la voz SIN cargar el modelo.
         voice_audio, speech_audio = _resolve_voice_paths(args)
@@ -135,7 +135,7 @@ def cmd_speak(args):
         # Modo directo: los imports solo se cargan cuando no se usa el daemon.
         from .engine import ChatterboxEngine
 
-        engine = ChatterboxEngine.get_instance(model=args.model, device=args.device)
+        engine = ChatterboxEngine.get_instance(compute_backend=args.compute_backend)
 
         audio_bytes = engine.speak(
             text=args.text,
@@ -155,7 +155,7 @@ def cmd_speak(args):
         # Remitir a setup solo cuando el faltante es el modelo: un audio o una
         # voz ausentes no se resuelven descargando el modelo.
         from .model_cache import is_model_cached
-        if not is_model_cached(getattr(args, "model", "es-mx-latam")):
+        if not is_model_cached("es-mx-latam"):
             print("Ejecuta 'tts-sidecar setup' primero.", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
@@ -169,7 +169,7 @@ def cmd_voice_add(args):
     try:
         from .engine import ChatterboxEngine
 
-        engine = ChatterboxEngine(device=args.device)
+        engine = ChatterboxEngine(compute_backend=args.compute_backend)
         ref_path, speech_path = engine.add_voice(
             name=args.name,
             reference_audio=args.reference,
@@ -406,7 +406,7 @@ def cmd_setup(args):
         print("(Puede tardar varios minutos en la primera ejecución)\n")
 
         from .engine import ChatterboxEngine
-        ChatterboxEngine.get_instance(model="es-mx-latam", device="cpu")
+        ChatterboxEngine.get_instance(model="es-mx-latam", compute_backend="auto")
 
         print("\n[PASS] ¡Modelo descargado correctamente!")
         print(f"  Ubicación: {model_dir}")
@@ -499,12 +499,10 @@ def main():
     speak_parser.add_argument("--text", "-t", required=True, help="Texto a sintetizar")
     speak_parser.add_argument("--voice", "-v", help="Nombre de la voz a usar (auto-carga reference.wav + speech.wav)")
     speak_parser.add_argument("--output", "-o", help="Ruta del archivo WAV de salida (si se omite, se reproduce el audio)")
-    speak_parser.add_argument("--device", "-d", default="cpu",
-                              choices=["cpu", "cuda", "mps"],
-                              help="Dispositivo para inferencia (default: cpu)")
-    speak_parser.add_argument("--model", "-m", default="es-mx-latam",
-                              choices=["multilingual", "es-mx-latam"],
-                              help="Modelo a usar: 'es-mx-latam' (español latinoamericano, RECOMENDADO) o 'multilingual' (default: 'es-mx-latam')")
+    speak_parser.add_argument("--compute-backend", "-cb", default="auto",
+                              choices=["auto", "cpu", "cuda", "mps"],
+                              help="Backend de cómputo para la inferencia; 'auto' detecta el mejor "
+                                   "disponible (default: auto)")
     speak_parser.add_argument("--voice-audio",
                               help="Archivo de audio para el Voice Encoder (audio completo para el embedding de timbre)")
     speak_parser.add_argument("--speech-audio",
@@ -531,9 +529,10 @@ def main():
                            help="Archivo de audio de referencia para el timbre (cualquier largo, se usa el audio completo)")
     voice_add.add_argument("--speech", "-s", required=True,
                            help="Archivo de audio de habla para el conditioning del T3 (10+ segundos de habla limpia)")
-    voice_add.add_argument("--device", "-d", default="cpu",
-                           choices=["cpu", "cuda", "mps"],
-                           help="Dispositivo para inferencia (default: cpu)")
+    voice_add.add_argument("--compute-backend", "-cb", default="auto",
+                           choices=["auto", "cpu", "cuda", "mps"],
+                           help="Backend de cómputo para la inferencia; 'auto' detecta el mejor "
+                                "disponible (default: auto)")
     voice_add.add_argument("--force", "-f", action="store_true",
                            help="Sobrescribir la voz si ya existe (usuario o fábrica homónima)")
     voice_add.set_defaults(func=cmd_voice_add)

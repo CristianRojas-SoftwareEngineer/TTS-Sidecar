@@ -59,7 +59,7 @@ class TestConditionalsCorruptos:
         from chatterbox_tts.engine import ChatterboxEngine
 
         eng = ChatterboxEngine.__new__(ChatterboxEngine)
-        eng.device = "cpu"
+        eng.compute_backend = "cpu"
         return eng
 
     def test_load_devuelve_false_con_archivo_corrupto(self, tmp_path):
@@ -99,7 +99,7 @@ class TestParametrosUnificados:
         from chatterbox_tts.engine import ChatterboxEngine
 
         eng = ChatterboxEngine.__new__(ChatterboxEngine)
-        eng.device = "cpu"
+        eng.compute_backend = "cpu"
         eng._conds_cache_key = None
 
         class FakeTTS:
@@ -117,7 +117,7 @@ class TestParametrosUnificados:
 
         monkeypatch.setattr(ChatterboxEngine, "_cache", {})
         monkeypatch.setattr(
-            ChatterboxEngine, "__init__", lambda self, model, device, models_dir=None: None
+            ChatterboxEngine, "__init__", lambda self, model, compute_backend, models_dir=None: None
         )
         a = ChatterboxEngine.get_instance(models_dir="/ruta/a")
         b = ChatterboxEngine.get_instance(models_dir="/ruta/b")

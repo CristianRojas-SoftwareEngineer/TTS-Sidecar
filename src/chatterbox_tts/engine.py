@@ -140,52 +140,83 @@ class ChatterboxEngine:
     _cache_lock = threading.Lock()
 
     @staticmethod
-    def cache_key(model: str = "es-mx-latam", device: str = "cpu", models_dir: Optional[str] = None) -> str:
-        """Construye la clave de caché de instancias, compartida con el daemon (run.py)."""
-        return f"{model}:{device}:{models_dir}"
+    def _auto_detect_compute_backend() -> str:
+        """Resuelve el mejor compute backend disponible en el host.
+
+        Orden de preferencia: cuda (NVIDIA) → mps (Apple Silicon) → cpu.
+        Los probes de torch se envuelven en try/except: un torch sin CUDA
+        o sin MPS, o un fallo de import del backend, degradan a "cpu" sin
+        crashear.
+        """
+        try:
+            if torch.cuda.is_available():
+                return "cuda"
+        except Exception:
+            pass
+        try:
+            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                return "mps"
+        except Exception:
+            pass
+        return "cpu"
 
     @classmethod
-    def get_instance(cls, model: str = "es-mx-latam", device: str = "cpu", models_dir: Optional[str] = None) -> "ChatterboxEngine":
+    def _resolve_compute_backend(cls, compute_backend: Optional[str]) -> str:
+        """Acepta None/"auto" y lo mapea a uno de los backends concretos."""
+        if compute_backend is None or compute_backend == "auto":
+            return cls._auto_detect_compute_backend()
+        return compute_backend
+
+    @staticmethod
+    def cache_key(model: str = "es-mx-latam", compute_backend: str = "cpu", models_dir: Optional[str] = None) -> str:
+        """Construye la clave de caché de instancias, compartida con el daemon (run.py)."""
+        return f"{model}:{compute_backend}:{models_dir}"
+
+    @classmethod
+    def get_instance(cls, model: str = "es-mx-latam", compute_backend: str = "auto", models_dir: Optional[str] = None) -> "ChatterboxEngine":
         """
         Obtiene una instancia cacheada del motor o crea una nueva.
 
         El modelo queda cargado en memoria para las llamadas siguientes.
 
         Args:
-            model: Modelo a usar ("es-mx-latam" o "multilingual")
-            device: Dispositivo para inferencia ("cpu", "cuda", "mps")
+            model: Modelo a usar. El CLI solo invoca con "es-mx-latam".
+            compute_backend: Backend de cómputo para la inferencia
+                ("auto", "cpu", "cuda", "mps"). Con "auto" (default), se
+                detecta el mejor disponible.
             models_dir: Directorio donde cachear los modelos
         """
-        key = cls.cache_key(model, device, models_dir)
+        resolved = cls._resolve_compute_backend(compute_backend)
+        key = cls.cache_key(model, resolved, models_dir)
         with cls._cache_lock:
             if key not in cls._cache:
-                cls._cache[key] = cls(model=model, device=device, models_dir=models_dir)
+                cls._cache[key] = cls(model=model, compute_backend=resolved, models_dir=models_dir)
             return cls._cache[key]
 
     def __init__(
         self,
         model: str = "es-mx-latam",
-        device: str = "cpu",
+        compute_backend: str = "auto",
         models_dir: Optional[str] = None,
     ):
         """
         Inicializa el motor TTS de Chatterbox.
 
         Args:
-            model: Modelo a usar. Opciones:
-                   - "es-mx-latam": español latinoamericano (RECOMENDADO, usa vocab de 2454 tokens)
-                   - "multilingual": modelo multilingüe base
-            device: Dispositivo para inferencia ("cpu", "cuda", "mps")
+            model: Modelo a usar. El CLI solo invoca con "es-mx-latam";
+                   "multilingual" (modelo base) se conserva solo como path interno.
+            compute_backend: Backend de cómputo ("auto", "cpu", "cuda", "mps").
+                Con "auto" (default) se detecta el mejor disponible.
             models_dir: Directorio donde cachear los modelos. Default: ~/.cache/huggingface/hub
         """
-        self.device = device
+        self.compute_backend = self._resolve_compute_backend(compute_backend)
         self.model_name = self.MODELS.get(model, model)
 
         # Descarga el modelo a la caché local
         self._cache_dir = self._download_model(self.model_name, models_dir)
 
         # Carga el modelo desde los archivos locales usando el loader correcto
-        self._tts = self._load_model(self._cache_dir, self.model_name, device)
+        self._tts = self._load_model(self._cache_dir, self.model_name, self.compute_backend)
 
         # Memoización en memoria de los conditionals precomputados: clave
         # (voice_dir, mtime de conditionals.pt) de la última carga exitosa.
@@ -274,18 +305,18 @@ class ChatterboxEngine:
         log(f"Model downloaded to: {cached_path}")
         return cached_path
 
-    def _load_model(self, cache_dir: Path, model_name: str, device: str):
+    def _load_model(self, cache_dir: Path, model_name: str, compute_backend: str):
         """Carga el modelo según la ruta de caché: es-mx-latam o el multilingüe base."""
         cache_dir = Path(cache_dir)
 
         # Selecciona el loader según el modelo en la ruta de caché.
         # El alias vivo es "es-mx-latam"; cualquier otra ruta usa el loader multilingüe.
         if "es-mx-latam" in str(cache_dir):
-            return self._load_es_latam(cache_dir, device)
+            return self._load_es_latam(cache_dir, compute_backend)
         else:
-            return self._load_multilingual(cache_dir, device)
+            return self._load_multilingual(cache_dir, compute_backend)
 
-    def _load_es_latam(self, cache_dir: Path, device: str):
+    def _load_es_latam(self, cache_dir: Path, compute_backend: str):
         """
         Carga el language pack es-mx-latam.
 
@@ -294,6 +325,7 @@ class ChatterboxEngine:
         - S3Gen: s3gen_v3.safetensors
         - Tokenizer: grapheme_mtl_merged_expanded_v1.json (2454 tokens)
         """
+        device = compute_backend
         if device in ["cpu", "mps"]:
             map_location = torch.device("cpu")
         else:
@@ -359,12 +391,12 @@ class ChatterboxEngine:
         # Si no hay conds incorporados, exige audio_prompt_path en generate()
         tts._require_voice_prompt = conds is None
 
-        log(f"Model loaded: es-MX-Latam (vocab=2454, device={device}, builtin_voice={'yes' if conds else 'no'})")
+        log(f"Model loaded: es-MX-Latam (vocab=2454, compute_backend={compute_backend}, builtin_voice={'yes' if conds else 'no'})")
         return tts
 
-    def _load_multilingual(self, cache_dir: Path, device: str):
+    def _load_multilingual(self, cache_dir: Path, compute_backend: str):
         """Carga el modelo multilingüe base (path de producción del modelo 'multilingual')."""
-        return ChatterboxTTS.from_local(cache_dir, device)
+        return ChatterboxTTS.from_local(cache_dir, compute_backend)
 
     def speak(
         self,
@@ -510,12 +542,12 @@ class ChatterboxEngine:
         ve_embed = torch.from_numpy(
             tts.ve.embeds_from_wavs([ref_16k_voice], sample_rate=16000)
         )
-        ve_embed = ve_embed.mean(axis=0, keepdim=True).to(self.device)
+        ve_embed = ve_embed.mean(axis=0, keepdim=True).to(self.compute_backend)
 
         # --- Audio de habla: conditioning del T3 (6s) + decoder S3Gen (10s) ---
         # Referencia del decoder S3Gen (primeros 10s)
         ref_24k_speech = ref_24k_speech[:tts.DEC_COND_LEN]
-        s3gen_ref_dict = tts.s3gen.embed_ref(ref_24k_speech, 24000, device=self.device)
+        s3gen_ref_dict = tts.s3gen.embed_ref(ref_24k_speech, 24000, device=self.compute_backend)
 
         # Tokens de conditioning de habla del T3 (primeros 6s)
         t3_cond_prompt_tokens = None
@@ -524,13 +556,13 @@ class ChatterboxEngine:
             t3_cond_prompt_tokens, _ = s3_tokzr.forward(
                 [ref_16k_speech[:tts.ENC_COND_LEN]], max_len=plen
             )
-            t3_cond_prompt_tokens = torch.atleast_2d(t3_cond_prompt_tokens).to(self.device)
+            t3_cond_prompt_tokens = torch.atleast_2d(t3_cond_prompt_tokens).to(self.compute_backend)
 
         t3_cond = T3Cond(
             speaker_emb=ve_embed,
             cond_prompt_speech_tokens=t3_cond_prompt_tokens,
             emotion_adv=self.EMOTION_ADV * torch.ones(1, 1, 1),
-        ).to(device=self.device)
+        ).to(device=self.compute_backend)
 
         return Conditionals(t3_cond, s3gen_ref_dict)
 
@@ -661,8 +693,8 @@ class ChatterboxEngine:
             return False
 
         try:
-            conds = Conditionals.load(conds_path, map_location=torch.device(self.device))
-            self._tts.conds = conds.to(self.device)
+            conds = Conditionals.load(conds_path, map_location=torch.device(self.compute_backend))
+            self._tts.conds = conds.to(self.compute_backend)
             return True
         except Exception as e:
             log(f"   -> No se pudieron cargar los conditionals precomputados ({conds_path}): {e}")

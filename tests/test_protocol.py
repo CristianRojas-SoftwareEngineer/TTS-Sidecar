@@ -44,10 +44,10 @@ class TestSynthesizeRequest:
     def test_texto_en_el_limite_aceptado(self):
         assert len(SynthesizeRequest(text="a" * MAX_TEXT_LENGTH).text) == MAX_TEXT_LENGTH
 
-    def test_protocolo_sin_model_ni_device(self):
+    def test_protocolo_sin_model_ni_compute_backend(self):
         campos = SynthesizeRequest.model_fields
         assert "model" not in campos
-        assert "device" not in campos
+        assert "compute_backend" not in campos
 
     def test_ruta_audio_excesiva_rechazada(self):
         """SUGGESTION-01: voice_audio/speech_audio tienen tope de longitud."""

@@ -19,8 +19,8 @@ MAX_AUDIO_PATH_LENGTH = 4096
 class SynthesizeRequest(BaseModel):
     """Request de síntesis de habla.
 
-    El daemon sirve un único modelo/dispositivo fijado al arrancar; la petición
-    no lleva `model` ni `device` (el servidor los ignoraría).
+    El daemon sirve un único modelo y compute backend fijados al arrancar; la
+    petición no lleva `model` ni `compute_backend` (el servidor los ignoraría).
     """
     text: str = Field(min_length=1, max_length=MAX_TEXT_LENGTH)
     voice_audio: Optional[str] = Field(default=None, max_length=MAX_AUDIO_PATH_LENGTH)
