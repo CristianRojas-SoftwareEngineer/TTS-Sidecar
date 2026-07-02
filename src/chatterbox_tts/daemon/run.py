@@ -140,7 +140,7 @@ def serve(port: int = 8765, auto_restart: bool = False, max_retries: int = 0):
         # motor: si el crash se debió a un estado interno corrupto, revivir
         # el mismo objeto anularía el propósito de --auto-restart.
         from ..engine import ChatterboxEngine
-        ChatterboxEngine._cache.pop("es-mx-latam:cpu:None", None)
+        ChatterboxEngine._cache.pop(ChatterboxEngine.cache_key(model="es-mx-latam", device="cpu"), None)
 
         time.sleep(1)
 

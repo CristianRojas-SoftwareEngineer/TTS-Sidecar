@@ -348,3 +348,59 @@ class TestEnvironmentChecksAudio:
         audio_check = next(c for c in checks if c[1] == "Audio library")
         assert audio_check[0] == "FAIL"
         assert "no se pudo enumerar" in audio_check[2]
+
+    def test_linux_audio_degradado_da_fail(self, monkeypatch):
+        """WARNING-03: Linux/macOS ahora usan la misma enumeración real que Windows."""
+        import platform as platform_module
+        from chatterbox_tts import cli
+
+        monkeypatch.setattr(platform_module, "system", lambda: "Linux")
+        monkeypatch.setattr(
+            "chatterbox_tts.audio.get_audio_devices_with_status",
+            lambda: ([{"id": 0, "name": "Default", "latency": 0.1}], True),
+        )
+
+        checks = cli._environment_checks()
+        audio_check = next(c for c in checks if c[1] == "Audio library")
+        assert audio_check[0] == "FAIL"
+        assert "no se pudo enumerar" in audio_check[2]
+
+    def test_macos_audio_real_da_pass(self, monkeypatch):
+        import platform as platform_module
+        from chatterbox_tts import cli
+
+        monkeypatch.setattr(platform_module, "system", lambda: "Darwin")
+        monkeypatch.setattr(
+            "chatterbox_tts.audio.get_audio_devices_with_status",
+            lambda: ([{"id": 0, "name": "Built-in Output"}], False),
+        )
+
+        checks = cli._environment_checks()
+        audio_check = next(c for c in checks if c[1] == "Audio library")
+        assert audio_check[0] == "PASS"
+        assert "1 dispositivo" in audio_check[2]
+
+
+class TestCmdDevicesError:
+    @patch("chatterbox_tts.audio.get_audio_devices")
+    def test_cmd_devices_excepcion_sale_con_codigo_1(self, mock_get_devices, capsys):
+        from chatterbox_tts.cli import cmd_devices
+
+        mock_get_devices.side_effect = RuntimeError("PortAudio no disponible")
+
+        with pytest.raises(SystemExit):
+            cmd_devices(MockArgs())
+
+        err = capsys.readouterr().err
+        assert "Error" in err
+
+
+class TestCmdSpeakTextVacio:
+    def test_text_vacio_se_rechaza(self, capsys):
+        from chatterbox_tts.cli import cmd_speak
+
+        with pytest.raises(SystemExit):
+            cmd_speak(MockArgs(text="   "))
+
+        err = capsys.readouterr().err
+        assert "--text" in err

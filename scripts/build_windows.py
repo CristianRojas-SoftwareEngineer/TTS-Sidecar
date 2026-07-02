@@ -18,7 +18,8 @@ BUILD_DIR = PROJECT_ROOT / "build"
 sys.path.insert(0, str(Path(__file__).parent))
 from build_utils import (
     log, StageTimer, BuildTimer, copy_license_files,
-    check_pyinstaller, common_pyinstaller_args,
+    check_pyinstaller, common_pyinstaller_args, bundle_size_mb,
+    PYINSTALLER_TIMEOUT,
 )
 
 
@@ -50,10 +51,14 @@ def build_windows():
                     pyinstaller_args,
                     # Heredar la consola para que la barra de progreso de PyInstaller se renderice;
                     # las cabeceras [HH:MM:SS] del padre enmarcan cada fase.
+                    timeout=PYINSTALLER_TIMEOUT,
                 ).returncode
             except KeyboardInterrupt:
                 log("\n[CANCEL] Build cancelado por el usuario.")
                 sys.exit(130)  # 128 + 2 (SIGINT)
+            except subprocess.TimeoutExpired:
+                log(f"\n[TIMEOUT] PyInstaller excedió {PYINSTALLER_TIMEOUT}s.")
+                sys.exit(1)
 
         if returncode != 0:
             log("PyInstaller failed", returncode)
@@ -62,8 +67,7 @@ def build_windows():
         with StageTimer("Size", "Verificando tamaño del bundle"):
             onedir = DIST_DIR / "tts-sidecar"
             if onedir.exists():
-                size_mb = sum(f.stat().st_size for f in onedir.rglob("*") if f.is_file()) / 1024 / 1024
-                log(f"Tamaño del bundle: {size_mb:.1f} MB ({onedir})")
+                log(f"Tamaño del bundle: {bundle_size_mb(onedir):.1f} MB ({onedir})")
 
         with StageTimer("Licenses", "Empaquetando avisos de licencia"):
             copy_license_files(DIST_DIR / "tts-sidecar")

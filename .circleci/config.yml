@@ -20,7 +20,7 @@ jobs:
           pip-dependency-file: requirements.txt
       - run:
           name: Install pytest
-          command: pip install pytest
+          command: pip install pytest==9.1.1
       - run:
           # WARNING-04: CLAUDE.md documenta py_compile como chequeo de verificación,
           # pero no corría en CI; compileall detecta errores de sintaxis en módulos
@@ -47,7 +47,7 @@ jobs:
             python --version
             python -m pip install --upgrade pip
             python -m pip install -r requirements.txt
-            python -m pip install pyinstaller
+            python -m pip install pyinstaller==6.21.0
             choco install innosetup -y --version=6.3.3
       - run:
           name: Build Windows
@@ -80,7 +80,7 @@ jobs:
       - run:
           name: Install PyInstaller and appimage-builder
           command: |
-            pip install pyinstaller appimage-builder
+            pip install pyinstaller==6.21.0 appimage-builder==1.1.0
       - run:
           name: Build Linux x64
           command: python scripts/build_linux.py --arch x86_64
@@ -137,9 +137,18 @@ jobs:
             python3 -m pip install --upgrade pip
             pip3 install -r requirements.txt
       - run:
-          name: Install PyInstaller and create-dmg
+          name: Install PyInstaller
           command: |
-            pip3 install pyinstaller create-dmg
+            pip3 install pyinstaller==6.21.0
+      - run:
+          # create-dmg es un script de shell distribuido por Homebrew, no un
+          # paquete de PyPI: `pip3 install create-dmg` fallaba siempre
+          # (con o sin pin), independientemente de esta auditoría. Homebrew
+          # no soporta fijar una versión exacta de forma simple (a diferencia
+          # de pip), así que se deja sin pin explícito.
+          name: Install create-dmg (Homebrew)
+          command: |
+            brew install create-dmg
       - run:
           name: Build macOS universal2
           command: python3 scripts/build_macos.py --arch universal2

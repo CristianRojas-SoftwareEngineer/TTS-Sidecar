@@ -16,6 +16,7 @@ Optimizaciones multiplataforma para Windows, Linux y Mac.
 
 import os
 import platform
+import threading
 import wave
 from pathlib import Path
 from typing import Optional
@@ -129,9 +130,19 @@ class ChatterboxEngine:
     MAX_NEW_TOKENS = 500     # tope de output del T3 (default del modelo: 1000)
     N_CFM_TIMESTEPS = 4      # pasos de flow matching (default: 10; 4 es ~2.5x más rápido)
     EXAGGERATION = 0.75      # expresividad emocional (default: 0.5)
+    # Adv. emocional del T3Cond: parámetro propio de la arquitectura T3, sin
+    # relación con EXAGGERATION (que ajusta tts.generate()). Se deja fijo en
+    # el valor neutro del modelo base; no es un default de Chatterbox a heredar.
+    EMOTION_ADV = 0.5
 
     # Caché a nivel de clase para los modelos cargados (evita recargar en cada speak)
     _cache: dict[str, "ChatterboxEngine"] = {}
+    _cache_lock = threading.Lock()
+
+    @staticmethod
+    def cache_key(model: str = "es-mx-latam", device: str = "cpu", models_dir: Optional[str] = None) -> str:
+        """Construye la clave de caché de instancias, compartida con el daemon (run.py)."""
+        return f"{model}:{device}:{models_dir}"
 
     @classmethod
     def get_instance(cls, model: str = "es-mx-latam", device: str = "cpu", models_dir: Optional[str] = None) -> "ChatterboxEngine":
@@ -145,10 +156,11 @@ class ChatterboxEngine:
             device: Dispositivo para inferencia ("cpu", "cuda", "mps")
             models_dir: Directorio donde cachear los modelos
         """
-        cache_key = f"{model}:{device}:{models_dir}"
-        if cache_key not in cls._cache:
-            cls._cache[cache_key] = cls(model=model, device=device, models_dir=models_dir)
-        return cls._cache[cache_key]
+        key = cls.cache_key(model, device, models_dir)
+        with cls._cache_lock:
+            if key not in cls._cache:
+                cls._cache[key] = cls(model=model, device=device, models_dir=models_dir)
+            return cls._cache[key]
 
     def __init__(
         self,
@@ -291,13 +303,14 @@ class ChatterboxEngine:
         # es-mx-latam no incluye ve.safetensors; se comparte con el modelo base
         ve_path = cache_dir / "ve.safetensors"
         if not ve_path.exists():
-            # Intenta la caché del modelo base
-            import os as _os
-            base_ve = hub_cache_path() / cache_folder_for("ResembleAI/chatterbox") / "snapshots"
-            if base_ve.exists():
-                snaps = [d for d in _os.listdir(base_ve) if (base_ve / d).is_dir()]
-                if snaps:
-                    ve_path = base_ve / snaps[0] / "ve.safetensors"
+            # Intenta la caché del modelo base, con el mismo criterio de
+            # resolución determinista (refs/main, luego mtime) que el resto
+            # del motor, en vez de un os.listdir()[0] de orden no garantizado.
+            base_snapshot = _resolve_cached_snapshot(
+                hub_cache_path() / cache_folder_for("ResembleAI/chatterbox")
+            )
+            if base_snapshot is not None:
+                ve_path = base_snapshot / "ve.safetensors"
         if not ve_path.exists():
             # Descarga solo el voice encoder
             from huggingface_hub import hf_hub_download
@@ -516,7 +529,7 @@ class ChatterboxEngine:
         t3_cond = T3Cond(
             speaker_emb=ve_embed,
             cond_prompt_speech_tokens=t3_cond_prompt_tokens,
-            emotion_adv=0.5 * torch.ones(1, 1, 1),
+            emotion_adv=self.EMOTION_ADV * torch.ones(1, 1, 1),
         ).to(device=self.device)
 
         return Conditionals(t3_cond, s3gen_ref_dict)
@@ -651,7 +664,8 @@ class ChatterboxEngine:
             conds = Conditionals.load(conds_path, map_location=torch.device(self.device))
             self._tts.conds = conds.to(self.device)
             return True
-        except Exception:
+        except Exception as e:
+            log(f"   -> No se pudieron cargar los conditionals precomputados ({conds_path}): {e}")
             return False
 
     def list_voices(self) -> list[str]:

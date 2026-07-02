@@ -1,9 +1,11 @@
-# Pin de dependencias para DESARROLLO / CI.
+# Límites inferiores de dependencias para DESARROLLO / CI (no son pines exactos:
+# todas las entradas usan >=, no ==).
 #
 # La fuente única de las dependencias de runtime es pyproject.toml
 # ([project.dependencies], con marcadores por plataforma). `pip install .`
-# arrastra lo necesario. Este archivo replica esos pines para el entorno de
-# desarrollo y añade las herramientas de build.
+# arrastra lo necesario. Este archivo replica esos límites para el entorno de
+# desarrollo y añade las herramientas de build. El pin exacto de versión se
+# aplica en el CI (.circleci/config.yml) para las instalaciones de pip.
 
 # Runtime (espejo de pyproject.toml)
 chatterbox-tts>=0.3.0

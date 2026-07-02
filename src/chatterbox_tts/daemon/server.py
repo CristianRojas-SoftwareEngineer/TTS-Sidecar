@@ -83,6 +83,11 @@ def synthesize(req: SynthesizeRequest) -> Response:
     # leyera un .wav arbitrario del sistema de archivos). Los mensajes de error
     # no exponen rutas del sistema.
     allowed_dirs = [os.path.realpath(d) for d in voices.allowed_audio_dirs()]
+    # Cada ruta se resuelve a su forma canónica UNA sola vez aquí y esa misma
+    # ruta (no la cruda de la petición) es la que se pasa a _engine.speak: sin
+    # esto, quedaba una ventana entre validar y usar en la que el archivo podía
+    # cambiar (symlink swap) sin volver a pasar por la validación.
+    real_paths: dict[str, str] = {}
     for field, path in (("voice_audio", req.voice_audio), ("speech_audio", req.speech_audio)):
         if path is None:
             continue
@@ -99,13 +104,24 @@ def synthesize(req: SynthesizeRequest) -> Response:
                 status_code=400,
                 detail=f"{field}: la ruta no está en un directorio permitido",
             )
+        try:
+            with open(real_path, "rb") as f:
+                header = f.read(12)
+        except OSError:
+            header = b""
+        if len(header) < 12 or header[0:4] != b"RIFF" or header[8:12] != b"WAVE":
+            raise HTTPException(
+                status_code=400,
+                detail=f"{field}: el archivo no es un WAV válido",
+            )
+        real_paths[field] = real_path
 
     try:
         with _synthesis_lock:
             audio_bytes = _engine.speak(
                 text=req.text,
-                voice_audio=req.voice_audio,
-                speech_audio=req.speech_audio,
+                voice_audio=real_paths.get("voice_audio"),
+                speech_audio=real_paths.get("speech_audio"),
                 verbose=True,
             )
 

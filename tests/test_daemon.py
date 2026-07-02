@@ -25,7 +25,7 @@ class TestServerConcurrency:
                 return b"RIFF" + b"\x00" * 40
 
         wav = tmp_path / "voz.wav"
-        wav.write_bytes(b"RIFF")
+        wav.write_bytes(b"RIFF\x00\x00\x00\x00WAVE")
 
         old_engine = server._engine
         server.set_engine(SlowEngine())
@@ -90,7 +90,7 @@ class TestSynthesizeRutasPermitidas:
         allowed_root = tmp_path / "voices_permitido"
         allowed_root.mkdir()
         wav = allowed_root / "voz.wav"
-        wav.write_bytes(b"RIFF")
+        wav.write_bytes(b"RIFF\x00\x00\x00\x00WAVE")
 
         monkeypatch.setattr(voices, "allowed_audio_dirs", lambda: [str(allowed_root)])
 
@@ -106,6 +106,63 @@ class TestSynthesizeRutasPermitidas:
                     "/synthesize", json={"text": "hola", "speech_audio": str(wav)}
                 )
                 assert resp.status_code == 200
+        finally:
+            server.set_engine(old_engine)
+
+
+class TestSynthesizeValidacionHeaderYRutaCanonica:
+    def test_rechaza_extension_wav_con_header_no_wav(self, tmp_path, monkeypatch):
+        """Extensión .wav pero contenido no-RIFF/WAVE: rechazado con 400."""
+        from fastapi.testclient import TestClient
+        from chatterbox_tts.daemon import server
+        from chatterbox_tts import voices
+
+        allowed_root = tmp_path / "voices_permitido"
+        allowed_root.mkdir()
+        wav = allowed_root / "voz.wav"
+        wav.write_bytes(b"no soy un wav")
+
+        monkeypatch.setattr(voices, "allowed_audio_dirs", lambda: [str(allowed_root)])
+
+        old_engine = server._engine
+        server.set_engine(MagicMock())
+        try:
+            with TestClient(server.app) as client:
+                resp = client.post(
+                    "/synthesize", json={"text": "hola", "speech_audio": str(wav)}
+                )
+                assert resp.status_code == 400
+        finally:
+            server.set_engine(old_engine)
+
+    def test_pasa_ruta_canonica_al_motor(self, tmp_path, monkeypatch):
+        """El motor recibe os.path.realpath(path), resuelto una sola vez en la validación."""
+        import os
+        from fastapi.testclient import TestClient
+        from chatterbox_tts.daemon import server
+        from chatterbox_tts import voices
+
+        allowed_root = tmp_path / "voices_permitido"
+        allowed_root.mkdir()
+        wav = allowed_root / "voz.wav"
+        wav.write_bytes(b"RIFF\x00\x00\x00\x00WAVE")
+
+        monkeypatch.setattr(voices, "allowed_audio_dirs", lambda: [str(allowed_root)])
+
+        fake_engine = MagicMock()
+        fake_engine.speak.return_value = b"RIFF" + b"\x00" * 40
+        fake_engine._synthesis_timing = {}
+
+        old_engine = server._engine
+        server.set_engine(fake_engine)
+        try:
+            with TestClient(server.app) as client:
+                resp = client.post(
+                    "/synthesize", json={"text": "hola", "speech_audio": str(wav)}
+                )
+                assert resp.status_code == 200
+                _, kwargs = fake_engine.speak.call_args
+                assert kwargs["speech_audio"] == os.path.realpath(str(wav))
         finally:
             server.set_engine(old_engine)
 
@@ -178,6 +235,19 @@ class TestDaemonManager:
         import requests
         from chatterbox_tts.daemon import DaemonIPCClient
         mock_get.side_effect = requests.Timeout()
+
+        client = DaemonIPCClient()
+        voices = client.list_voices()
+        assert voices == []
+
+    @patch("requests.get")
+    def test_list_voices_on_invalid_json(self, mock_get):
+        """JSON inválido en el cuerpo de éxito degrada a [] igual que synthesize()."""
+        from chatterbox_tts.daemon import DaemonIPCClient
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.side_effect = ValueError("invalid json")
+        mock_get.return_value = mock_resp
 
         client = DaemonIPCClient()
         voices = client.list_voices()

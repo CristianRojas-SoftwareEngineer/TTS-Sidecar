@@ -107,6 +107,10 @@ def cmd_speak(args):
     """Sintetiza texto; reproduce el audio, o lo guarda a un archivo si se da --output."""
 
     try:
+        if not args.text or not args.text.strip():
+            print("Error: --text no puede estar vacío.", file=sys.stderr)
+            sys.exit(1)
+
         # Exige que el modelo esté en caché antes de sintetizar.
         # Las descargas son responsabilidad exclusiva de 'setup'.
         _require_model_cached(getattr(args, "model", "es-mx-latam"))
@@ -250,7 +254,11 @@ def cmd_devices(args):
     """Lista los dispositivos de salida de audio."""
     from .audio import get_audio_devices
 
-    devices = get_audio_devices()
+    try:
+        devices = get_audio_devices()
+    except Exception as e:
+        print(f"Error al enumerar los dispositivos de audio: {e}", file=sys.stderr)
+        sys.exit(1)
 
     if getattr(args, "json", False):
         import json
@@ -288,37 +296,26 @@ def _environment_checks() -> list[tuple[str, str, str]]:
     except ImportError:
         checks.append(("FAIL", "Chatterbox TTS", "NO INSTALADO (pip install chatterbox-tts)"))
 
-    # Chequea la librería de audio
+    # Chequea la librería de audio. En las tres plataformas se reutiliza la
+    # enumeración real de audio.py (no solo la disponibilidad del import), de
+    # modo que el chequeo refleje el estado efectivo del subsistema: un host
+    # sin audio real (sesiones RDP/headless, sin backend ALSA/CoreAudio)
+    # importa la librería sin problema pero falla al enumerar en runtime
+    # (WARNING-03).
     try:
-        if platform.system() == "Windows":
-            # No basta con `import pycaw`: un host sin audio real (sesiones RDP,
-            # servidores sin tarjeta de sonido) importa la librería sin problema
-            # pero falla al enumerar endpoints COM en runtime. Se reutiliza la
-            # enumeración real de audio.py para que el chequeo refleje el estado
-            # efectivo del subsistema, no solo la disponibilidad del import
-            # (WARNING-03).
-            from .audio import get_audio_devices_with_status
-            devices, degraded = get_audio_devices_with_status()
-            if degraded:
-                checks.append((
-                    "FAIL",
-                    "Audio library",
-                    "pycaw importado pero no se pudo enumerar ningún dispositivo COM real "
-                    "(host sin audio o sesión sin subsistema de sonido)",
-                ))
-            else:
-                checks.append(("PASS", "Audio library", f"pycaw (Windows) — {len(devices)} dispositivo(s)"))
-        elif platform.system() == "Linux":
-            import sounddevice
-            checks.append(("PASS", "Audio library", "sounddevice (Linux)"))
-        elif platform.system() == "Darwin":
-            import shutil
-            # Detecta la disponibilidad del binario sin ejecutarlo: afplay sin
-            # archivo imprime su usage y devuelve exit != 0, lo que abortaría el chequeo.
-            if shutil.which("afplay"):
-                checks.append(("PASS", "Audio library", "afplay (macOS)"))
-            else:
-                checks.append(("FAIL", "Audio library", "afplay no encontrado en el PATH"))
+        from .audio import get_audio_devices_with_status
+        devices, degraded = get_audio_devices_with_status()
+        system = platform.system()
+        lib_name = {"Windows": "pycaw", "Linux": "sounddevice", "Darwin": "sounddevice"}.get(system, "audio")
+        if degraded:
+            checks.append((
+                "FAIL",
+                "Audio library",
+                f"{lib_name} importado pero no se pudo enumerar ningún dispositivo real "
+                "(host sin audio o sin subsistema de sonido)",
+            ))
+        else:
+            checks.append(("PASS", "Audio library", f"{lib_name} ({system}) — {len(devices)} dispositivo(s)"))
     except ImportError:
         checks.append(("FAIL", "Audio library", "NO INSTALADO"))
     except Exception as e:

@@ -17,7 +17,8 @@ BUILD_DIR = PROJECT_ROOT / "build"
 sys.path.insert(0, str(Path(__file__).parent))
 from build_utils import (
     log, StageTimer, BuildTimer, copy_license_files, get_version,
-    check_pyinstaller, common_pyinstaller_args, BUILD_SUBPROCESS_TIMEOUT,
+    check_pyinstaller, common_pyinstaller_args, bundle_size_mb,
+    BUILD_SUBPROCESS_TIMEOUT, PYINSTALLER_TIMEOUT,
 )
 
 
@@ -30,12 +31,10 @@ def check_dependencies():
             import sounddevice
         except ImportError:
             log("sounddevice not installed, installing...")
-            result = subprocess.run(
+            subprocess.run(
                 [sys.executable, "-m", "pip", "install", "sounddevice"],
                 check=True,
             )
-            if result.returncode != 0:
-                sys.exit(1)
 
         # appimage-builder genera el AppImage a partir del bundle onedir
         try:
@@ -43,12 +42,10 @@ def check_dependencies():
             log("appimage-builder: installed")
         except ImportError:
             log("appimage-builder not found, installing...")
-            result = subprocess.run(
+            subprocess.run(
                 [sys.executable, "-m", "pip", "install", "appimage-builder"],
                 check=True,
             )
-            if result.returncode != 0:
-                sys.exit(1)
 
 
 def build_linux(target_arch="x86_64"):
@@ -72,10 +69,16 @@ def build_linux(target_arch="x86_64"):
             )
             log(f"Running: pyinstaller {' '.join(pyinstaller_args[2:])}")
             try:
-                returncode = subprocess.run(pyinstaller_args).returncode
+                returncode = subprocess.run(
+                    pyinstaller_args,
+                    timeout=PYINSTALLER_TIMEOUT,
+                ).returncode
             except KeyboardInterrupt:
                 log("\n[CANCEL] Build cancelled by user.")
                 sys.exit(130)
+            except subprocess.TimeoutExpired:
+                log(f"\n[TIMEOUT] PyInstaller excedió {PYINSTALLER_TIMEOUT}s.")
+                sys.exit(1)
 
         if returncode != 0:
             log("PyInstaller failed", returncode)
@@ -84,10 +87,7 @@ def build_linux(target_arch="x86_64"):
         onedir = DIST_DIR / "tts-sidecar"
         with StageTimer("Size", "Checking bundle size"):
             if onedir.exists():
-                size_mb = sum(
-                    f.stat().st_size for f in onedir.rglob("*") if f.is_file()
-                ) / 1024 / 1024
-                log(f"Bundle size: {size_mb:.1f} MB ({onedir})")
+                log(f"Bundle size: {bundle_size_mb(onedir):.1f} MB ({onedir})")
 
         with StageTimer("Licenses", "Empaquetando avisos de licencia"):
             copy_license_files(onedir)

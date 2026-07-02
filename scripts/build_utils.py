@@ -21,6 +21,12 @@ LICENSE_FILES = ("LICENSE", "THIRD-PARTY-LICENSES.md")
 # Windows (create_installer_windows.py) (SUGGESTION-05).
 BUILD_SUBPROCESS_TIMEOUT = 600
 
+# Timeout para el propio subprocess de PyInstaller, la etapa más larga del
+# build (9-15 min típico según la plataforma): más holgado que
+# BUILD_SUBPROCESS_TIMEOUT para no abortar una compilación legítima que
+# simplemente tarda más en un runner de CI cargado (WARNING-05).
+PYINSTALLER_TIMEOUT = 1800
+
 
 def check_pyinstaller() -> None:
     """Verifica que PyInstaller esté instalado (e instala si falta).
@@ -34,12 +40,10 @@ def check_pyinstaller() -> None:
             log(f"PyInstaller: {PyInstaller.__version__}")
         except ImportError:
             log("PyInstaller no encontrado, instalando...")
-            result = subprocess.run(
+            subprocess.run(
                 [sys.executable, "-m", "pip", "install", "pyinstaller"],
                 check=True,
             )
-            if result.returncode != 0:
-                sys.exit(1)
 
 
 def common_pyinstaller_args(
@@ -97,6 +101,16 @@ def common_pyinstaller_args(
         "--exclude-module", "gradio",
         "--exclude-module", "gradio_client",
     ]
+
+
+def bundle_size_mb(onedir) -> float:
+    """Calcula el tamaño total en MB de un directorio de bundle (onedir de PyInstaller).
+
+    Fuente única para los tres scripts de build, que antes duplicaban este
+    mismo cálculo (SUGGESTION-13).
+    """
+    total_bytes = sum(f.stat().st_size for f in Path(onedir).rglob("*") if f.is_file())
+    return total_bytes / (1024 * 1024)
 
 
 def copy_license_files(dest_dir) -> None:

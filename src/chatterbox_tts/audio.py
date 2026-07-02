@@ -130,7 +130,14 @@ class SoundDevicePlayer:
         with wave.open(wav_io, 'rb') as wf:
             n_channels = wf.getnchannels()
             sample_rate = wf.getframerate()
+            sample_width = wf.getsampwidth()
             audio_data = wf.readframes(wf.getnframes())
+
+        if sample_width != 2:
+            raise ValueError(
+                f"WAV con ancho de muestra no soportado ({sample_width * 8} bits); "
+                "se espera PCM de 16 bits."
+            )
 
         # Convierte a float32 normalizado en [-1, 1]
         audio_np = np.frombuffer(audio_data, dtype=np.int16)
@@ -191,7 +198,10 @@ def get_audio_devices_with_status() -> tuple[list[dict], bool]:
                 for i, info in enumerate(sd.query_devices())
                 if info['max_output_channels'] > 0
             ], False
-        except ImportError:
+        except Exception:
+            # No solo ImportError: un fallo de PortAudio en tiempo de
+            # enumeración (sin backend ALSA/CoreAudio, host sin audio) también
+            # debe degradar al fallback, no crashear, igual que en Windows.
             return [{"id": 0, "name": "Default", "latency": 0.1}], True
 
     return [{"id": 0, "name": "Default", "latency": 0.1}], True

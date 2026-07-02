@@ -96,7 +96,11 @@ class DaemonIPCClient:
                 timeout=self.TIMEOUT
             )
             if response.status_code == 200:
-                return response.json().get("voices", [])
+                try:
+                    return response.json().get("voices", [])
+                except ValueError:
+                    # Cuerpo de éxito no-JSON: degradar a lista vacía en vez de propagar.
+                    return []
             return []
         except (requests.ConnectionError, requests.Timeout):
             return []

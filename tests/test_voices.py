@@ -146,6 +146,39 @@ class TestCmdVoiceRemoveErroresDeIO:
         assert "en uso" not in err
 
 
+class TestColisionPorCapitalizacion:
+    """SUGGESTION-06: `_validate_voice_name` no normaliza mayúsculas/minúsculas.
+
+    Este test confirma o descarta, sin modificar `voices.py`, si dos nombres
+    que difieren solo en capitalización colisionan en el filesystem donde
+    corre la suite. El resultado es evidencia para decidir si se introduce
+    normalización a minúsculas en una iteración posterior.
+    """
+
+    def test_nombres_que_difieren_solo_en_mayusculas(self, voice_roots):
+        user_root, _ = voice_roots
+        dir_a = _make_voice(user_root, "MiVoz")
+
+        try:
+            dir_b = _make_voice(user_root, "mivoz")
+        except FileExistsError:
+            # Filesystem case-insensitive (Windows/macOS por defecto): el
+            # segundo mkdir() colisiona con el directorio ya creado para
+            # "MiVoz". Además, voice_dir("mivoz") rechaza el nombre porque su
+            # defensa anti-escape (realpath) resuelve al nombre ya presente
+            # en disco ("MiVoz"), no al nombre pedido ("mivoz") — confirma la
+            # colisión también a nivel de voices.py, no solo del filesystem.
+            with pytest.raises(ValueError, match="escapa del registro de voces"):
+                voices.voice_dir("mivoz")
+            return
+
+        # Filesystem case-sensitive (Linux por defecto): ambas voces coexisten
+        # como directorios distintos.
+        assert dir_a != dir_b
+        assert voices.voice_dir("MiVoz") != voices.voice_dir("mivoz")
+        assert set(voices.list_voices()) == {"MiVoz", "mivoz"}
+
+
 def test_voice_paths_de_voz_listada_nunca_falla(voice_roots):
     """La invariante que motivó el cambio: toda voz listada es resoluble."""
     user_root, _ = voice_roots

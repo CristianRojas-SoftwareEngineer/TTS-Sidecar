@@ -124,10 +124,16 @@ class DaemonManager:
 
         # Cierre graceful vía HTTP
         try:
-            requests.post(
+            response = requests.post(
                 f"{self.base_url}/shutdown",
                 timeout=timeout
             )
+            if not response.ok:
+                print(
+                    f"Advertencia: /shutdown devolvió {response.status_code}; "
+                    "se recurre al kill por PID si el proceso sigue activo.",
+                    file=sys.stderr,
+                )
         except requests.RequestException:
             pass
 

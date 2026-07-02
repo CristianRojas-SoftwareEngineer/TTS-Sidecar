@@ -19,7 +19,8 @@ BUILD_DIR = PROJECT_ROOT / "build"
 sys.path.insert(0, str(Path(__file__).parent))
 from build_utils import (
     log, StageTimer, BuildTimer, copy_license_files, get_version,
-    check_pyinstaller, common_pyinstaller_args, BUILD_SUBPROCESS_TIMEOUT,
+    check_pyinstaller, common_pyinstaller_args, bundle_size_mb,
+    BUILD_SUBPROCESS_TIMEOUT, PYINSTALLER_TIMEOUT,
 )
 
 
@@ -28,19 +29,14 @@ def check_dependencies():
     check_pyinstaller()
 
     with StageTimer("CheckDeps", "Checking dependencies"):
-        # create-dmg for .dmg packaging
-        try:
-            import create_dmg
+        # create-dmg es un script de shell (Homebrew), no un paquete de
+        # PyPI: se invoca como binario vía subprocess, no se importa como
+        # módulo Python. `pip install create-dmg` fallaba siempre porque ese
+        # paquete no existe en PyPI.
+        if shutil.which("create-dmg"):
             log("create-dmg: installed")
-        except ImportError:
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "create-dmg"],
-                capture_output=True,
-            )
-            if result.returncode != 0:
-                log("create-dmg not installed (optional for .dmg generation)")
-            else:
-                log("create-dmg: installed")
+        else:
+            log("create-dmg not found (optional for .dmg generation) — instálalo con 'brew install create-dmg'")
 
 
 def build_macos(target_arch="universal2"):
@@ -63,10 +59,16 @@ def build_macos(target_arch="universal2"):
             )
             log(f"Running: pyinstaller {' '.join(pyinstaller_args[2:])}")
             try:
-                returncode = subprocess.run(pyinstaller_args).returncode
+                returncode = subprocess.run(
+                    pyinstaller_args,
+                    timeout=PYINSTALLER_TIMEOUT,
+                ).returncode
             except KeyboardInterrupt:
                 log("\n[CANCEL] Build cancelled by user.")
                 sys.exit(130)
+            except subprocess.TimeoutExpired:
+                log(f"\n[TIMEOUT] PyInstaller excedió {PYINSTALLER_TIMEOUT}s.")
+                sys.exit(1)
 
         if returncode != 0:
             log("PyInstaller failed", returncode)
@@ -75,10 +77,7 @@ def build_macos(target_arch="universal2"):
         onedir = DIST_DIR / "tts-sidecar"
         with StageTimer("Size", "Checking bundle size"):
             if onedir.exists():
-                size_mb = sum(
-                    f.stat().st_size for f in onedir.rglob("*") if f.is_file()
-                ) / 1024 / 1024
-                log(f"Bundle size: {size_mb:.1f} MB ({onedir})")
+                log(f"Bundle size: {bundle_size_mb(onedir):.1f} MB ({onedir})")
 
         with StageTimer("AppBundle", "Structuring as .app bundle"):
             # Convert: dist/tts-sidecar/ → dist/tts-sidecar.app/Contents/MacOS/
