@@ -63,3 +63,59 @@ def test_info_after_ofrece_codigo_fuente_gplv3():
     assert "github.com/CristianRojas-SoftwareEngineer/tts-sidecar" in text
     # Debe seguir explicando la provisión del modelo (compatibilidad con W-03).
     assert "tts-sidecar setup" in text
+    # N-08: el instalador NO incluye el código fuente junto al programa; la
+    # oferta GPLv3 §6d correcta es la disponibilidad pública en el repositorio.
+    assert "accompanido" not in text
+    assert "LICENSE.txt" not in text
+    assert "disponible públicamente" in text
+
+
+def test_main_compila_el_instalador_con_iscc_mockeado(tmp_path, monkeypatch):
+    """N-01: main() debe llegar a invocar ISCC con un .iss válido. La regresión
+    de 8a18fad dejó el bloque de compilación inalcanzable dentro de
+    info_after_text(): main() retornaba tras mkdir sin compilar nada, y ningún
+    test lo detectaba porque solo se ejercitaban funciones puras."""
+    import create_installer_windows as ciw
+
+    onedir = tmp_path / "onedir"
+    onedir.mkdir()
+    (onedir / "tts-sidecar.exe").write_bytes(b"MZ")
+    output_dir = tmp_path / "out"
+
+    fake_iscc = str(tmp_path / "ISCC.exe")
+    invocations = []
+    iss_contents = []
+
+    def fake_run(cmd, **kwargs):
+        invocations.append(cmd)
+        # El .iss es un tempfile que main() borra en su finally: se lee aquí.
+        iss_contents.append(Path(cmd[1]).read_text(encoding="utf-8"))
+
+        class Result:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        # Simula el artefacto que ISCC dejaría en OutputDir.
+        version = ciw.get_version()
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / f"tts-sidecar-{version}-x86_64-setup.exe").write_bytes(b"MZ")
+        return Result()
+
+    monkeypatch.setattr(
+        sys, "argv",
+        ["create_installer_windows.py", str(onedir), "--output", str(output_dir)],
+    )
+    monkeypatch.setattr(ciw, "get_inno_setup_path", lambda: fake_iscc)
+    monkeypatch.setattr(ciw, "ensure_build_dependency", lambda *a, **k: True)
+    monkeypatch.setattr(ciw, "ensure_ico", lambda _dir: None)
+    monkeypatch.setattr(ciw.subprocess, "run", fake_run)
+
+    ciw.main()
+
+    # Si main() retorna sin invocar ISCC, la regresión N-01 ha vuelto.
+    assert len(invocations) == 1
+    cmd = invocations[0]
+    assert cmd[0] == fake_iscc
+    assert cmd[1].endswith(".iss")
+    assert "OutputBaseFilename=tts-sidecar-" in iss_contents[0]

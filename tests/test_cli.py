@@ -241,10 +241,11 @@ class TestCmdSpeakDaemonDispatch:
         kw.setdefault("output", "out.wav")
         return MockArgs(**kw)
 
+    @patch("chatterbox_tts.cli._paths_allowed_by_daemon", return_value=True)
     @patch("chatterbox_tts.model_cache.is_model_cached", return_value=True)
     @patch("chatterbox_tts.daemon.DaemonIPCClient")
     @patch("chatterbox_tts.daemon.is_daemon_running", return_value=True)
-    def test_sin_flags_usa_daemon_si_responde(self, mock_running, mock_client_cls, _cached, tmp_path):
+    def test_sin_flags_usa_daemon_si_responde(self, mock_running, mock_client_cls, _cached, _allowed, tmp_path):
         from chatterbox_tts.cli import cmd_speak
 
         client = MagicMock()
@@ -271,10 +272,11 @@ class TestCmdSpeakDaemonDispatch:
         mock_running.assert_called_once()
         engine.speak.assert_called_once()
 
+    @patch("chatterbox_tts.cli._paths_allowed_by_daemon", return_value=True)
     @patch("chatterbox_tts.model_cache.is_model_cached", return_value=True)
     @patch("chatterbox_tts.daemon.DaemonIPCClient")
     @patch("chatterbox_tts.daemon.is_daemon_running")
-    def test_daemon_explicito_no_sondea_y_falla_en_error(self, mock_running, mock_client_cls, _cached):
+    def test_daemon_explicito_no_sondea_y_falla_en_error(self, mock_running, mock_client_cls, _cached, _allowed):
         from chatterbox_tts.cli import cmd_speak
         from chatterbox_tts.daemon import DaemonIPCError
 
@@ -301,6 +303,52 @@ class TestCmdSpeakDaemonDispatch:
 
         mock_running.assert_not_called()
         engine.speak.assert_called_once()
+
+
+class TestCmdSpeakVoiceAudioDaemonSandbox:
+    """N-02: --voice-audio/--speech-audio fuera de la sandbox del daemon."""
+
+    def _args(self, **kw):
+        kw.setdefault("voice_audio", "/fuera/de/la/sandbox/v.wav")
+        kw.setdefault("speech_audio", "/fuera/de/la/sandbox/s.wav")
+        kw.setdefault("output", "out.wav")
+        return MockArgs(**kw)
+
+    @patch("chatterbox_tts.cli._paths_allowed_by_daemon", return_value=False)
+    @patch("chatterbox_tts.model_cache.is_model_cached", return_value=True)
+    @patch("chatterbox_tts.engine.ChatterboxEngine")
+    @patch("chatterbox_tts.daemon.is_daemon_running", return_value=True)
+    def test_sondeo_automatico_degrada_a_directo_con_aviso(
+        self, mock_running, mock_engine_cls, _cached, _not_allowed, tmp_path, capsys
+    ):
+        from chatterbox_tts.cli import cmd_speak
+
+        engine = MagicMock()
+        engine.speak.return_value = b"RIFF"
+        mock_engine_cls.get_instance.return_value = engine
+
+        cmd_speak(self._args(output=str(tmp_path / "out.wav")))
+
+        engine.speak.assert_called_once()
+        stderr = capsys.readouterr().err
+        assert "directorios permitidos" in stderr
+
+    @patch("chatterbox_tts.cli._paths_allowed_by_daemon", return_value=False)
+    @patch("chatterbox_tts.model_cache.is_model_cached", return_value=True)
+    @patch("chatterbox_tts.daemon.DaemonIPCClient")
+    def test_daemon_explicito_falla_con_exit_4_y_mensaje_accionable(
+        self, mock_client_cls, _cached, _not_allowed, capsys
+    ):
+        from chatterbox_tts.cli import cmd_speak, EXIT_INVALID_INPUT
+
+        with pytest.raises(SystemExit) as exc_info:
+            cmd_speak(self._args(daemon=True))
+
+        assert exc_info.value.code == EXIT_INVALID_INPUT
+        mock_client_cls.return_value.synthesize.assert_not_called()
+        stderr = capsys.readouterr().err
+        assert "voice add" in stderr
+        assert "--no-daemon" in stderr
 
 
 class TestCmdSpeak:
@@ -689,6 +737,7 @@ class TestCodigosDeSalida:
             raise DaemonIPCError("no se puede conectar al daemon")
 
         with patch("chatterbox_tts.model_cache.is_model_cached", return_value=True), \
+                patch("chatterbox_tts.cli._paths_allowed_by_daemon", return_value=True), \
                 patch("chatterbox_tts.cli._synthesize_via_daemon", side_effect=_falla):
             with pytest.raises(SystemExit) as exc:
                 cmd_speak(MockArgs(
@@ -742,6 +791,7 @@ class TestCmdCleanup:
             voices=kw.get("voices", False),
             all=kw.get("all", False),
             dry_run=kw.get("dry_run", False),
+            yes=kw.get("yes", False),
             cleanup_parser=MagicMock(),
         )
         return ns
@@ -803,6 +853,36 @@ class TestCmdCleanup:
 
         propio1, propio2, ajeno, voces = self._fake_env(tmp_path, monkeypatch)
         monkeypatch.setattr("builtins.input", lambda _: "n")
+
+        cmd_cleanup(self._args(all=True))
+
+        assert "Cancelado" in capsys.readouterr().out
+        assert propio1.exists() and propio2.exists() and voces.exists()
+
+    def test_yes_borra_sin_pedir_confirmacion(self, tmp_path, monkeypatch, capsys):
+        """N-03: --yes omite input(); útil para invocación programática."""
+        from chatterbox_tts.cli import cmd_cleanup
+
+        propio1, propio2, ajeno, voces = self._fake_env(tmp_path, monkeypatch)
+
+        def _no_deberia_llamarse(_):
+            raise AssertionError("input() no debe llamarse con --yes")
+        monkeypatch.setattr("builtins.input", _no_deberia_llamarse)
+
+        cmd_cleanup(self._args(all=True, yes=True))
+
+        assert not propio1.exists() and not propio2.exists() and not voces.exists()
+        assert ajeno.exists()
+
+    def test_eof_en_confirmacion_cancela_limpiamente(self, tmp_path, monkeypatch, capsys):
+        """N-03: stdin cerrado (subprocess sin --yes) no debe producir traceback."""
+        from chatterbox_tts.cli import cmd_cleanup
+
+        propio1, propio2, ajeno, voces = self._fake_env(tmp_path, monkeypatch)
+
+        def _eof(_):
+            raise EOFError()
+        monkeypatch.setattr("builtins.input", _eof)
 
         cmd_cleanup(self._args(all=True))
 
@@ -907,6 +987,86 @@ class TestSpeakTextoLargo:
             with pytest.raises(SystemExit):
                 cmd_speak(MockArgs(text="Hola mundo", no_daemon=True))
         assert "Advertencia" not in capsys.readouterr().err
+
+
+class TestLimiteUnicoDeTexto:
+    """N-11: texto > MAX_TEXT_LENGTH falla con exit 4 antes de cualquier despacho."""
+
+    def test_texto_excede_max_text_length_sale_4_sin_daemon(self, capsys):
+        from chatterbox_tts.cli import cmd_speak, EXIT_INVALID_INPUT
+        from chatterbox_tts.daemon.protocol import MAX_TEXT_LENGTH
+
+        demasiado_largo = "a" * (MAX_TEXT_LENGTH + 1)
+        with pytest.raises(SystemExit) as exc_info:
+            cmd_speak(MockArgs(text=demasiado_largo, no_daemon=True))
+        assert exc_info.value.code == EXIT_INVALID_INPUT
+        assert str(MAX_TEXT_LENGTH) in capsys.readouterr().err
+
+    @patch("chatterbox_tts.daemon.is_daemon_running", return_value=True)
+    def test_texto_excede_max_text_length_sale_4_con_daemon(self, _running, capsys):
+        from chatterbox_tts.cli import cmd_speak, EXIT_INVALID_INPUT
+        from chatterbox_tts.daemon.protocol import MAX_TEXT_LENGTH
+
+        demasiado_largo = "a" * (MAX_TEXT_LENGTH + 1)
+        with pytest.raises(SystemExit) as exc_info:
+            cmd_speak(MockArgs(text=demasiado_largo))
+        assert exc_info.value.code == EXIT_INVALID_INPUT
+
+
+class TestComputeBackendIgnoradoViaDaemon:
+    """N-10: --compute-backend explícito con daemon activo emite un warning."""
+
+    @patch("chatterbox_tts.cli._paths_allowed_by_daemon", return_value=True)
+    @patch("chatterbox_tts.model_cache.is_model_cached", return_value=True)
+    @patch("chatterbox_tts.daemon.DaemonIPCClient")
+    def test_backend_no_auto_con_daemon_explicito_advierte(
+        self, mock_client_cls, _cached, _allowed, capsys
+    ):
+        from chatterbox_tts.cli import cmd_speak
+
+        mock_client_cls.return_value.synthesize.return_value = b"RIFF...."
+        cmd_speak(MockArgs(daemon=True, compute_backend="cuda", output=None))
+        assert "--compute-backend" in capsys.readouterr().err
+
+    @patch("chatterbox_tts.cli._paths_allowed_by_daemon", return_value=True)
+    @patch("chatterbox_tts.model_cache.is_model_cached", return_value=True)
+    @patch("chatterbox_tts.daemon.DaemonIPCClient")
+    def test_backend_auto_con_daemon_no_advierte(
+        self, mock_client_cls, _cached, _allowed, capsys
+    ):
+        from chatterbox_tts.cli import cmd_speak
+
+        mock_client_cls.return_value.synthesize.return_value = b"RIFF...."
+        cmd_speak(MockArgs(daemon=True, compute_backend="auto", output=None))
+        assert "--compute-backend" not in capsys.readouterr().err
+
+
+class TestEmitAudioCreaDirectoriosPadre:
+    """N-12: _emit_audio crea los directorios padres de --output, como el modo directo."""
+
+    def test_output_en_directorio_inexistente_se_crea(self, tmp_path):
+        from chatterbox_tts.cli import _emit_audio
+
+        destino = tmp_path / "nuevo" / "sub" / "audio.wav"
+        assert not destino.parent.exists()
+        _emit_audio(b"RIFF....", str(destino))
+        assert destino.exists()
+        assert destino.read_bytes() == b"RIFF...."
+
+
+class TestVoiceAddSinComputeBackend:
+    """N-15: voice add --compute-backend ya no existe (flag muerta eliminada)."""
+
+    def test_parser_rechaza_compute_backend(self, monkeypatch, capsys):
+        from chatterbox_tts.cli import main
+
+        monkeypatch.setattr(sys, "argv", [
+            "tts-sidecar", "voice", "add", "--name", "x", "--reference", "r.wav",
+            "--speech", "s.wav", "--compute-backend", "cuda",
+        ])
+        with pytest.raises(SystemExit):
+            main()
+        assert "unrecognized" in capsys.readouterr().err.lower()
 
 
 class TestDoctorRAM:
@@ -1017,3 +1177,36 @@ class TestSetupDiscoYForceUpdate:
 
         assert not model_dir.exists()
         assert "force-update" in capsys.readouterr().err
+
+
+class TestSetupDescargaLigera:
+    """N-17: setup descarga vía snapshot_download, sin instanciar ChatterboxEngine."""
+
+    def test_setup_descarga_sin_instanciar_engine(self, monkeypatch, tmp_path, capsys):
+        import chatterbox_tts.cli as cli
+
+        monkeypatch.setattr(
+            cli, "_environment_checks",
+            lambda: [("PASS", "Chatterbox TTS", "0.1.7")],
+        )
+        mucho = __import__("shutil")._ntuple_diskusage(
+            total=100 * 1024 ** 3, used=1 * 1024 ** 3, free=99 * 1024 ** 3
+        )
+        mock_snapshot_download = MagicMock(return_value=str(tmp_path))
+        mock_get_instance = MagicMock(
+            side_effect=AssertionError("setup no debe instanciar ChatterboxEngine")
+        )
+
+        with patch("chatterbox_tts.model_cache.is_model_cached", return_value=False), \
+                patch("chatterbox_tts.model_cache.is_ve_cached", return_value=True), \
+                patch("shutil.disk_usage", return_value=mucho), \
+                patch("huggingface_hub.snapshot_download", mock_snapshot_download), \
+                patch("chatterbox_tts.engine.ChatterboxEngine.get_instance", mock_get_instance):
+            cli.cmd_setup(MockArgs(remove_path=False))
+
+        mock_snapshot_download.assert_called_once()
+        assert mock_snapshot_download.call_args.kwargs["repo_id"] == (
+            "ResembleAI/Chatterbox-Multilingual-es-mx-latam"
+        )
+        mock_get_instance.assert_not_called()
+        assert "Modelo descargado correctamente" in capsys.readouterr().err

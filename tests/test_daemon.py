@@ -44,7 +44,7 @@ class TestServerConcurrency:
                 assert started.wait(timeout=10), "la síntesis no arrancó"
 
                 # Con la síntesis en curso, /health debe responder
-                health = client.get("/health", timeout=5)
+                health = client.get("/health")
                 assert health.status_code == 200
 
                 release.set()

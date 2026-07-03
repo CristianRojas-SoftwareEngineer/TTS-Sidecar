@@ -13,9 +13,11 @@ macOS plays audio with afplay (built-in), but device enumeration
 """
 
 import os
+import platform
 import shutil
 import subprocess
 import sys
+import sysconfig
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -265,6 +267,28 @@ fi
 """
 
 
+def _minimum_system_version():
+    """Deriva el mínimo de macOS soportado del propio toolchain de build.
+
+    N-07: un literal fijo (p.ej. "12.0") se desincroniza en silencio del SDK
+    real con el que pyenv compila el CPython empaquetado — un usuario en esa
+    versión declarada instalaría un bundle que en realidad no arranca en su
+    sistema. `MACOSX_DEPLOYMENT_TARGET` es la fuente de verdad: es el mismo
+    valor que el linker usa para fijar el `LC_VERSION_MIN_MACOSX`/`LC_BUILD_VERSION`
+    del binario resultante. Si sysconfig no lo expone (build no estándar),
+    se recurre a la versión mayor del macOS del host que compila.
+    """
+    target = sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")
+    if target:
+        return target
+
+    mac_ver = platform.mac_ver()[0]
+    if mac_ver:
+        return mac_ver.split(".")[0] + ".0"
+
+    return "12.0"
+
+
 def _info_plist_content(version, icon_name=None):
     """Genera el contenido XML del Info.plist del bundle .app para macOS.
 
@@ -274,6 +298,7 @@ def _info_plist_content(version, icon_name=None):
     el campo queda vacío (Finder muestra el icono genérico).
     """
     icon_value = icon_name or ""
+    min_system_version = _minimum_system_version()
     return f"""\
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -296,7 +321,7 @@ def _info_plist_content(version, icon_name=None):
     <key>CFBundleIconFile</key>
     <string>{icon_value}</string>
     <key>LSMinimumSystemVersion</key>
-    <string>12.0</string>
+    <string>{min_system_version}</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.utilities</string>
     <key>NSHumanReadableCopyright</key>

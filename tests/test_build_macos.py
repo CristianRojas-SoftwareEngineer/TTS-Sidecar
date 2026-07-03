@@ -12,19 +12,39 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 from build_macos import (
     _info_plist_content,
+    _minimum_system_version,
     _path_install_script,
     _path_uninstall_script,
 )
 
 
 def test_info_plist_version_y_lsminimum():
-    """Info.plist debe llevar la versión y LSMinimumSystemVersion 12.0 (macOS 12+)."""
+    """Info.plist debe llevar la versión y el LSMinimumSystemVersion derivado del toolchain (N-07)."""
     plist = _info_plist_content("9.9.9", icon_name="tts-sidecar")
     assert "<key>CFBundleShortVersionString</key>" in plist
     assert "<string>9.9.9</string>" in plist
     assert "<key>LSMinimumSystemVersion</key>" in plist
-    assert "<string>12.0</string>" in plist
+    assert f"<string>{_minimum_system_version()}</string>" in plist
     assert "GPL-3.0-or-later" in plist
+
+
+def test_minimum_system_version_usa_deployment_target(monkeypatch):
+    """N-07: prioriza MACOSX_DEPLOYMENT_TARGET; cae a mac_ver() si falta."""
+    import build_macos
+
+    monkeypatch.setattr(
+        build_macos.sysconfig, "get_config_var", lambda name: "14.4"
+    )
+    assert build_macos._minimum_system_version() == "14.4"
+
+    monkeypatch.setattr(build_macos.sysconfig, "get_config_var", lambda name: None)
+    monkeypatch.setattr(
+        build_macos.platform, "mac_ver", lambda: ("15.1.1", ("", "", ""), "")
+    )
+    assert build_macos._minimum_system_version() == "15.0"
+
+    monkeypatch.setattr(build_macos.platform, "mac_ver", lambda: ("", ("", "", ""), ""))
+    assert build_macos._minimum_system_version() == "12.0"
 
 
 def test_install_script_shebang_set_e_sudo_symlink_y_oferta_setup():

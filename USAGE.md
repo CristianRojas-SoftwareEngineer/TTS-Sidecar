@@ -259,7 +259,19 @@ Sin valor, `tts-sidecar` detecta automáticamente el mejor backend disponible
 (CUDA → MPS → CPU) y lo usa durante toda la sesión. El backend elegido se
 muestra en el log de arranque del motor (`Model loaded: …,
 compute_backend=…`). Si quieres forzar uno concreto (p. ej. CPU para
-reproducibilidad), pasa el valor explícito.
+reproducibilidad), pasa el valor explícito. **Nota:** vía daemon el backend
+queda fijado desde su arranque; un `--compute-backend` distinto de `auto` en
+una invocación individual se ignora y `speak` avisa por stderr. Para forzar
+un backend distinto usa `--no-daemon`, o reinicia el daemon con la variable
+de entorno correspondiente.
+
+**Límite de longitud del texto:** `--text` acepta hasta 5000 caracteres; por
+encima de ese límite `speak` falla con exit 4 (`INVALID_INPUT`) antes de
+intentar sintetizar, en modo directo o vía daemon. Por encima de 2000
+caracteres (sin llegar a 5000) se emite una advertencia no bloqueante por
+stderr: el T3 topa la generación en 500 tokens, así que un texto muy largo
+puede truncarse en el audio resultante — se recomienda fragmentar el texto en
+varias llamadas a `speak`.
 
 No hay opción de modelo: `tts-sidecar` está especializado en español
 latinoamericano y usa siempre el modelo `es-mx-latam` provisionado por `setup`.
@@ -279,6 +291,16 @@ tts-sidecar speak --text "Hola mundo" --voice mi_voz --output audio.wav
 # Forzar modo directo
 tts-sidecar speak --text "Hola" --voice mi_voz --no-daemon
 ```
+
+> **`--voice-audio`/`--speech-audio` vía daemon**: el daemon solo acepta rutas
+> de audio dentro de los directorios de voces (fábrica o usuario), no un
+> archivo arbitrario del sistema. Si el daemon está activo y tu audio vive
+> fuera de esos directorios, tienes tres alternativas: (1) registra el audio
+> como voz con `voice add` y usa `--voice`; (2) fuerza `--no-daemon` para
+> sintetizar en modo directo con esa ruta; o (3) copia el audio dentro del
+> directorio de voces del usuario. Sin `--daemon` explícito, el CLI detecta la
+> restricción y degrada a modo directo automáticamente con un aviso por
+> stderr; con `--daemon` explícito, falla con exit 4 y el mismo mensaje.
 
 ---
 
@@ -315,7 +337,6 @@ comandos de escritura, `voice add` requiere el modelo provisionado
 - `--name, -n` (requerido): Nombre para la voz
 - `--reference, -r` (requerido): Audio para timbre (cualquier largo — el audio completo se usa para el embedding)
 - `--speech, -s` (requerido): Audio para conditioning (10+ segundos de habla limpia)
-- `--compute-backend, -cb`: Backend de cómputo para la inferencia (`auto`, `cpu`, `cuda`, `mps`; default: `auto`); ver detalle en `speak`
 - `--force, -f`: Sobrescribir la voz si ya existe (incluida una de fábrica homónima)
 
 **¿Por qué dos archivos?**
@@ -384,11 +405,15 @@ tts-sidecar cleanup --model      # elimina el modelo descargado
 tts-sidecar cleanup --voices     # elimina las voces de usuario
 tts-sidecar cleanup --all        # ambos
 tts-sidecar cleanup --all --dry-run   # lista lo que se borraría, sin borrar
+tts-sidecar cleanup --all --yes       # borra sin pedir confirmación (uso programático)
 ```
 
 **Qué esperar:** el comando lista las rutas exactas a eliminar y pide
 confirmación (`s/n`) antes de borrar; con `--dry-run` solo lista. Sin flags
-muestra la ayuda y no borra nada.
+muestra la ayuda y no borra nada. `--yes`/`-y` omite la confirmación
+interactiva — pensado para invocar `cleanup` vía `subprocess` con stdin
+cerrado; sin `--yes` y con stdin cerrado, la falta de respuesta se trata como
+cancelación limpia («Cancelado: no se borró nada.», exit 0), no como error.
 
 El borrado es **quirúrgico**: dentro de la caché de HuggingFace solo se
 eliminan las carpetas de los dos repos que usa el proyecto
@@ -401,8 +426,9 @@ voces de usuario. Todo es recuperable: `setup` reprovisiona el modelo y
 
 ## Desinstalación completa
 
-1. Ejecuta `tts-sidecar cleanup --all` para eliminar el modelo y las voces de
-   usuario (los datos que la desinstalación del binario no toca).
+1. Ejecuta `tts-sidecar cleanup --all --yes` para eliminar el modelo y las voces
+   de usuario sin confirmación interactiva (los datos que la desinstalación del
+   binario no toca; usa `cleanup --all` sin `--yes` si prefieres confirmar).
 2. Desinstala el binario según tu SO:
    - **Windows**: desinstalador de Inno Setup (Panel de control → Aplicaciones);
      revierte PATH y registro.
@@ -410,6 +436,32 @@ voces de usuario. Todo es recuperable: `setup` reprovisiona el modelo y
      `.AppImage`.
    - **macOS**: `Desinstalar (quitar del PATH).command` del `.dmg` y arrastra el
      `.app` a la Papelera.
+
+---
+
+## Actualizar de versión
+
+`tts-sidecar` no tiene auto-actualización: cada nueva versión se instala
+manualmente sobre (o junto a) la anterior. El modelo y las voces en el
+directorio de datos de usuario no se ven afectados por la actualización del
+binario.
+
+- **Windows**: descarga el nuevo instalador y ejecútalo; Inno Setup reemplaza
+  la instalación anterior en el mismo directorio y conserva el PATH.
+- **Linux**: descarga el nuevo `.AppImage`, hazlo ejecutable, y vuelve a correr
+  `setup` **desde el archivo nuevo**: `./tts-sidecar-<versión-nueva>-x86_64.AppImage setup`.
+  Esto reapunta el symlink `~/.local/bin/tts-sidecar` al AppImage nuevo — si
+  solo reemplazas el archivo sin volver a ejecutar `setup`, el symlink sigue
+  apuntando a la ruta del AppImage viejo (que puede haber borrado) y el comando
+  deja de funcionar. Borra el `.AppImage` anterior una vez confirmado que el
+  nuevo funciona.
+- **macOS**: monta el `.dmg` nuevo, arrastra el `.app` a Aplicaciones
+  (sobrescribiendo el anterior) y vuelve a ejecutar el script
+  `Instalar (PATH + modelo).command` del volumen nuevo.
+
+En los tres casos, el modelo descargado (`~/.cache/huggingface/hub`) se
+reutiliza tal cual salvo que la nueva versión requiera un modelo distinto, en
+cuyo caso `setup` lo detecta y descarga la diferencia.
 
 ---
 
@@ -503,9 +555,16 @@ La síntesis corre en CPU por defecto (sin GPU). Requisitos orientativos:
   funciona pero puede paginar (ralentizarse) en textos largos. `doctor` emite un
   `[WARN]` de RAM por debajo de 8 GB (no bloquea nada).
 - **Disco**: ~1 GB para el modelo descargado (`setup` aborta si hay menos de 2 GB
-  libres). El ejecutable ocupa varios cientos de MB adicionales.
+  libres). El bundle PyInstaller `--onedir` ocupa del orden de 1-2 GB adicionales
+  sin comprimir (Windows/macOS y el AppImage `arm64` de Linux, que resuelven
+  `torch` desde el lock universal); el AppImage `x86_64` de Linux es más liviano
+  al instalar `torch`/`torchaudio` CPU-only sin el stack `nvidia-*-cu12` (ver
+  [docs/BUILD.md](docs/BUILD.md) — tamaño exacto pendiente de medición en CI).
 - **GPU (opcional)**: con `--compute-backend cuda` (NVIDIA) o `mps` (Apple Silicon)
   la inferencia es más rápida; no es necesaria para el funcionamiento.
+- **Linux — glibc ≥ 2.35** (Ubuntu 22.04+, Debian 12+, Fedora 36+ o equivalente):
+  requisito de los wheels manylinux empaquetados (torch, onnxruntime). Ver la
+  entrada correspondiente en «Solución de Problemas» más abajo.
 
 ---
 
@@ -601,6 +660,16 @@ por sí mismos. Ejecuta la provisión una vez:
 ```bash
 tts-sidecar setup
 ```
+
+### "GLIBC_2.35 not found" (o similar) al ejecutar el AppImage en Linux
+
+El AppImage requiere **glibc ≥ 2.35** (Ubuntu 22.04+, Debian 12+, Fedora 36+ o
+equivalente): es la versión mínima que soportan los wheels manylinux de las
+dependencias empaquetadas (torch, onnxruntime). En una distro más antigua
+(p. ej. Ubuntu 20.04, Debian 11) el binario no arranca. No hay solución desde
+el AppImage mismo: actualiza la distro a una versión con glibc ≥ 2.35, o
+compila `tts-sidecar` desde código fuente en tu distro actual (ver
+[docs/BUILD.md](docs/BUILD.md)).
 
 ### "Voice 'x' not found"
 

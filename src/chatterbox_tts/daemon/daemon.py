@@ -52,7 +52,7 @@ class DaemonManager:
         """
         # Si ya está corriendo no hay nada que hacer
         if self.is_running():
-            print("Daemon ya está corriendo")
+            print("Daemon ya está corriendo", file=sys.stderr)
             return True
 
         # En modo congelado el ejecutable no acepta `-m módulo`,
@@ -118,7 +118,7 @@ class DaemonManager:
             pid = self._get_pid_from_port()
             if pid:
                 self._kill_pid(pid)
-            print("Daemon no está corriendo")
+            print("Daemon no está corriendo", file=sys.stderr)
             return True
 
         # Cierre graceful vía HTTP
@@ -149,10 +149,10 @@ class DaemonManager:
 
     def restart(self) -> bool:
         """Reinicia el daemon: detiene el existente y arranca uno nuevo."""
-        print("Deteniendo daemon...")
+        print("Deteniendo daemon...", file=sys.stderr)
         self.stop()
         time.sleep(1)
-        print("Iniciando daemon...")
+        print("Iniciando daemon...", file=sys.stderr)
         return self.start()
 
     def status(self) -> dict:
@@ -189,14 +189,14 @@ class DaemonManager:
         timeout = timeout or self.START_TIMEOUT
         start = time.time()
 
-        print(f"Esperando que el daemon esté listo (timeout={timeout}s)...")
+        print(f"Esperando que el daemon esté listo (timeout={timeout}s)...", file=sys.stderr)
         while time.time() - start < timeout:
             if self.is_running():
-                print("Daemon listo")
+                print("Daemon listo", file=sys.stderr)
                 return True
             time.sleep(1)
 
-        print("Timeout esperando al daemon")
+        print("Timeout esperando al daemon", file=sys.stderr)
         return False
 
     def _get_pid_from_port(self) -> Optional[int]:

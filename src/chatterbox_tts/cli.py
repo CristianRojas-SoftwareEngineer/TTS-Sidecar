@@ -88,6 +88,12 @@ def _resolve_voice_paths(args):
 def _emit_audio(audio_bytes, output):
     """Reproduce los bytes de audio, o los escribe a un archivo si se da una ruta de salida."""
     if output:
+        # N-12: simetría con engine._save_wav (modo directo), que ya crea los
+        # directorios padres; sin esto, --output a un directorio inexistente
+        # solo fallaba vía daemon.
+        parent = os.path.dirname(output)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         with open(output, 'wb') as f:
             f.write(audio_bytes)
         log(f"[I/O] Audio guardado: {output}")
@@ -97,6 +103,46 @@ def _emit_audio(audio_bytes, output):
         player = AudioPlayer()
         player.play(audio_bytes)
         log("[Playback] Reproducción finalizada")
+
+
+def _paths_allowed_by_daemon(voice_audio, speech_audio) -> bool:
+    """Replica la sandbox de rutas del daemon (server.py) en el cliente.
+
+    N-02: permite detectar ANTES del despacho si --voice-audio/--speech-audio
+    quedarán fuera de los directorios que la sandbox del servidor acepta
+    (voices.allowed_audio_dirs()), evitando el 400 opaco «la ruta no está en
+    un directorio permitido». No relaja ni duplica la sandbox del servidor:
+    solo la anticipa para dar un mensaje accionable en el cliente.
+    """
+    from . import voices
+
+    allowed_dirs = [os.path.realpath(d) for d in voices.allowed_audio_dirs()]
+    for path in (voice_audio, speech_audio):
+        if path is None:
+            continue
+        real_path = os.path.realpath(path)
+        if not any(
+            real_path == d or real_path.startswith(d + os.sep) for d in allowed_dirs
+        ):
+            return False
+    return True
+
+
+def _warn_compute_backend_ignored(args):
+    """N-10: avisa si --compute-backend se ignora porque la síntesis va vía daemon.
+
+    El daemon fija su compute backend una sola vez al arrancar (ver
+    docs/DAEMON-MODE.md); un --compute-backend explícito distinto de "auto" en
+    una invocación individual no tiene efecto en esa ruta, y antes se ignoraba
+    en silencio.
+    """
+    backend = getattr(args, "compute_backend", "auto")
+    if backend and backend != "auto":
+        print(
+            f"Advertencia: --compute-backend {backend} se ignora; el daemon usa "
+            "el backend fijado a su arranque.",
+            file=sys.stderr,
+        )
 
 
 def _synthesize_via_daemon(args, voice_audio, speech_audio):
@@ -144,6 +190,20 @@ def cmd_speak(args):
             print("Error: --text no puede estar vacío.", file=sys.stderr)
             sys.exit(EXIT_INVALID_INPUT)
 
+        # N-11: límite único de texto validado en el cliente antes de cualquier
+        # despacho, con el mismo exit code (4) sin importar la ruta (directo o
+        # daemon). El límite del daemon (protocol.MAX_TEXT_LENGTH) queda como
+        # defensa en profundidad, no como la única fuente de la validación.
+        from .daemon.protocol import MAX_TEXT_LENGTH
+        if len(args.text) > MAX_TEXT_LENGTH:
+            print(
+                f"Error: el texto tiene {len(args.text)} caracteres; el máximo "
+                f"permitido es {MAX_TEXT_LENGTH}. Fragmenta el texto en varias "
+                "llamadas a 'speak'.",
+                file=sys.stderr,
+            )
+            sys.exit(EXIT_INVALID_INPUT)
+
         # Advertencia no bloqueante para textos muy largos: el T3 topa a
         # MAX_NEW_TOKENS=500, así que una entrada larga puede truncarse en la
         # síntesis. Se avisa por stderr (sin abortar) sugiriendo fragmentar (R-03).
@@ -167,14 +227,34 @@ def cmd_speak(args):
         #   --no-daemon: modo directo sin sondear.
         #   sin flags:   health check corto; daemon si responde, directo si no.
         if getattr(args, 'daemon', False):
+            _warn_compute_backend_ignored(args)
+            if not _paths_allowed_by_daemon(voice_audio, speech_audio):
+                print(
+                    "Error: --daemon está activo pero la ruta de audio está fuera de "
+                    "los directorios que el daemon tiene permitido leer (sandbox de "
+                    "server.py). Alternativas:",
+                    file=sys.stderr,
+                )
+                print("  1. Registra el audio como voz: tts-sidecar voice add --name <nombre> --reference <ref> --speech <habla>", file=sys.stderr)
+                print("  2. Usa --no-daemon para sintetizar en modo directo con esta ruta", file=sys.stderr)
+                print("  3. Copia el audio dentro del directorio de voces del usuario", file=sys.stderr)
+                sys.exit(EXIT_INVALID_INPUT)
             _synthesize_via_daemon(args, voice_audio, speech_audio)
             return
         if not getattr(args, 'no_daemon', False):
             from .daemon import is_daemon_running
             if is_daemon_running():
-                _synthesize_via_daemon(args, voice_audio, speech_audio)
-                return
-            log("[Daemon] Daemon no disponible; usando modo directo")
+                if _paths_allowed_by_daemon(voice_audio, speech_audio):
+                    _warn_compute_backend_ignored(args)
+                    _synthesize_via_daemon(args, voice_audio, speech_audio)
+                    return
+                print(
+                    "[Daemon] La ruta de audio está fuera de los directorios permitidos "
+                    "por el daemon; usando modo directo",
+                    file=sys.stderr,
+                )
+            else:
+                log("[Daemon] Daemon no disponible; usando modo directo")
 
         # Modo directo: los imports solo se cargan cuando no se usa el daemon.
         from .engine import ChatterboxEngine
@@ -609,8 +689,12 @@ def cmd_setup(args):
         print("\nDescargando el modelo es-mx-latam...", file=sys.stderr)
         print("(Puede tardar varios minutos en la primera ejecución)\n", file=sys.stderr)
 
-        from .engine import ChatterboxEngine
-        ChatterboxEngine.get_instance(model="es-mx-latam", compute_backend="auto")
+        # N-17: snapshot_download es solo red/disco, sin cargar el modelo en RAM
+        # (~2 GB) como hacía ChatterboxEngine.get_instance; la carga real queda
+        # para doctor/el primer 'speak', que ya validan el header safetensors.
+        from huggingface_hub import snapshot_download
+        from .model_cache import MODELS
+        snapshot_download(repo_id=MODELS["es-mx-latam"], token=os.getenv("HF_TOKEN"))
 
         # El language pack no incluye ve.safetensors (Voice Encoder): se comparte
         # con el modelo base. Se provisiona aquí explícitamente para que ningún
@@ -677,10 +761,17 @@ def cmd_cleanup(args):
         print("\n(dry-run) No se borró nada.")
         return
 
-    respuesta = input("\n¿Eliminar estas rutas? (s/n): ").strip().lower()
-    if respuesta not in ("s", "si", "sí", "y", "yes"):
-        print("Cancelado: no se borró nada.")
-        return
+    if not getattr(args, "yes", False):
+        try:
+            respuesta = input("\n¿Eliminar estas rutas? (s/n): ").strip().lower()
+        except EOFError:
+            # N-03: stdin cerrado (invocado vía subprocess sin --yes) no debe
+            # producir un traceback crudo indistinguible de un error real.
+            print("\nCancelado: no se borró nada.")
+            return
+        if respuesta not in ("s", "si", "sí", "y", "yes"):
+            print("Cancelado: no se borró nada.")
+            return
 
     for p, _kind in existing:
         shutil.rmtree(p)
@@ -800,10 +891,6 @@ def main():
                            help="Archivo de audio de referencia para el timbre (cualquier largo, se usa el audio completo)")
     voice_add.add_argument("--speech", "-s", required=True,
                            help="Archivo de audio de habla para el conditioning del T3 (10+ segundos de habla limpia)")
-    voice_add.add_argument("--compute-backend", "-cb", default="auto",
-                           choices=["auto", "cpu", "cuda", "mps"],
-                           help="Backend de cómputo para la inferencia; 'auto' detecta el mejor "
-                                "disponible (default: auto)")
     voice_add.add_argument("--force", "-f", action="store_true",
                            help="Sobrescribir la voz si ya existe (usuario o fábrica homónima)")
     voice_add.set_defaults(func=cmd_voice_add)
@@ -847,6 +934,8 @@ def main():
                                 help="Elimina el modelo y las voces de usuario")
     cleanup_parser.add_argument("--dry-run", action="store_true",
                                 help="Lista lo que se borraría sin borrar nada")
+    cleanup_parser.add_argument("--yes", "-y", action="store_true",
+                                help="Omite la confirmación interactiva")
     cleanup_parser.set_defaults(func=cmd_cleanup, cleanup_parser=cleanup_parser)
 
     # comando daemon

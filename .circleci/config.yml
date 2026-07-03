@@ -119,8 +119,19 @@ jobs:
       - run:
           # store_artifacts no expande globs: se copia el instalador (cuyo nombre
           # incluye la versión) a un nombre estable, independiente de __version__.
+          # N-01: Copy-Item con wildcard sin match no aborta en PowerShell por
+          # defecto (WARNING no fatal) — se fuerza el error para que el CI no
+          # reporte éxito falso cuando el instalador no se generó.
           name: Stage installer artifact
-          command: Copy-Item dist/tts-sidecar-*-setup.exe dist/tts-sidecar-setup.exe
+          command: |
+            $ErrorActionPreference = 'Stop'
+            if (-not (Test-Path dist/tts-sidecar-*-setup.exe)) { throw "Instalador no encontrado en dist/" }
+            Copy-Item dist/tts-sidecar-*-setup.exe dist/tts-sidecar-setup.exe
+      - run:
+          # N-04: SHA-256 del artefacto en el log del CI, única verificación de
+          # integridad posible sin firma de código (R-38).
+          name: Emit artifact SHA-256
+          command: Get-FileHash dist/tts-sidecar-setup.exe -Algorithm SHA256
       - store_artifacts:
           path: dist/tts-sidecar-setup.exe
           destination: tts-sidecar-win32-x86_64-setup.exe
@@ -139,8 +150,14 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y patchelf libasound2-dev
       - run:
-          name: Install runtime dependencies (locked)
-          command: pip install -r requirements-lock.txt --require-hashes
+          # N-05: lock específico con torch/torchaudio CPU-only (wheels +cpu del
+          # índice oficial de PyTorch), sin el stack nvidia-*-cu12 que el índice
+          # de PyPI resuelve por defecto en x86_64/linux (~varios GB extra).
+          # Solo x86_64 lo necesita: los paquetes nvidia-*-cu12 del lock universal
+          # están marcados platform_machine == 'x86_64', por lo que arm64 ya
+          # instala sin CUDA desde el lock universal.
+          name: Install runtime dependencies (locked, CPU-only)
+          command: pip install -r requirements-lock-linux-cpu.txt --require-hashes
       - run:
           name: Install PyInstaller
           command: |
@@ -158,6 +175,11 @@ jobs:
           # incluye la versión) a un nombre estable, independiente de __version__.
           name: Stage AppImage artifact
           command: cp dist/tts-sidecar-*-x86_64.AppImage dist/tts-sidecar-x86_64.AppImage
+      - run:
+          # N-04: SHA-256 del artefacto en el log del CI, única verificación de
+          # integridad posible sin firma de código (R-38).
+          name: Emit artifact SHA-256
+          command: sha256sum dist/tts-sidecar-x86_64.AppImage
       - store_artifacts:
           path: dist/tts-sidecar-x86_64.AppImage
           destination: tts-sidecar-linux-x86_64.AppImage
@@ -201,6 +223,11 @@ jobs:
           # incluye la versión) a un nombre estable, independiente de __version__.
           name: Stage AppImage artifact
           command: cp dist/tts-sidecar-*-aarch64.AppImage dist/tts-sidecar-aarch64.AppImage
+      - run:
+          # N-04: SHA-256 del artefacto en el log del CI, única verificación de
+          # integridad posible sin firma de código (R-38).
+          name: Emit artifact SHA-256
+          command: sha256sum dist/tts-sidecar-aarch64.AppImage
       - store_artifacts:
           path: dist/tts-sidecar-aarch64.AppImage
           destination: tts-sidecar-linux-aarch64.AppImage
@@ -252,6 +279,11 @@ jobs:
           # incluye la versión) a un nombre estable, independiente de __version__.
           name: Stage DMG artifact
           command: cp dist/tts-sidecar-*-arm64.dmg dist/tts-sidecar-arm64.dmg
+      - run:
+          # N-04: SHA-256 del artefacto en el log del CI, única verificación de
+          # integridad posible sin firma de código (R-38).
+          name: Emit artifact SHA-256
+          command: shasum -a 256 dist/tts-sidecar-arm64.dmg
       - store_artifacts:
           path: dist/tts-sidecar-arm64.dmg
           destination: tts-sidecar-darwin-arm64.dmg

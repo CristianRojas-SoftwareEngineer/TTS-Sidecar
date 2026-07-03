@@ -1,788 +1,624 @@
-# Auditoría de Preparación para Producción — `tts-sidecar`
+# Auditoría de Preparación para Distribución — `tts-sidecar` (segunda ronda)
 
 ## Introducción
 
-Este documento constituye el reporte completo de la auditoría técnica independiente de producción (production-readiness audit) realizada sobre el proyecto `tts-sidecar`, un motor de síntesis de voz (TTS) offline basado en Chatterbox Multilingual V3 para español latinoamericano.
+Este documento es el reporte completo de la **segunda auditoría integral** de
+preparación para producción del proyecto `tts-sidecar`, realizada desde cero el
+2026-07-03, sobre el estado del repositorio en el commit `8a18fad`. Su objetivo
+es determinar qué tan listo está el producto para ser **publicado, empaquetado y
+distribuido** como proyecto Open Source (GPL-3.0-or-later) con soporte
+multiplataforma (Windows x86_64, Linux x86_64/aarch64, macOS arm64) y
+experiencia de usuario equivalente en los tres sistemas operativos.
 
 ### Postura de la auditoría
 
-La auditoría adopta una postura **adversarial-constructiva**: el objetivo no es confirmar que el proyecto está bien, sino identificar lo que impediría, degradaría o avergonzaría un primer release público. Cada afirmación de la documentación se verificó contra el código fuente como hipótesis, no como hecho dado.
+Adversarial-constructiva: el objetivo no es confirmar que el proyecto está bien,
+sino encontrar lo que impediría, degradaría o avergonzaría el release. Cada
+afirmación de la documentación se verificó contra el código como hipótesis, no
+como hecho dado.
 
 ### Punto de partida
 
-El proyecto ya completó dos auditorías de equivalencia de UX entre sistemas operativos (ambas cerradas, la segunda en el commit `a0a77cc`). Esas auditorías cubrieron:
+Esta auditoría **no repite** las anteriores; asume sus cierres como base:
 
-- Paridad de PATH entre plataformas
-- Desinstalación limpia
-- Naming de artefactos
-- Consola persistente post-instalación en Windows
-- Runtime AppImage sin FUSE
-- Semántica setup-provisión vs. doctor-diagnóstico
-- Sincronización documental asociada
+- Dos auditorías de equivalencia de UX entre SO (cerradas en `df43eca` y `a0a77cc`).
+- El gate de release completo de la primera auditoría PROJECT-REVIEW
+  (`c599dbd`): R-01…R-37 resueltos.
+- Los 11 hallazgos menores post-gate (`8a18fad`): todos cerrados excepto R-38
+  (firma de artefactos), reserva conocida y documentada.
 
-**Esta auditoría parte de esos cierres como base** y audita las capas que ellas no cubrieron: robustez del CLI, contrato programático, daemon, gestión del modelo, compatibilidad multiplataforma real más allá de la equivalencia de UX, experiencia de instalación-to-desinstalación end-to-end, calidad de tests, documentación como producto, licenciamiento y cumplimiento, y cadena de suministro/CI.
+La suite de tests se ejecutó durante la auditoría: **185/185 tests pasan**.
 
 ### Alcance
 
-Se auditaron las siguientes capas del proyecto:
-
 | Capa | Archivos evaluados |
 |------|-------------------|
-| **Código fuente** | `src/chatterbox_tts/*.py` (cli.py, engine.py, audio.py, voices.py, paths.py, timing.py, model_cache.py, daemon/*) |
-| **Scripts de build** | `scripts/build_*.py`, `scripts/build_utils.py`, `scripts/create_installer_windows.py` |
-| **Configuración de CI** | `.circleci/config.yml` |
-| **Dependencias** | `requirements.txt`, `pyproject.toml`, `package.json` |
-| **Documentación** | `README.md`, `USAGE.md`, `docs/GOAL.md`, `docs/DESIGN.md`, `docs/ARCHITECTURE.md`, `docs/DAEMON-MODE.md`, `docs/BUILD.md` |
-| **Licencias** | `LICENSE`, `THIRD-PARTY-LICENSES.md` |
-| **Tests** | `tests/*.py` (cobertura y conteo) |
+| **Código fuente** | `src/chatterbox_tts/*.py` (cli.py, engine.py, audio.py, voices.py, paths.py, timing.py, model_cache.py, daemon/*) y `bin/tts-sidecar` |
+| **Scripts de build** | `scripts/build_windows.py`, `build_linux.py`, `build_macos.py`, `build_utils.py`, `create_installer_windows.py`, `clean_build.py` |
+| **CI** | `.circleci/config.yml` (3 jobs de test + 4 de build) |
+| **Dependencias** | `pyproject.toml`, `requirements.txt`, `requirements-lock.txt`, `package.json` |
+| **Documentación** | `README.md`, `USAGE.md`, `docs/GOAL.md`, `DESIGN.md`, `ARCHITECTURE.md`, `DAEMON-MODE.md`, `BUILD.md` |
+| **Gobernanza y licencias** | `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `LICENSE`, `THIRD-PARTY-LICENSES.md` |
+| **Tests** | `tests/*.py` (185 tests; ejecución completa + mapeo de cobertura) |
 
-### Convenciones del documento
+### Convenciones
 
-- Los hallazgos se identifican con código `R-XX` (Review, número secuencial).
-- La severidad se clasifica en tres niveles:
-  - **Bloqueante**: impide el release o hace que falle el caso de uso central.
-  - **Mayor**: degradaría la primera impresión o complicaría el soporte.
-  - **Menor**: trabajo de pulido que no bloquea el release.
-- Cada hallazgo incluye:
-  - Evidencia (archivo y línea, o cita documental).
-  - Escenario concreto de usuario o integrador que lo sufre.
-  - Propuesta de solución recomendada.
-  - Análisis de tradeoffs de la propuesta.
-
-### Metodología de la revisión
-
-El reporte original se sometió a una **revisión adversarial-constructiva** posterior: se verificó cada referencia de línea contra el código fuente, se validó la existencia de archivos referenciados, se contaron los tests reales con `pytest --collect-only`, y se comprobó que la documentación existe donde se la cita. Los errores detectados (líneas incorrectas, conteos desactualizados, mezclas de idioma, nombres de archivos inexactos) fueron corregidos en este reporte. En las secciones siguientes se anota explícitamente cuando un hallazgo se matizó o se redujo su severidad respecto del primer borrador.
+- Hallazgos con código `N-XX` (Nueva serie, para no colisionar con los `R-XX`
+  de la primera auditoría).
+- Severidad: **Bloqueante** (impide el release o rompe el caso de uso central),
+  **Mayor** (degradaría la primera impresión o el soporte), **Menor** (pulido).
+- Cada hallazgo incluye evidencia (archivo:línea), escenario concreto de usuario
+  o integrador que lo sufre, propuesta de solución y tradeoffs.
 
 ---
 
 ## Tabla de Contenido
 
-1. [Robustez del CLI y Manejo de Errores](#dimensión-1--robustez-del-cli-y-manejo-de-errores)
-2. [Contrato Programático](#dimensión-2--contrato-programático)
+1. [Pipeline de build y empaquetado](#dimensión-1--pipeline-de-build-y-empaquetado)
+2. [Contrato programático](#dimensión-2--contrato-programático)
 3. [Daemon](#dimensión-3--daemon)
-4. [Gestión del Modelo y del Estado en Disco](#dimensión-4--gestión-del-modelo-y-del-estado-en-disco)
-5. [Compatibilidad Multiplataforma Real](#dimensión-5--compatibilidad-multiplataforma-real)
-6. [Experiencia de Instalación/Desinstalación End-to-End](#dimensión-6--experiencia-de-instalacióndesinstalación-end-to-end)
-7. [Calidad y Cobertura de Tests](#dimensión-7--calidad-y-cobertura-de-tests)
-8. [Documentación como Producto](#dimensión-8--documentación-como-producto)
-9. [Licenciamiento y Cumplimiento](#dimensión-9--licenciamiento-y-cumplimiento)
-10. [Cadena de Suministro y CI](#dimensión-10--cadena-de-suministro-y-ci)
-11. [Resumen Ejecutivo y Gate de Release](#resumen-ejecutivo-y-gate-de-release)
+4. [Modelo, estado en disco y ciclo de vida de los datos](#dimensión-4--modelo-estado-en-disco-y-ciclo-de-vida-de-los-datos)
+5. [Instalación/desinstalación end-to-end y equivalencia entre SO](#dimensión-5--instalacióndesinstalación-end-to-end-y-equivalencia-entre-so)
+6. [Tests y CI](#dimensión-6--tests-y-ci)
+7. [Gobernanza de release, licenciamiento y cadena de suministro](#dimensión-7--gobernanza-de-release-licenciamiento-y-cadena-de-suministro)
+8. [Tabla resumen de hallazgos](#tabla-resumen-de-hallazgos)
+9. [Gate mínimo de release](#gate-mínimo-de-release)
+10. [Recomendación global](#recomendación-global)
 
 ---
 
-## Estado de remediación del gate (actualización 2026-07-03)
+## Dimensión 1 — Pipeline de build y empaquetado
 
-> **Esta sección es la fuente autoritativa del estado ACTUAL del proyecto.** Se
-> mantiene viva: refleja el resultado del gate de release (tareas T1–T16) y los
-> refinamientos posteriores sobre los 38 hallazgos.
->
-> **El resto del documento (Dimensiones 1–10) es una foto congelada de la auditoría
-> del 2026-07-02** y describe los hallazgos en el estado en que se encontraron. Al
-> retomar trabajo, esta sección manda: cualquier afirmación de las dimensiones que
-> contradiga la tabla de abajo está superada por la remediación y no debe tomarse
-> como estado vigente.
+### Veredicto **[NO LISTO]** (por N-01)
 
-**Resultado:** los **4 bloqueantes**, los **23 mayores** y **todos los 15 menores**
-quedaron **resueltos**; solo **R-38** (firma de artefactos, reserva conocida que
-requiere financiación de certificados) sigue **pendiente**. Suite de tests tras
-el cierre: **185** (era 162, se añadieron 23 tests de los hallazgos menores).
-
-**Refinamiento posterior al gate (2026-07-03):** la puerta de tests en CI se hizo
-**simétrica en los tres SO** — el job `test` se renombró a `test-linux` y se añadió
-`test-macos` (macOS nativo), de modo que `pytest tests/` corre en Linux, Windows y
-macOS y los cuatro builds dependen de los tres (ver R-22).
-
-Tres hallazgos se cerraron con una **solución distinta a la «Propuesta» original** del
-reporte, por decisión de diseño pre-release: R-06 (mapa de exit codes del SO en vez de
-`error_code` en JSON), R-08 (eliminación de `--port` en vez de cablearlo) y R-32
-(regeneración manual única en vez de automatización en CI). Se anotan como tales abajo.
-
-### Hallazgos resueltos
-
-| ID | Sev | Solución implementada |
-|----|-----|-----------------------|
-| **R-10** | Bloq. | `hub_cache_path()` delega en `huggingface_hub.constants.HF_HUB_CACHE`; `setup`/`doctor` muestran la ruta efectiva; tests de precedencia `HF_HOME`/`HF_HUB_CACHE`. (T3) |
-| **R-15** | Bloq. | Build macOS restringido a `arm64`; artefactos renombrados `-arm64.*`; toda mención a `universal2`/Mac Intel retirada de CI y docs. (T1) |
-| **R-19** | Bloq. | Enlace de Releases del README corregido al repositorio real. (T2) |
-| **R-35** | Bloq. | `requirements-lock.txt` **universal con hashes** (uv `--universal`, no pip-tools) instalado en CI con `--require-hashes`. Además se corrigió `chatterbox-tts>=0.3.0`→`>=0.1.7` (era insatisfacible en PyPI). (T11) |
-| R-01 | Mayor | `_require_model_cached()` al inicio de `cmd_voice_add` + registro ligero sin instanciar el motor; precomputación diferida al primer `speak`. (T6) |
-| R-02 | Mayor | `try/except KeyboardInterrupt` en `main()` → mensaje breve a stderr y `sys.exit(130)`. (T7) |
-| R-05 | Mayor | `timing.log()` y los banners de `timed_command` emiten a `sys.stderr`; stdout queda solo para datos/JSON. (T8) |
-| R-06 | Mayor | **Solución distinta a la propuesta:** mapa de exit codes del SO `0/1/2/3/4/5/130` como contrato público (constantes `EXIT_*`), en vez de `error_code` en JSON. Tests parametrizados por escenario. (T9) |
-| R-08 | Mayor | **Solución distinta a la propuesta:** se **eliminó `--port`** por completo; puerto fijo 8765 (`DEFAULT_PORT` en `ipc.py`) como fuente única importada por `daemon.py`/`run.py`. (T10) |
-| R-11 | Mayor | Comando `cleanup` con `--model`/`--voices`/`--all`/`--dry-run`, borrado quirúrgico de las carpetas del proyecto y confirmación interactiva. (T5) |
-| R-12 | Mayor | `is_model_cached` verifica `ve.safetensors`; `setup` lo descarga explícitamente; el fallback del engine registra un log que remite a `setup`. (T4) |
-| R-16 | Mayor | `LSMinimumSystemVersion` alineado a `12.0` en `Info.plist`. (T1) |
-| R-20 | Mayor | Nombres de artefactos por SO del README corregidos a los reales (`-setup.exe`, `.AppImage`, `.dmg`). (T2) |
-| R-22 | Mayor | **Triple puerta simétrica de tests:** `test-linux` (renombrado desde `test`), `test-windows` (`win/server-2022`) y `test-macos` (`m4pro.medium`) corren `pytest tests/` en los tres SO nativos; los 4 builds dependen de los tres. Cierra la brecha de que el código de Windows/macOS solo se ejercitaba con mocks. (T13) |
-| R-23 | Mayor | Paso «Smoke test frozen binary» (`version`, exit 0) en los 4 jobs de build antes de publicar. (T12) |
-| R-26 | Mayor | `CHANGELOG.md` (Keep a Changelog [0.1.0]), `CONTRIBUTING.md` y `SECURITY.md` creados y enlazados desde el README. (T16) |
-| R-27 | Mayor | USAGE §«Experiencia unificada» corregido con la tabla de exit codes; docstring del contrato en `cli.py` reafirmado. (T8/T9) |
-| R-30 | Mayor | Sección «Uso ético y responsable» en README y USAGE (consentimiento, no suplantación, divulgación del watermark anulado, canal de reporte); reframe del bypass en `engine.py`. (T14) |
-| R-31 | Mayor | `libsndfile` (LGPL-2.1+, empaquetado vía `soundfile`) y `soxr` (LGPL) declarados en `THIRD-PARTY-LICENSES.md` con sus obligaciones. (T15) |
-| R-32 | Mayor | **Solución distinta a la propuesta:** regeneración **manual única** (sin check CI) de `THIRD-PARTY-LICENSES.md` desde el lock (156 paquetes); se quitaron `simpleaudio`/`pyalsaaudio` y se añadieron transitivas + runtimes NVIDIA CUDA. (T15) |
-| R-33 | Mayor | Licencia **MIT verificada** en HuggingFace de `Chatterbox-Multilingual-es-mx-latam` y de `ResembleAI/chatterbox`, citada con enlace. (T15) |
-| R-36 | Mayor | Python 3.13 pineado vía `pyenv` en el job macOS de CI. (T11) |
-| R-37 | Mayor | Cerrado junto con R-23 (smoke test en los 4 builds). (T12) |
-| R-09 | Menor | Modelo de amenaza del daemon (loopback, sin auth, delega en el control de acceso del SO) documentado en `SECURITY.md`. (T16) |
-| R-21 | Menor | Advertencia del prompt de sudo del `.command` de macOS añadida al README. (T2) |
-| R-25 | Menor | Conteo de tests actualizado a **162** en `CLAUDE.md` y `docs/GOAL.md`. (cierre) |
-| R-29 | Menor | README enlaza la licencia MIT verificada del modelo y aclara que GPLv3 es la licencia del proyecto. (T15) |
-| **R-03** | Menor | Warning no bloqueante en `cmd_speak` cuando `len(text) > 2000` (límite de tokens del T3); test de advierte/no-advierte. (Lote B) |
-| **R-04** | Menor | `_safetensors_header_ok()` valida header-length plausible en `t3_es_mx_latam.safetensors`; `is_model_cached` lo usa; tests de truncado/válido/excesivo. (Lote C) |
-| **R-07** | Menor | Constante `SCHEMA_VERSION = "1"` en `cli.py`; campo `"schema_version"` en **todos** los payloads `--json` (version, devices, voice list, doctor, daemon status); docs en USAGE. (Lote B) |
-| **R-13** | Menor | Flag `--force-update` en `setup`: borra snapshots del modelo (`models--ResembleAI--*`) y fuerz a re-descarga; test de borrado + aborto por disco. (Lote B) |
-| **R-14** | Menor | Pre-chequeo `shutil.disk_usage` (2 GB) en `setup` antes de descargar; se omite si modelo ya cacheado; test de aborto + no-chequeo. (Lote B) |
-| **R-17** | Menor | README §Instalación Windows: nota de que el instalador requiere privilegios de admin (Program Files + PATH HKLM). (Lote A) |
-| **R-18** | Menor | USAGE §«Requisitos de hardware»: CPU con AVX2, RAM 8 GB rec / 4 GB mín, disco ~1 GB; `doctor` chequea RAM advisory (`WARN` no bloquea). (Lote B) |
-| **R-24** | Menor | `build_linux.py`: `_apprun_script()`, `_desktop_entry()` extraídas; `build_macos.py` ya tenía `_info_plist_content`, `_path_install_script`, `_path_uninstall_script`. Tests `test_build_linux.py`, `test_build_macos.py` (Lote E). |
-| **R-28** | Menor | USAGE §`doctor` ejemplo: `Python: 3.13.x` (antes 3.11.x). (Lote A) |
-| **R-34** | Menor | InfoAfter del instalador Windows (`info_after_text()`): oferta de código fuente GPLv3 + enlace al repo; test de contenido. (Lote D) |
-
-### Hallazgos pendientes (solo reserva conocida)
-
-| ID | Sev | Trabajo pendiente |
-|----|-----|-------------------|
-| R-38 | Menor | Firma/notarización de artefactos — reserva conocida; requiere financiación de certificados. Mitigación documental en README §«Primer arranque: SmartScreen / Gatekeeper» y USAGE §«El sistema bloquea el primer arranque (binarios sin firmar)». |
-
----
-
-## Dimensión 1 — Robustez del CLI y Manejo de Errores
-
-### Veredicto **[PARCIALMENTE LISTO]**
-
-El manejo de errores está deliberadamente implementado en los flujos principales:
-
-- `cmd_speak` valida texto vacío (`cli.py:110`) y distingue `FileNotFoundError` de error genérico, remitiendo a `setup` solo cuando el faltante es el modelo (`cli.py:153-160`).
-- `cmd_voice_remove` tiene una rama dedicada para `PermissionError`/`OSError` en Windows cuando el archivo está en uso por otro proceso (`cli.py:207-218`).
-- `voices._validate_voice_name` neutraliza escapes de ruta (`..`, separadores) con defensa en profundidad en `voice_dir` (`voices.py:28-40, 65-74`).
-- Los mensajes de error son accionables y consistentemente en español.
-
-Sin embargo, existen rutas de fallo no gestionadas que contradicen el diseño documentado.
-
----
+Qué está production-ready: los pines con SHA-256 del tooling AppImage
+(`build_utils.py:56-77`, verificados por `fetch_pinned_asset`), el lockfile
+universal con hashes instalado con `--require-hashes` en CI y builds, los
+timeouts en todos los subprocesos de empaquetado, los smoke tests del binario
+congelado en los 4 jobs de build, la degradación con gracia cuando falta el
+empaquetador (el onedir sigue siendo usable), y la fuente única de flags de
+PyInstaller (`common_pyinstaller_args`) compartida por las tres plataformas.
 
 ### Hallazgos
 
-#### R-01 — `voice add` descarga el modelo saltándose el gate de `setup`
+#### N-01 — El instalador de Windows nunca se genera: `main()` quedó truncada
+
+| | |
+|---|---|
+| **Severidad** | **Bloqueante** |
+| **Evidencia** | `scripts/create_installer_windows.py:165-223` (main truncada) y `225-315` (bloque de compilación inalcanzable) |
+
+Al insertar `info_after_text()` (cierre de R-34, commit `8a18fad`), la función
+se definió **en medio del cuerpo de `main()`**, partiéndolo en dos:
+
+- `main()` termina ahora en la línea 223 (`output_dir.mkdir(...)`): valida
+  argumentos, localiza ISCC… y retorna sin compilar nada.
+- El bloque que escribe el `.iss`, invoca ISCC y reporta el instalador (líneas
+  256-315) quedó anidado dentro de `info_after_text()` **después de su
+  `return`**: código inalcanzable. Verificado por AST: `main` abarca 165-223;
+  `info_after_text` 225-315 con el `Try` de compilación tras el `Return`.
+
+Consecuencias en cadena:
+
+1. `main()` sale con código 0 → `build_windows.py:91` loguea **«Instalador
+   creado correctamente»** sin que exista ningún `.exe`. Éxito falso.
+2. El CI no lo atrapa de forma fiable: el step `Stage installer artifact` usa
+   `Copy-Item dist/tts-sidecar-*-setup.exe` en PowerShell, donde un wildcard
+   sin coincidencias emite un error *no terminante* que puede salir con
+   código 0.
+3. Los tests no lo detectan: `tests/test_create_installer_windows.py` solo
+   ejercita las funciones puras (`generate_iss`, `info_after_text`), que siguen
+   funcionando; nunca el flujo de `main()`.
+
+**Escenario**: no existe instalador de Windows que distribuir; el canal de
+instalación principal del SO mayoritario está roto desde el commit que
+«cerraba los hallazgos menores».
+
+**Propuesta**: mover el bloque 256-315 de vuelta al final de `main()` (con su
+indentación original), añadir un test que ejercite `main()` con ISCC mockeado
+(monkeypatch de `get_inno_setup_path` + `subprocess.run`) verificando que se
+genera e invoca el `.iss`, y endurecer el step de staging del CI
+(`$ErrorActionPreference='Stop'` o `if (-not (Test-Path ...)) { throw }`).
+
+**Tradeoffs**: ninguno relevante; es una restauración. El test de `main()`
+exige mockear más superficie, pero es exactamente la clase de test cuya
+ausencia dejó pasar esta regresión.
+
+#### N-05 — AppImage x86_64 con el stack CUDA completo; tamaños declarados contradictorios
 
 | | |
 |---|---|
 | **Severidad** | Mayor |
-| **Evidencia** | `cli.py:166-185` (`cmd_voice_add` instancia `ChatterboxEngine(...)` en la línea 172) → `engine.py:216` (`__init__` llama `_download_model`). El gate `_require_model_cached` (`cli.py:93`) se invoca en `cmd_speak` (`cli.py:116`) y `cmd_daemon start` (`cli.py:521`), pero **no** desde `cmd_voice_add`. |
-| **Escenario** | Usuario nuevo ejecuta `voice add` antes de `setup`. El código instancia `ChatterboxEngine` directamente, lo que dispara una descarga silenciosa de cientos de MB. Si está sin conexión, falla con un error críptico. Esto contradice el invariante documentado: «las descargas son responsabilidad exclusiva de `setup`» (CLAUDE.md, README, USAGE). |
-| **Propuesta** | Añadir `_require_model_cached()` al inicio de `cmd_voice_add` (`cli.py:169`) para abortar temprano si el modelo no está cacheado. Adicionalmente, eliminar la inicialización en caliente del motor en `voice add` (línea 172): la firma de `add_voice` ya expone `precompute: bool = True` (`engine.py:616`), así que basta con extraer la validación (librosa.load, `engine.py:636-643`) y la copia de archivos a una función a nivel de módulo que no requiera instanciar el motor, difiriendo la precomputación de conditionals a la primera síntesis con esa voz. |
-| **Tradeoffs y Justificación** | La opción elegida (Diferir precomputación) elimina el arranque en frío del motor TTS (~5s) en el registro de voces. Alternativas evaluadas: (A) Precomputar en `add` condicionalmente: mantiene rápido el primer `speak` pero hace que `voice add` tarde segundos en inicializar PyTorch. (B) Comando separado `voice prepare`: añade fricción y comandos extra al CLI. Justificación: Diferir es óptimo porque el comando `speak` de todos modos ya inicializa el motor por necesidad, por lo que el coste de cómputo adicional se absorbe con mínimo impacto relativo en el primer uso. |
+| **Evidencia** | `requirements-lock.txt` (41 paquetes `nvidia-*` para `sys_platform == 'linux'`), `USAGE.md:506` («varios cientos de MB»), `docs/BUILD.md:302` («~1.7 GB sin comprimir») |
 
-#### R-02 — Ctrl+C a mitad de síntesis produce un traceback, no un cierre limpio
+El lock universal resuelve el stack CUDA completo en Linux x86_64;
+`--collect-all torch` lo arrastra al bundle. El AppImage cargará gigabytes de
+librerías CUDA que un usuario CPU-only jamás usa, mientras la documentación
+declara dos números distintos e incompatibles entre sí.
+
+**Escenario**: un usuario Linux con laptop sin GPU descarga un artefacto
+multi-GB para un producto cuyo caso de uso principal declarado es CPU; la
+primera impresión de descarga queda comprometida y el claim de USAGE es falso.
+
+**Propuesta**: medir el AppImage real generado por CI; decidir explícitamente
+entre (a) lockear torch desde el índice CPU de PyTorch para el build Linux
+(artefacto mucho más pequeño; `--compute-backend cuda` deja de funcionar en
+Linux) o (b) mantener CUDA y documentar el peso real y su porqué en
+README/USAGE/BUILD.
+
+**Tradeoffs**: (a) contradice la opción `--compute-backend cuda` documentada —
+habría que retirarla del build Linux o publicar dos variantes; (b) conserva la
+funcionalidad al costo de una descarga pesada. Cualquiera de las dos es
+defendible; lo indefendible es la contradicción documental actual.
+
+#### N-06 — Baseline de glibc del binario Linux ni validada ni documentada
 
 | | |
 |---|---|
 | **Severidad** | Mayor |
-| **Evidencia** | `grep -n 'KeyboardInterrupt\|SIGINT\|signal' src/chatterbox_tts/cli.py` devuelve **0 coincidencias**. No hay manejador de `SIGINT` en el CLI. `KeyboardInterrupt` no es subclase de `Exception`, por lo que escapa del `except Exception` de `cmd_speak` (`cli.py:161`) y del wrapper `timed_command` (`timing.py:39`). |
-| **Escenario** | Usuario interrumpe una síntesis larga con Ctrl+C y recibe un stack trace de Python en lugar de un mensaje de cierre limpio. Un integrador que parsee stderr para detección de errores ve ruido no estructurado. |
-| **Propuesta** | Implementar una captura centralizada de `KeyboardInterrupt` en la función `main()` de `cli.py` (alrededor de `args.func(args)`) que imprima un mensaje breve a stderr y termine con `sys.exit(130)` (código estándar para procesos abortados por SIGINT). Nota de implementación: `daemon serve` corre uvicorn, que instala su propio manejo de SIGINT para el shutdown graceful; la captura en `main()` es compatible porque solo actúa si la excepción escapa hasta el CLI. |
-| **Tradeoffs y Justificación** | La opción elegida (Captura centralizada en `main`) cubre todas las interfaces del CLI en un solo punto y garantiza una salida limpia y predecible. Alternativas evaluadas: (A) Handlers del sistema con `signal.signal`: puede interferir con el manejo de señales de red de uvicorn en el daemon. (B) Wrappers individuales por comando: duplica código innecesariamente. Justificación: La captura centralizada es no-invasiva, fácil de mantener y preserva el comportamiento natural de loops asíncronos en comandos especiales. |
+| **Evidencia** | `.circleci/config.yml:131-133` (`cimg/python:3.13`, base Ubuntu 22.04) y `169-171` (`ubuntu-2204`); glibc 2.35 |
 
-#### R-03 — Texto largo se trunca en silencio sin advertencia
+Un binario PyInstaller no corre en distros con glibc anterior a la del host de
+build (Debian 11, RHEL 8, Ubuntu 20.04). El criterio 2 de GOAL.md («funciona en
+distribuciones principales») no es alcanzable sin declarar el requisito mínimo.
+
+**Escenario**: un usuario de Debian 11 descarga el AppImage y recibe
+`GLIBC_2.35 not found` — un error críptico sin mención en la documentación ni
+en la solución de problemas de USAGE.
+
+**Propuesta**: documentar «requiere glibc ≥ 2.35 (Ubuntu 22.04+, Debian 12+,
+Fedora 36+)» en README/USAGE, o mover el build a una base más vieja si se
+quiere ampliar el rango.
+
+**Tradeoffs**: documentar es gratis pero restringe el claim de GOAL; construir
+sobre una base más vieja amplía compatibilidad al costo de mantener una imagen
+de build distinta de la de tests.
+
+#### N-07 — `LSMinimumSystemVersion=12.0` sin respaldo del toolchain
 
 | | |
 |---|---|
-| **Severidad** | Menor |
-| **Evidencia** | `engine.py:130` define `MAX_NEW_TOKENS=500`, que topa la salida del T3. En modo directo no hay límite de entrada de texto. El daemon sí tiene límite (5000 chars, `protocol.py:10`). |
-| **Escenario** | Usuario envía un texto de varios párrafos a `speak` y obtiene audio parcial sin ninguna advertencia de que se cortó. |
-| **Propuesta** | Agregar una validación de longitud de texto en `cmd_speak` que verifique si el texto supera un umbral de 2000 caracteres. Si excede, emitirá un warning a `sys.stderr` sugiriendo fragmentar, y continuará truncando de acuerdo al límite estricto de tokens del motor. |
-| **Tradeoffs y Justificación** | La opción elegida (Warning no bloqueante) alerta de la pérdida de contenido sin interrumpir el pipeline. Alternativas evaluadas: (A) Error duro bloqueante: rompe la compatibilidad con integraciones que envían textos largos esperando truncamiento implícito. (B) Fragmentador automático en el engine: requiere lógica compleja de procesamiento de lenguaje natural (NLP) para segmentar por puntuación y concatenar audio sin clics de fase, fuera del alcance del sidecar. Justificación: El warning es la solución pragmática de menor coste y riesgo técnico. |
+| **Severidad** | Mayor |
+| **Evidencia** | `scripts/build_macos.py:299` (declara 12.0); `.circleci/config.yml:211-227` (CPython compilado por pyenv en runner Xcode 26.4) |
 
-#### R-04 — Caché truncada pasa el chequeo de existencia y falla al cargar
+El CPython que se empaqueta lo compila pyenv en el runner, con el
+`MACOSX_DEPLOYMENT_TARGET` del SDK del runner (muy posterior a macOS 12). El
+Info.plist promete un mínimo que el toolchain no garantiza.
 
-| | |
-|---|---|
-| **Severidad** | Menor |
-| **Evidencia** | `model_cache.py:79` solo verifica que exista `t3_es_mx_latam.safetensors` (`return (cached / "t3_es_mx_latam.safetensors").exists()`), no su integridad. |
-| **Escenario** | Descarga interrumpida por disco lleno deja el archivo presente pero truncado. `doctor` reporta PASS y `speak` falla en `load_file` con error de safetensors ilegible y sin remediación. |
-| **Propuesta** | Validar de forma rápida la integridad del archivo de pesos `.safetensors` en `is_model_cached` (leyendo los primeros 8 bytes que corresponden al tamaño del header de metadatos en safetensors) y reportar False si no coincide con el formato esperado. |
-| **Tradeoffs y Justificación** | La opción elegida (Verificación ligera de header) es instantánea y evita arranques fallidos por descargas interrumpidas. Alternativas evaluadas: (A) Hash SHA-256 completo en cada inicio: inviable porque tarda segundos en procesar archivos de cientos de MB en disco. (B) Capturar el error en la carga del motor: el fallo se reporta tarde, después de perder tiempo cargando PyTorch en memoria. Justificación: Validar el header previene fallos silenciosos sin impactar el tiempo de respuesta del CLI. |
+**Escenario**: un usuario de macOS 12/13 instala el `.dmg` que declara soportar
+su sistema y recibe un crash de símbolos (`Symbol not found`) al primer
+arranque.
 
----
+**Propuesta**: fijar `MACOSX_DEPLOYMENT_TARGET` en el job de build (y verificar
+que los wheels lo respeten), o subir `LSMinimumSystemVersion` a la versión
+realmente soportada por el toolchain y actualizar GOAL/README. Coherente con el
+criterio 3 de GOAL.md (validación E2E pendiente), pero el claim del plist va
+más allá de lo validado.
 
-## Dimensión 2 — Contrato Programático
-
-### Veredicto **[NO LISTO]**
-
-El contrato está documentado en el docstring de `cli.py:1-13` y en USAGE §«Experiencia unificada». `main()` fuerza UTF-8 en stdout/stderr (`cli.py:566-570`), resolviendo el caso de consolas Windows no-UTF-8. Los comandos de lectura que emiten JSON (`voice list`, `devices`, `doctor`, `version`, `daemon status`) no usan `log()`/`timed_command`, por lo que su stdout JSON es limpio.
-
-Sin embargo, las afirmaciones centrales del contrato son contradichas por la implementación.
+**Tradeoffs**: sin hardware de prueba viejo, la opción honesta es alinear el
+claim con el runner; recuperar macOS 12 real exigiría compilar CPython y
+dependencias con target 12.0, trabajo significativo.
 
 ---
+
+## Dimensión 2 — Contrato programático
+
+### Veredicto **[LISTO CON RESERVAS]**
+
+Qué está production-ready: el mapa de exit codes congelado y testeado
+(`cli.py:33-41`; `test_cli.py` cubre los 7 códigos), `schema_version` en todos
+los payloads JSON (R-07 cerrado de verdad), stdout/stderr forzados a UTF-8
+(`cli.py:756-759`), y la separación datos/diagnóstico en los comandos de
+lectura (`timing.py` emite todo a stderr). Es un contrato real, no aspiracional.
 
 ### Hallazgos
 
-#### R-05 — El contrato «diagnósticos van a stderr» es falso
+#### N-03 — `cleanup` es inusable desde otro proceso
 
 | | |
 |---|---|
 | **Severidad** | Mayor |
-| **Evidencia** | `timing.log()` (`timing.py:11-21`) y `timed_command` (`timing.py:33,37,41` — los banners `Starting …`, `Finished in Xs`, `Failed after Xs`) usan `print()` sin `file=sys.stderr`. Todo el progreso por etapas de `speak`/`voice add` va a **stdout**. Solo los mensajes `Error: …` de los handlers de excepción del CLI van correctamente a stderr. USAGE §«Experiencia unificada» (`USAGE.md:479-481`) repite el mismo contrato incorrecto. |
-| **Escenario** | Integrador que sigue el contrato documentado y captura stderr para diagnósticos no obtiene nada. Quien capture stdout esperando «solo datos» recibe decenas de líneas `[HH:MM:SS]`. El audio no colisiona (va a archivo/altavoz), pero la afirmación del contrato engaña al consumidor programático. |
-| **Propuesta** | Modificar `timing.py:log()` y `timed_command` para dirigir todo el flujo de progreso e instrumentación a `sys.stderr` por defecto, dejando `sys.stdout` limpio exclusivamente para datos (como la salida JSON o el flujo de audio). |
-| **Tradeoffs y Justificación** | La opción elegida (Diagnósticos a stderr) respeta las directrices estándar UNIX y simplifica la vida del integrador. Alternativas evaluadas: (A) Añadir flags `--quiet` / `--verbose`: los integradores que deseen progreso y datos simultáneamente seguirán en conflicto. (B) Usar prefijos en stdout (ej: `[LOG] ...`): obliga a implementar parsers de cadenas en el consumidor programático. Justificación: Redirigir a stderr es el estándar de la industria y la solución más limpia para integradores. |
+| **Evidencia** | `cli.py:680` (`input()` sin flag de confirmación); `cli.py:892-900` (`main()` solo captura `KeyboardInterrupt`) |
 
-#### R-06 — Códigos de salida sin granularidad (20 sys.exit(1) sin distinción)
+No existe `--yes`/`--force`, y `EOFError` no se captura en ninguna parte.
+Invocado vía `subprocess` con stdin cerrado — el caso de uso central del
+producto — `input()` lanza `EOFError` → traceback crudo y exit 1
+indistinguible de cualquier error.
 
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | `grep -n 'sys.exit' src/chatterbox_tts/cli.py` devuelve **20 llamadas a `sys.exit(1)`** (líneas 102, 112, 160, 163, 185, 202, 205, 218, 221, 247, 250, 261, 365, 378, 429, 471, 498, 531, 538, 545), todas con código 1. (Las líneas 679 y 684 son `sys.exit(0)` para casos de éxito). No hay distinción entre «modelo no cacheado», «argumento inválido», «fallo de síntesis» o «voz no encontrada». El contrato (`cli.py:9`) solo promete 0/≠0. |
-| **Escenario** | Orquestador que quiera reintentar solo ante «modelo faltante» (llamando a `setup`) pero abortar ante «texto inválido» no puede diferenciarlos sin parsear texto en español de stderr. |
-| **Propuesta** | Mantener los códigos de salida `0/1` a nivel del sistema operativo para máxima retrocompatibilidad, pero añadir un campo de grano fino `'error_code'` (entero estable) en el payload JSON de error para comandos que se invocan con `--json`. |
-| **Tradeoffs y Justificación** | La opción elegida (error_code en JSON) provee granularidad sin romper integraciones simples que solo comparan códigos de salida binarios (`0` vs `!=0`). Alternativas evaluadas: (A) Mapa de exit codes del SO (ej. exit 2, 3, 4): rompe scripts de automatización antiguos que solo esperan `1` en caso de error. Justificación: Es la alternativa más segura y retrocompatible para exponer diagnóstico granular a nivel programático. Una taxonomía mínima suficiente: `1` genérico, `2` modelo no provisionado, `3` voz/audio no encontrado, `4` entrada inválida, `5` daemon inalcanzable — publicada en la documentación del contrato (ver R-07). |
+**Escenario**: un desinstalador o script de mantenimiento intenta automatizar
+el paso 1 de la «Desinstalación completa» documentada en USAGE.md
+(`cleanup --all`) y obtiene un traceback.
 
-#### R-07 — Esquema JSON no versionado ni documentado
+**Propuesta**: añadir `--yes` que omita la confirmación, y capturar `EOFError`
+en la confirmación tratándolo como cancelación limpia («Cancelado: no se borró
+nada»).
+
+**Tradeoffs**: ninguno; `--dry-run` ya existe como complemento natural.
+
+#### N-09 — El ciclo de vida del daemon imprime progreso por stdout
 
 | | |
 |---|---|
 | **Severidad** | Menor |
-| **Evidencia** | Las salidas `--json` (`doctor`, `version`, `daemon status`, etc.) no llevan campo de versión de esquema. No hay `docs/API.md` ni sección en USAGE que documente formalmente los campos. |
-| **Escenario** | Un cambio futuro en las claves de `doctor --json` rompe consumidores sin señal de deprecación. |
-| **Propuesta** | Declarar una versión de esquema `'schema_version': '1'` en los payloads JSON e incorporar una sección en `USAGE.md` (o un archivo `docs/API.md` independiente) que defina formalmente los campos y su política de versionado semántico. |
-| **Tradeoffs y Justificación** | La opción elegida (Versionado en payload + docs en MD) proporciona claridad contractual con mínimo esfuerzo de mantenimiento. Alternativas evaluadas: (A) Publicar esquemas formales JSON Schema independientes (.json): sobrediseño que añade latencia de lectura/red en runtime. Justificación: Documentar el esquema en markdown es el estándar de oro para APIs CLI ligeras y eficientes. |
+| **Evidencia** | `daemon/daemon.py:55,121,152-155,192-199` (`print()` sin `file=sys.stderr`) |
+
+«Esperando que el daemon esté listo (timeout=120.0s)...», «Daemon listo»,
+«Daemon ya está corriendo», «Deteniendo daemon...» van a stdout, violando el
+contrato del docstring de cli.py (diagnósticos a stderr).
+
+**Escenario**: un orquestador que capture stdout de `daemon start` para
+confirmar el arranque recibe ruido de progreso mezclado con la confirmación.
+
+**Propuesta**: redirigir los mensajes de progreso de `DaemonManager` a stderr,
+dejando en stdout solo las confirmaciones de resultado de `cmd_daemon`.
+
+#### N-11 — Tres semánticas de límite de texto según el estado del daemon
+
+| | |
+|---|---|
+| **Severidad** | Menor |
+| **Evidencia** | `daemon/protocol.py:10` (hard limit 5000), `cli.py:150` (warning 2000), sin límite en modo directo |
+
+Directo: ilimitado con warning >2000. Vía daemon: >5000 → 422 de pydantic cuyo
+detalle llega como `DaemonIPCError` con el JSON de validación crudo, y con
+**exit 5** («daemon inalcanzable») cuando la causa real es entrada inválida
+(exit 4).
+
+**Escenario**: el mismo `speak --text <6000 chars>` devuelve exit 0 con
+truncamiento, o exit 5 con un JSON críptico, según haya un daemon corriendo.
+
+**Propuesta**: validar la longitud en el CLI antes del despacho (mismo límite
+que el daemon, exit 4), dejando el límite del daemon como defensa en
+profundidad.
 
 ---
 
 ## Dimensión 3 — Daemon
 
+### Veredicto **[LISTO CON RESERVAS]**
+
+Qué está production-ready: bind exclusivo a loopback (`run.py:132`), validación
+de rutas con canonicalización única sin ventana TOCTOU (`server.py:85-117`),
+lock de síntesis que evita el cruce de voces (`server.py:65`), endpoint
+síncrono despachado al threadpool (health responde durante síntesis, con test),
+kill por PID solo tras verificar el cmdline propio (`daemon.py:224-236`, con
+test), y modelo de amenaza documentado con honestidad en SECURITY.md.
+
+### Hallazgos
+
+#### N-02 — La sandbox de rutas del daemon rompe el ejemplo documentado de `--voice-audio`
+
+| | |
+|---|---|
+| **Severidad** | Mayor |
+| **Evidencia** | `server.py:99-106` (solo `voices_root`, `factory_voices_root` y tempdir); `USAGE.md:273` (ejemplo con audios del directorio del usuario); restricción ausente en USAGE.md y DAEMON-MODE.md |
+
+USAGE documenta `speak --text "Hola" --voice-audio timbre.wav --speech-audio
+condicion.wav` con archivos del directorio de trabajo del usuario — y **con un
+daemon activo, el sondeo automático enruta ese comando al daemon**, que
+responde 400 «la ruta no está en un directorio permitido». El mismo comando
+funciona con `--no-daemon`.
+
+**Escenario**: el usuario sigue el flujo recomendado (`daemon start` →
+`speak --voice-audio ...`) y recibe un error inexplicable que desaparece
+«mágicamente» al apagar el daemon. El error no menciona ni la causa ni la
+salida.
+
+**Propuesta**: (a) documentar la restricción en USAGE/DAEMON-MODE, (b) mejorar
+el mensaje de error del cliente con las alternativas («registra la voz con
+`voice add`, usa `--no-daemon`, o coloca el audio en el directorio de voces»),
+y (c) opcionalmente, que el CLI detecte el caso antes del despacho (ruta fuera
+de los directorios permitidos + daemon activo → modo directo o error
+accionable).
+
+**Tradeoffs**: relajar la sandbox reabriría WARNING-02 (lectura arbitraria del
+FS por procesos locales); la dirección correcta es documentar + degradar con
+un mensaje accionable, no ampliar la superficie.
+
+#### N-13 — Ventana ciega de 30-90 s durante la carga del modelo
+
+| | |
+|---|---|
+| **Severidad** | Menor |
+| **Evidencia** | `run.py:84-139` (el modelo se carga **antes** del bind del puerto); `daemon.py:117-121` (stop sin puerto → «no está corriendo») |
+
+En esa ventana, `daemon status` dice «no está en ejecución», `daemon stop`
+reporta éxito sin matar nada (no hay puerto que resolver a PID y no hay PID
+file), y el daemon aparece después.
+
+**Escenario**: un orquestador que haga start→(timeout)→stop→start puede acabar
+con dos procesos compitiendo por el puerto.
+
+**Propuesta**: escribir un PID file al arrancar `serve` (antes de cargar el
+modelo) y que `stop`/`status` lo consulten como segunda fuente. Complementa la
+carrera start-start ya aceptada (SUGGESTION-03).
+
+**Tradeoffs**: introduce el archivo de estado multiplataforma que la primera
+auditoría evitó; la alternativa mínima es documentar la ventana en
+DAEMON-MODE.md.
+
+#### N-10 — `--compute-backend` se ignora en silencio vía daemon
+
+| | |
+|---|---|
+| **Severidad** | Menor |
+| **Evidencia** | `daemon/protocol.py:22-24` (la petición no lleva backend, por diseño); `USAGE.md:259` («lo usa durante toda la sesión», sin la excepción del daemon) |
+
+**Escenario**: `speak --compute-backend cuda` con daemon CPU activo sintetiza
+en CPU sin ningún aviso.
+
+**Propuesta**: warning por stderr cuando se pasa `--compute-backend` explícito
+y la síntesis va vía daemon; nota en USAGE.
+
+---
+
+## Dimensión 4 — Modelo, estado en disco y ciclo de vida de los datos
+
 ### Veredicto **[LISTO]**
 
-El daemon presenta múltiples garantías de robustez:
-
-- Bind exclusivo a `127.0.0.1` (`run.py:131`, `daemon.py:34`, `ipc.py:30`).
-- Lock de síntesis que serializa el estado global mutable del modelo (`server.py:65, 120`).
-- Endpoint síncrono despachado al threadpool para que `/health` responda durante síntesis (verificado por `test_health_responde_durante_sintesis`).
-- Validación robusta de rutas de audio en `/synthesize`: existencia, extensión `.wav`, header RIFF/WAVE, contención en directorios permitidos, canonicalización única anti-symlink-swap (`server.py:85-117`).
-- `_kill_pid` verifica el cmdline antes de terminar un proceso para no matar servicios ajenos en el puerto 8765 (`daemon.py:225-262`).
-- Headers `X-T3-Time` y `X-S3Gen-Time` exponen tiempos por sub-etapa para diagnóstico (`server.py:128-133`).
-- Límites duros en `SynthesizeRequest` previenen DoS trivial por payload (5000 chars texto, 4096 chars ruta, `protocol.py:10-27`).
-
----
+Qué está production-ready: gate `is_model_cached` con validación del header
+safetensors (caché truncada detectada; R-04 cerrado con tests), provisión
+explícita de `ve.safetensors` (R-12), resolución determinista de snapshots
+(refs/main → mtime), `cleanup` quirúrgico con defensa en profundidad
+(`models--ResembleAI--*`), `setup --force-update` (R-13), pre-chequeo de disco
+con ascenso al primer ancestro existente (R-14), y respeto de
+`HF_HUB_CACHE`/`HF_HOME` delegando en `huggingface_hub.constants` (R-10).
 
 ### Hallazgos
 
-#### R-08 — `--port` está medio cableado
-
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | Solo los subparsers `daemon start` (cli.py:649) y `daemon serve` (cli.py:665) definen `--port`; los subparsers `stop` (cli.py:654), `restart` (cli.py:657) y `status` (cli.py:660) no lo declaran, así que `getattr(args,"port",None)` en `cmd_daemon` (cli.py:516) cae a `None` y se usa el default 8765. Además, el cliente de síntesis crea `DaemonIPCClient()` sin puerto (`cli.py:81`, `ipc.py:28-30`) → siempre 8765; `is_daemon_running()` idem (`ipc.py:109-120`). |
-| **Escenario** | Usuario arranca `daemon start --port 9000`; luego `daemon status` dice «no está en ejecución», `daemon stop` no lo detiene, y `speak` no lo usa (cae a modo directo en silencio). El daemon en puerto no-default queda huérfano e inalcanzable desde el CLI. |
-| **Propuesta** | Declarar el flag `--port` en los subparsers `stop`, `restart` y `status` (`start` y `serve` ya lo tienen); `DaemonManager` ya acepta el puerto (`cli.py:516`), así que la propagación en `cmd_daemon` es inmediata. Para el camino de síntesis, pasar el puerto a `DaemonIPCClient` en `_speak_via_daemon` (`cli.py:81`) y a `is_daemon_running`, usando una variable de entorno `TTS_SIDECAR_DAEMON_PORT` como fallback implícito cuando `speak` no recibe flag. |
-| **Tradeoffs y Justificación** | La opción elegida (Flag + Variable de entorno) es robusta, limpia y sin estado en disco. Alternativas evaluadas: (A) Guardar el puerto activo en un archivo de estado físico (ej: `daemon.port`): introduce la posibilidad de leer un archivo huérfano si el daemon crashea o es eliminado forzosamente. Justificación: Las variables de entorno son eficientes y previenen problemas de archivos corruptos o bloqueados en sistemas multiusuario. |
-
-#### R-09 — `/shutdown` sin autenticación (superficie local no documentada)
+#### N-17 — `setup` carga el modelo completo en RAM cuando solo necesita descargarlo
 
 | | |
 |---|---|
 | **Severidad** | Menor |
-| **Evidencia** | Documentado como SUGGESTION-02 (`server.py:159-177`): cualquier proceso local puede apagar el daemon. `docs/DAEMON-MODE.md` no tiene sección de seguridad que documente el modelo de amenaza. |
-| **Escenario** | Combinado con que `/synthesize` también es invocable por cualquier proceso local (DoS de CPU serializado por el lock), conviene declararlo explícitamente en la documentación de seguridad orientada al integrador, que hoy no existe. |
-| **Propuesta** | Documentar transparentemente el modelo de amenazas de seguridad del daemon en `docs/DAEMON-MODE.md`, explicitando que al escuchar solo en loopback (`127.0.0.1`), se delega la seguridad en el control de acceso del sistema operativo. |
-| **Tradeoffs y Justificación** | La opción elegida (Mitigación documental del riesgo residual) tiene costo-código cero. Alternativas evaluadas: (A) Implementar tokens de autenticación dinámicos en disco: añade complejidad I/O y potenciales fallas de permisos multiusuario. Justificación: Dado que el socket está restringido localmente, la seguridad del SO es suficiente y añadir criptografía local no aporta seguridad real contra un atacante que ya tiene privilegios de ejecución locales. |
+| **Evidencia** | `cli.py:612-613` (`ChatterboxEngine.get_instance(...)` como mecanismo de descarga) |
+
+**Escenario**: en la máquina de 4 GB que USAGE declara como mínimo, la
+provisión puede paginar o fallar cuando un `snapshot_download` habría bastado.
+
+**Propuesta**: en `cmd_setup`, descargar con `snapshot_download` +
+`hf_hub_download` (ve.safetensors) sin instanciar el motor; `doctor`/primer
+`speak` validan la carga real.
+
+**Tradeoffs**: se pierde la verificación implícita de que el modelo *carga*
+(no solo existe) al terminar setup; se compensa parcialmente con el chequeo de
+header ya existente.
+
+#### N-16 — Actualización de versión sin documentar; symlink AppImage apunta a la versión vieja
+
+| | |
+|---|---|
+| **Severidad** | Menor |
+| **Evidencia** | `cli.py:472-501` (symlink a la ruta absoluta de `$APPIMAGE`); USAGE.md sin sección de actualización |
+
+**Escenario**: el usuario Linux descarga `tts-sidecar-0.2.0-x86_64.AppImage`;
+`~/.local/bin/tts-sidecar` sigue apuntando al 0.1.0 hasta re-ejecutar `setup`
+desde el nuevo archivo. En Windows el upgrade in-place funciona (AppId fijo);
+en macOS, re-arrastrar el .app + re-ejecutar el .command. Nada de esto está
+documentado.
+
+**Propuesta**: sección «Actualizar de versión» en USAGE con los tres caminos;
+en Linux, mencionar que `setup` del nuevo AppImage re-apunta el symlink.
 
 ---
 
-## Dimensión 4 — Gestión del Modelo y del Estado en Disco
+## Dimensión 5 — Instalación/desinstalación end-to-end y equivalencia entre SO
 
 ### Veredicto **[PARCIALMENTE LISTO]**
 
-`setup` es idempotente real: si `is_model_cached` es True termina sin descargar (`cli.py:482-484`); `speak`/`daemon start` fallan rápido remitiendo a `setup`. `_resolve_cached_snapshot` resuelve el snapshot vigente de forma determinista (refs/main → mtime, `model_cache.py:38-60`), evitando el `os.listdir()[0]` no determinista. El diseño de dos niveles de voces con precedencia usuario→fábrica está bien encapsulado.
-
----
-
-### Hallazgos
-
-#### R-10 — La ruta de caché está hardcodeada e ignora `HF_HOME`
-
-| | |
-|---|---|
-| **Severidad** | Bloqueante |
-| **Evidencia** | `model_cache.py:28-30` (`hub_cache_path`) devuelve siempre `Path(os.path.expanduser("~/.cache/huggingface/hub"))`, y `setup` lo repite literal (`cli.py:477`). Pero `snapshot_download` (de `huggingface_hub`, usado en `engine.py:298-304`) **sí** respeta `HF_HOME`/`HF_HUB_CACHE`. |
-| **Escenario** | Usuario con `HF_HOME` configurado (entornos corporativos, disco de sistema pequeño, o un alias de usuario con `HOME` redirigido) ejecuta `setup`; el modelo se descarga a la ruta efectiva de HuggingFace (típicamente `$HF_HOME/hub`), pero `is_model_cached` mira solo `~/.cache/huggingface/hub` → devuelve False → `speak` aborta con «modelo no descargado» pese a estar descargado. En la siguiente invocación de `setup`, `is_model_cached` re-evalúa a False, así que re-descarga a una ubicación que igual no detectará. Bucle sin salida. |
-| **Propuesta** | Refactorizar `hub_cache_path()` en `model_cache.py` para consultar en el orden de precedencia estándar de Hugging Face: `HF_HUB_CACHE` → `$HF_HOME/hub` → `~/.cache/huggingface/hub` como fallback (o, más simple aún, delegar en `huggingface_hub.constants.HF_HUB_CACHE`, que ya implementa esa precedencia y es la misma fuente que consulta `snapshot_download`). Corregir también el mensaje de `setup` (`cli.py:477`), que imprime la ruta literal `~/.cache/huggingface/hub` en vez de la ruta efectiva. |
-| **Tradeoffs y Justificación** | La opción elegida (Precedencia oficial de HF) corrige el bucle de falsos negativos de caché. Alternativas evaluadas: (A) Consultar solo `HF_HOME`: ignora la variable de entorno más específica `HF_HUB_CACHE`, rompiendo configuraciones avanzadas. Justificación: Replicar el comportamiento nativo del cliente de Hugging Face es la única forma de garantizar la consistencia en el estado de caché en entornos corporativos u offline. |
-
-#### R-11 — Sin ruta de desaprovisionamiento del modelo ni de los datos de usuario
-
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | No existe ningún subcomando `cleanup`/`uninstall`/`purge` en `cli.py:577-677`. El instalador de Windows y los scripts `.command` de macOS solo revierten PATH y dejan `~/.cache/huggingface/hub` y `data_root()/voices` huérfanos. |
-| **Escenario** | Usuario desinstala «limpiamente» y queda con cientos de MB de modelo y sus voces en disco, sin instrucción de cómo borrarlos. Una segunda instalación posterior redescarga el modelo y las voces del usuario desaparecen si el directorio de datos se elimina en la desinstalación del SO. |
-| **Propuesta** | Crear un subcomando `tts-sidecar cleanup` con flags `--model` (elimina la caché Hugging Face del modelo), `--voices` (elimina el directorio de datos de voces de usuario) y `--all` (ambos), con soporte para `--dry-run` informativo. |
-| **Tradeoffs y Justificación** | La opción elegida (Comando cleanup en la CLI) proporciona una experiencia de desinstalación limpia y prolija. Alternativas evaluadas: (A) Recomendar la eliminación manual de carpetas en la documentación: propenso a errores humanos (borrado de datos incorrectos) y fricción de cara al usuario. Justificación: Un software local que descarga gigabytes de datos debe proveer herramientas integradas para liberar espacio de forma segura. |
-
-#### R-12 — Sin verificación de que `ve.safetensors` quede provisionado
-
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | `es-mx-latam` no incluye `ve.safetensors`; se obtiene del modelo base vía `hf_hub_download` durante `_load_es_latam` (`engine.py:335-353`). En el primer `setup` esto se resuelve como efecto colateral de cargar el motor (que llama `_download_model` → `ChatterboxEngine.get_instance`). Pero `is_model_cached` (`model_cache.py:63-81`) solo verifica `t3_es_mx_latam.safetensors` en la carpeta del modelo es-mx-latam, **no** la presencia de `ve.safetensors` en la carpeta de `ResembleAI/chatterbox`. |
-| **Escenario** | Si la caché del modelo base se poda o se corrompe externamente, pero `t3_es_mx_latam.safetensors` sigue presente, `doctor`/`setup` reportan todo OK y el primer `speak` **sin conexión** falla al intentar `hf_hub_download("ResembleAI/chatterbox", "ve.safetensors")` (`engine.py:348-353`), rompiendo el criterio de aceptación 8 (offline). |
-| **Propuesta** | Modificar `is_model_cached` para validar la presencia de `ve.safetensors` en la caché del modelo base y refactorizar `setup` para que lo descargue explícitamente después del language-pack. |
-| **Tradeoffs y Justificación** | La opción elegida (Verificación + Descarga explícita) asegura la autonomía en modo offline. Alternativas evaluadas: (A) Solo verificar el archivo y abortar: el usuario tendría que adivinar cómo descargar `ve.safetensors` si este falta en su caché local. Justificación: Garantiza el cumplimiento de la promesa de '100% offline' tras ejecutar setup, eliminando descargas de red en el primer comando speak. |
-
-#### R-13 — Sin mecanismo de actualización del modelo
-
-| | |
-|---|---|
-| **Severidad** | Menor |
-| **Evidencia** | Un nuevo release del modelo en el repo de HF no se adopta: `refs/main` cacheado apunta a la revisión vieja y `is_model_cached` permanece True para siempre. |
-| **Escenario** | El usuario no tiene forma de forzar una actualización del modelo salvo borrar la caché a mano. |
-| **Propuesta** | Incorporar el flag `--force-update` a `setup` que descarte el checkpoint local y fuerce una nueva descarga desde el hub de Hugging Face. |
-| **Tradeoffs y Justificación** | La opción elegida (Flag explícito de actualización) mantiene la inmutabilidad de la caché por defecto. Alternativas evaluadas: (A) Consultar actualizaciones de red en cada inicio: requiere internet en cada ejecución e incrementa el tiempo de arranque de la aplicación. Justificación: Respeta el diseño offline y la reproducibilidad de la síntesis, permitiendo una actualización bajo demanda del usuario. |
-
-#### R-14 — Sin pre-chequeo de espacio en disco
-
-| | |
-|---|---|
-| **Severidad** | Menor |
-| **Evidencia** | `setup` (cli.py:474-498) no verifica espacio en disco antes de la descarga. Una descarga que agota el disco deja caché parcial y propaga el error crudo de `huggingface_hub`. |
-| **Propuesta** | Realizar un pre-chequeo del espacio en disco usando la dependencia `psutil` antes de iniciar la descarga en `setup` y abortar con un mensaje descriptivo si el espacio disponible es menor a 2 GB. |
-| **Tradeoffs y Justificación** | La opción elegida (Pre-chequeo con psutil) evita descargas corruptas parciales por falta de espacio. Alternativas evaluadas: (A) Capturar el error en plena descarga de HuggingFace: deja archivos huérfanos a medias en disco que pueden confundir a futuras comprobaciones rápidas de presencia. Justificación: `psutil` ya es una dependencia de runtime; su uso inicial es de coste cero y previene la corrupción de la caché local. |
-
----
-
-## Dimensión 5 — Compatibilidad Multiplataforma Real
-
-### Veredicto **[NO LISTO]**
-
-`paths.py` distingue correctamente raíz escribible (LOCALAPPDATA / `XDG_DATA_HOME` / Application Support) de raíz de fábrica (`sys._MEIPASS` congelado), creando el user-data-dir bajo demanda (`paths.py:34-54`). La autodetección de backend degrada con gracia a CPU envolviendo los probes de torch en try/except (`engine.py:142-161`). El hilo de CPU se topa a 8 por contención de ancho de banda de memoria (`engine.py:47-49`).
-
-Sin embargo, hay inconsistencias en los artefactos y requisitos de plataforma que merecen atención.
-
----
+Qué está production-ready: el diseño de paridad es genuino — PATH en los tres
+SO con reversión testeada (Inno `[Code]`, symlink `--remove-path`, `.command`
+de desinstalación), consola persistente post-instalación (`cmd /k` /
+Terminal), oferta de `setup` en la instalación de los tres SO, naming
+`uname -m` unificado, y la ruta de desinstalación completa documentada en
+USAGE.md:402-413.
 
 ### Hallazgos
 
-#### R-15 — El build de macOS NO produce un binario universal2 real
+- **N-01** deja a Windows sin instalador (ver Dimensión 1): el recorrido
+  usuario-nuevo → descarga → instala no puede ni empezar en Windows.
 
-| | |
-|---|---|
-| **Severidad** | Bloqueante |
-| **Evidencia** | `build_macos.py` calcula `arch_flag` (líneas 66-67) solo para nombrar el `.app`/`.dmg` (líneas 109, 140), pero **nunca lo pasa a PyInstaller**: `common_pyinstaller_args` (`build_utils.py:191`) no emite `--target-arch` ni equivalente (verificado: `grep target-arch scripts/` → 0 coincidencias fuera del naming). El binario resultante es de la arquitectura nativa del runner de CI (m4pro.medium, máquina con Apple Silicon). El `.dmg` resultante, etiquetado `universal2.dmg`, es en realidad `arm64`. |
-| **Escenario** | Usuario con Mac Intel descarga `tts-sidecar-<ver>-universal2.dmg` y el binario arm64 no arranca. Contradice directamente el criterio de aceptación 3 de `docs/GOAL.md:116` («El instalador de macOS funciona en macOS 12+») y la afirmación «universal2» de README, BUILD y CI. |
-| **Propuesta** | Corregir el nombre del artefacto en el pipeline de macOS a la arquitectura del runner real (`arm64.dmg` o `x86_64.dmg`) y actualizar toda la documentación (README, USAGE y CI) para reflejar la realidad del binario distribuido. |
-| **Tradeoffs y Justificación** | La opción elegida (Nombres reales de arquitectura) es honesta y evita falsas expectativas de compatibilidad en Mac Intel. Alternativas evaluadas: (A) Compilar dos veces y unificar con `lipo`: exige configurar runners duales en CircleCI y compilar cruzadamente dependencias C (Torch/ONNX), lo cual no es soportado de forma oficial y triplica el tamaño del bundle. Justificación: El tamaño y la complejidad de las librerías dinámicas de ML en macOS hacen que la compilación universal sea inviable; la claridad del artefacto es la solución correcta. |
-
-#### R-16 — Versión mínima de macOS inconsistente
-
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | `Info.plist` declara `LSMinimumSystemVersion` = **10.13** (`build_macos.py:294`), pero `docs/GOAL.md:116` dice «macOS 12+» y el sistema de build usa Python 3.13 (que requiere SDK reciente, no disponible en versiones anteriores a macOS 12). |
-| **Escenario** | Usuario en macOS 10.13-11.x puede instalar según el plist, pero el binario (construido con Python 3.13 y toolchain recientes) probablemente no arranque, sin mensaje claro. |
-| **Propuesta** | Modificar el archivo `Info.plist` de macOS para declarar `LSMinimumSystemVersion` en `12.0` (Monterey), alineándolo con los requisitos mínimos reales del toolchain de compilación (Python 3.13 y SDKs modernos). |
-| **Tradeoffs y Justificación** | La opción elegida (Unificar versión mínima a macOS 12+) evita crasheos silenciosos en versiones obsoletas. Alternativas evaluadas: (A) Intentar compilar contra SDKs heredados para soportar 10.13: requiere degradar la versión de Python y dependencias críticas a versiones sin soporte. Justificación: Mantiene el código moderno e impide errores de ejecución difíciles de diagnosticar en sistemas sin compatibilidad de API real. |
-
-#### R-17 — Instalación Windows es por-máquina y exige admin, sin declararlo
+#### N-08 — La página InfoAfter afirma incluir el código fuente (falso), con typo y referencia a archivo inexistente
 
 | | |
 |---|---|
 | **Severidad** | Menor |
-| **Evidencia** | El `.iss` fija `PrivilegesRequired=admin`, `{autopf}` (Program Files) y escribe PATH en `HKLM` (`create_installer_windows.py:66, 73, 105`). No hay nota en README ni en la página de descarga sobre este requisito. |
-| **Escenario** | Usuario sin derechos de administrador no puede instalar y ninguna documentación lo advierte como requisito. |
-| **Propuesta** | Mantener la instalación por máquina en Windows (`HKLM`) para asegurar la disponibilidad del comando globalmente, pero documentar explícitamente en el README y la página de descarga que requiere privilegios de administrador. |
-| **Tradeoffs y Justificación** | La opción elegida (Instalación global + documentación de privilegios) asegura la consistencia de PATH para servicios del sistema. Alternativas evaluadas: (A) Cambiar a instalación por usuario (`HKCU`): el ejecutable solo estará disponible para el usuario instalador, rompiendo integraciones con servicios web locales. Justificación: Es la mejor opción para herramientas de tipo 'sidecar' que suelen ser consumidas por daemon u orquestadores en cuentas de servicio. |
+| **Evidencia** | `create_installer_windows.py:249-251`: «El instalador incluye el código fuente accompanido (ver LICENSE.txt junto a este programa)» |
 
-#### R-18 — Rendimiento declarado sin peor caso
+Tres defectos en una frase: el bundle **no** incluye el código fuente (incluye
+`LICENSE` y `THIRD-PARTY-LICENSES.md`); el archivo se llama `LICENSE`, no
+`LICENSE.txt`; y «accompanido» es un typo visible para todo usuario. La
+obligación GPLv3 §6 queda cubierta por el enlace al repositorio (§6d), pero el
+texto debe decir eso, no afirmar algo falso.
+
+**Propuesta**: reescribir el párrafo: «El código fuente completo está
+disponible públicamente bajo GPLv3 en el repositorio: …» y corregir la
+referencia a `LICENSE`.
+
+#### N-12 — `--output` a un directorio inexistente: directo crea, daemon falla
 
 | | |
 |---|---|
 | **Severidad** | Menor |
-| **Evidencia** | `USAGE.md:209-229` cita ~15-30 s de carga y ~12 s T3 / ~6 s S3Gen, pero son cifras de una máquina no especificada. No hay mención de CPU con/sin AVX, RAM mínima, ni del comportamiento en hardware modesto. El modelo es ~0.5 B params + vocoder, lo que implica >2 GB de RAM en uso activo. |
-| **Escenario** | Usuario en hardware modesto (CPU sin AVX2, 4 GB de RAM) puede experimentar fallos por OOM o tiempos muy superiores a los declarados. |
-| **Propuesta** | Documentar formalmente en `USAGE.md` los requisitos mínimos aproximados (CPU con AVX2, RAM de 8 GB recomendada y 4 GB mínima) e implementar warnings informativos no bloqueantes en `doctor` si no se cumplen. |
-| **Tradeoffs y Justificación** | La opción elegida (Warnings en doctor + Documentación) orienta al usuario sin bloquear configuraciones personalizadas válidas. Alternativas evaluadas: (A) Bloquear la provisión en setup si el hardware no es el ideal: restringe el uso en máquinas virtuales o entornos con swap optimizado. Justificación: Evita reportes falsos de bugs de rendimiento sin imponer límites artificiales al software de código abierto. |
+| **Evidencia** | `engine.py:621` (`_save_wav` hace `mkdir(parents=True)`) vs `cli.py:91` (`_emit_audio` abre sin crear) |
+
+**Escenario**: `speak --output out/nuevo/a.wav` funciona sin daemon y devuelve
+exit 3 con daemon.
+
+**Propuesta**: `_emit_audio` debe crear los padres igual que `_save_wav`
+(o ambos deben rechazar igual; lo importante es la simetría).
 
 ---
 
-## Dimensión 6 — Experiencia de Instalación/Desinstalación End-to-End
+## Dimensión 6 — Tests y CI
 
-### Veredicto **[NO LISTO]**
+### Veredicto **[LISTO CON RESERVAS]**
 
-La auditoría por SO de las dos anteriores dejó una base sólida: el instalador Windows muestra página InfoAfter y ofrece ejecutar `setup` con la consola persistente (`create_installer_windows.py:113`), macOS provee scripts `.command` de instalación/desinstalación dentro del `.dmg`, y Linux integra `setup --remove-path` para la reversión del symlink de PATH. La actualización v2-sobre-v1 preserva modelo (caché de usuario) y voces de usuario (user-data-dir) en los tres SO por diseño de rutas.
-
-Sin embargo, los errores de comunicación al usuario (enlaces y nombres de artefactos) contradicen este buen trabajo de fondo.
-
----
+Qué está production-ready: 185 tests verdes, triple puerta nativa
+(test-linux/test-windows/test-macos) que bloquea los 4 builds, cobertura real
+de las rutas de error del CLI (exit codes, degradación de audio, Ctrl+C,
+cleanup interactivo), del daemon (validación de rutas, health durante
+síntesis, kill selectivo, canonicalización) y de la caché de modelo (headers
+truncados, refs/main, precedencias). CI instala con `--require-hashes` y corre
+`compileall` como red de sintaxis.
 
 ### Hallazgos
 
-#### R-19 — El enlace de descarga del README apunta a un repositorio ajeno
+- Los tests de los scripts de build cubren solo las **funciones puras**
+  (templates ISS/AppRun/.desktop/Info.plist); ningún test ejercita el flujo
+  `main()` de `create_installer_windows.py` — exactamente donde vivía N-01.
+  La propuesta del test de humo con ISCC mockeado forma parte del cierre de
+  N-01.
+- El step de staging de PowerShell debería fallar duro si el artefacto no
+  existe (segunda red de N-01).
 
-| | |
-|---|---|
-| **Severidad** | Bloqueante |
-| **Evidencia** | `README.md:22` reza: «Descarga el ejecutable para tu plataforma desde [Releases](https://github.com/resemble-ai/tts-sidecar/releases)». Pero el repo real es `github.com/CristianRojas-SoftwareEngineer/tts-sidecar` (`package.json:35`). `grep -c "resemble-ai" README.md USAGE.md` devuelve `1` y `0` respectivamente: el error está **solo en README**, no en USAGE (la guía completa). |
-| **Escenario** | Primer paso del usuario nuevo —descargar el binario— lo lleva a un repositorio que no es el del proyecto (probablemente 404, o un proyecto homónimo no relacionado). Bloquea el onboarding completo. |
-| **Propuesta** | Modificar el enlace de descarga en `README.md:22` para que apunte a la URL correcta del repositorio en Github. |
-| **Tradeoffs y Justificación** | La opción elegida (Corrección directa) es obligatoria y no tiene alternativas lógicas. |
-
-#### R-20 — Los nombres de artefacto del README no coinciden con los reales
-
-| | |
-|---|---|
-| **Severidad** | Mayor (revisada desde el borrador original) |
-| **Evidencia** | `README.md:30-35` instruye `chmod +x tts-sidecar-linux-x86_64` y `./tts-sidecar-linux-x86_64 setup`, y análogamente para macOS con `tts-sidecar-macos-universal2`. Pero los artefactos reales (verificados en `.circleci/config.yml:91, 169` y `scripts/build_linux.py:183`) son `tts-sidecar-<ver>-x86_64.AppImage` y `tts-sidecar-<ver>-universal2.dmg`. **Importante matiz**: USAGE.md (que es la guía completa del usuario, no el README de presentación) sí usa los nombres correctos con `.AppImage` (`USAGE.md:91-92`). El error está **solo en README**, que es la primera lectura del usuario. |
-| **Escenario** | El usuario que sigue README no encuentra el archivo que se le dice descargar. La guía de macOS (`chmod +x` sobre un binario suelto) no aplica a un `.dmg` (que debe montarse y el `.app` debe arrastrarse a Aplicaciones). |
-| **Propuesta** | Actualizar los comandos de ejemplo en el `README.md` para que utilicen los nombres exactos de los instaladores producidos por el CI (`.AppImage`, `.dmg`, `.exe`), sincronizándolos con el flujo de CircleCI. |
-| **Tradeoffs y Justificación** | La opción elegida (Sincronización documental) es la única vía para evitar la fricción inicial de instalación. |
-
-#### R-21 — macOS: fricción sudo del `.command` no anticipada en README
+#### N-14 — Documentación desincronizada con el estado real
 
 | | |
 |---|---|
 | **Severidad** | Menor |
-| **Evidencia** | El script `Instalar (PATH + modelo).command` generado en `build_macos.py:190-235` invoca `sudo mkdir` y `sudo ln -sf`. README no lo anticipa; USAGE sí lo menciona en §«Primer uso». |
-| **Escenario** | Usuario que solo leyó README (siguiendo el flujo de R-19/R-20) se topa con un prompt de contraseña inesperado al ejecutar el script del `.dmg`. |
-| **Propuesta** | Incorporar una advertencia breve en la sección de instalación de macOS en el `README.md` sobre el requerimiento del prompt de sudo para la creación del symlink en `/usr/local/bin`. |
-| **Tradeoffs y Justificación** | La opción elegida (Advertencia en README) previene el rechazo de usuarios no acostumbrados a peticiones de sudo en scripts locales. |
+| **Evidencia** | `docs/GOAL.md:140,156` y `CLAUDE.md` («162 tests»; son 185); `USAGE.md:506` vs `BUILD.md:302` (tamaños contradictorios, ver N-05); `CHANGELOG.md` con «[No publicado]» + 0.1.0 fechado 2026-07-03 sin tag git |
+
+**Propuesta**: actualizar los conteos, unificar los tamaños tras medir (N-05),
+y decidir el corte del 0.1.0 antes de taggear (¿incluye lo de «No publicado»?).
 
 ---
 
-## Dimensión 7 — Calidad y Cobertura de Tests
+## Dimensión 7 — Gobernanza de release, licenciamiento y cadena de suministro
 
 ### Veredicto **[PARCIALMENTE LISTO]**
 
-La cobertura es real y bien dirigida en zonas críticas: validación de rutas de voces, seguridad del daemon, resolución de caché, semántica setup-vs-doctor, construcción del instalador Windows. El CI corre `compileall src/` como red de sintaxis (`config.yml:28-29`). **Conteo verificado: 139 tests** (`pytest tests/ --collect-only -q` → `139 tests collected`).
-
-Sin embargo, los tests se ejecutan únicamente en Linux, y no hay smoke test del binario congelado.
-
----
-
-### Hallazgos
-
-#### R-22 — Los tests solo corren en Linux; Windows/macOS quedan sin ejercer
-
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | El job `test` usa el executor `docker cimg/python:3.13` (`config.yml:8-11`) y los jobs de build no ejecutan pytest. Todo el código específico de plataforma se prueba con mocks sobre Linux: `pycaw` (COM, ver `test_audio.py:test_fallo_de_pycaw_degrada_al_fallback`), `winsound` (Windows), la generación del `.iss` (verificada como string en `test_create_installer_windows.py`, no compilada por Inno Setup real), `afplay` (macOS). |
-| **Escenario** | Bug en la enumeración COM de pycaw o en el player de winsound no se detecta en CI y llega al usuario Windows. |
-| **Propuesta** | Añadir un job en el workflow de CircleCI (`build-windows` o uno dedicado de `test-windows`) que ejecute la suite de pruebas unitarias sobre el executor de Windows `win/server-2022`. |
-| **Tradeoffs y Justificación** | La opción elegida (Job Windows de test en CI) detecta regresiones específicas en APIs de Windows (Winsound/Pycaw) de forma automática. Alternativas evaluadas: (A) Mantener solo mocks en Linux: ahorra créditos de CI pero incrementa el riesgo de introducir fallas silenciosas en la plataforma principal de los usuarios. Justificación: La paridad de audio exige validación real sobre la plataforma; el coste de CI se compensa con la fiabilidad. |
-
-#### R-23 — Sin smoke test del binario congelado en CI
-
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | Los jobs compilan y hacen `store_artifacts` pero nunca ejecutan el ejecutable resultante. `docs/BUILD.md:114-127` («Verificación post-build») lista los comandos como **manuales**, no automatizados. |
-| **Escenario** | Problema de empaquetado (metadata faltante, `--collect-all` incompleto, data-files ausentes, o `pkg_resources` mock no instalado) produce un binario que arranca con `ImportError` o falla con un `FileNotFoundError` al primer comando, y CI lo publica igualmente como artefacto «verde». |
-| **Propuesta** | Introducir una etapa de validación automática post-compilación en los jobs de CI que ejecute el comando `tts-sidecar version` (o similar que no cargue el modelo) sobre el ejecutable congelado, verificando código de salida 0. |
-| **Tradeoffs y Justificación** | La opción elegida (Smoke test en CI) previene la publicación de binarios congelados rotos (ej: imports perezosos ausentes). Alternativas evaluadas: (A) Verificación manual antes del release: propensa a omisiones humanas y no protege los builds continuos de desarrollo. Justificación: Es la medida de protección más barata en tiempo de CI con el mayor retorno en fiabilidad del empaquetado. |
-
-#### R-24 — `build_linux.py` y `build_macos.py` sin tests; ramas de fallo de build sin cobertura
-
-| | |
-|---|---|
-| **Severidad** | Menor |
-| **Evidencia** | Solo `build_utils.py` y `create_installer_windows.py` tienen tests. La construcción del AppDir, el AppRun, la conversión a `.app`, y la generación del `.dmg` no se ejercen en tests. |
-| **Propuesta** | Refactorizar la lógica de templates de scripts (`build_linux.py` y `build_macos.py`) en funciones modulares testeables y añadir pruebas de cadenas en pytest, delegando la compilación del empaque a los smoke tests. |
-| **Tradeoffs y Justificación** | La opción elegida (Pruebas unitarias de templates + Smoke tests) cubre la lógica de generación sin la complejidad de simular empaquetadores del sistema (como `appimagetool` o `create-dmg`). Alternativas evaluadas: (A) Mockear el entorno de build completo: requiere un esfuerzo de ingeniería excesivo y frágil. Justificación: Valida las expresiones lógicas del script (donde ocurren los bugs) de manera rápida y mantenible. |
-
-#### R-25 — Conteo de tests documentado desfasado
-
-| | |
-|---|---|
-| **Severidad** | Menor (revisada — el conteo real es 139) |
-| **Evidencia** | `docs/GOAL.md:140` dice «95/95» y `docs/GOAL.md:156` dice «95 tests». `CLAUDE.md:197` dice «95 tests». **Conteo real verificado en este repo: `pytest tests/ --collect-only -q` → `139 tests collected`**. |
-| **Propuesta** | Actualizar las referencias de conteo de tests en `CLAUDE.md` y `docs/GOAL.md` al valor exacto de `139` pruebas. |
-| **Tradeoffs y Justificación** | La opción elegida (Corrección documental) es la única alternativa para mantener la credibilidad técnica de los documentos. |
-
----
-
-## Dimensión 8 — Documentación como Producto
-
-### Veredicto **[PARCIALMENTE LISTO]**
-
-La documentación de usuario es notablemente completa: USAGE.md recorre cada comando con ejemplos, documenta problemas comunes (binarios sin firmar, host sin audio, voz en uso), y la tabla de diferencias por SO es honesta. BUILD.md documenta la política de dependencias y confiesa la limitación de firma/notarización (§3). GOAL.md marca con honestidad los criterios pendientes de validación end-to-end.
-
-Sin embargo, la gobernanza de release está ausente y hay inexactitudes en detalles visibles.
-
----
+Qué está production-ready: cadena de suministro sobresaliente (lock universal
+con hashes, pines de Chocolatey/pip/appimagetool con SHA-256, política
+documentada de actualización deliberada), gobernanza presente (CHANGELOG con
+Keep-a-Changelog + SemVer, CONTRIBUTING, SECURITY con canal privado de
+reporte), licencias empaquetadas en los tres artefactos
+(`copy_license_files`), THIRD-PARTY-LICENSES verificado, y la sección de uso
+ético del watermark bypaseado explicada con honestidad en README/USAGE/SECURITY.
 
 ### Hallazgos
 
-#### R-26 — Vacío total de gobernanza de release
+#### N-04 — No existe camino de publicación para los binarios que README promete
 
 | | |
 |---|---|
 | **Severidad** | Mayor |
-| **Evidencia** | Búsqueda exhaustiva: no existen `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, plantilla de reporte de bugs, código de conducta, política de versionado ni canal de soporte declarado. El repo no tiene `.github/` con issue templates. |
-| **Escenario** | Usuario que encuentra un bug no sabe dónde reportarlo ni bajo qué expectativa de tiempo de respuesta. Contribuidor no tiene guía de contribución. No hay historial de cambios para un primer release público, lo que dificulta a los adoptadores tempranos evaluar la velocidad de evolución del proyecto. |
-| **Propuesta** | Crear archivos mínimos de gobernanza del proyecto (`CHANGELOG.md` en formato Keep a Changelog, `CONTRIBUTING.md` para guiar aportes, y `SECURITY.md` para reportar fallas) en la raíz del repositorio. |
-| **Tradeoffs y Justificación** | La opción elegida (Gobernanza mínima) es esencial para la distribución abierta del software. Alternativas evaluadas: (A) Sin gobernanza: deja al proyecto expuesto a reportes desordenados y reduce la confianza de los adoptadores tempranos. Justificación: Establece las bases éticas y de soporte necesarias para una herramienta local de IA. |
+| **Evidencia** | README.md:40 y SECURITY.md remiten a GitHub Releases; `git tag` vacío pese al 0.1.0 fechado en CHANGELOG; `.circleci/config.yml` solo hace `store_artifacts` (artefactos efímeros internos); ningún documento describe el flujo de publicación; no se generan checksums |
 
-#### R-27 — La afirmación «diagnósticos a stderr» de USAGE es incorrecta
+No hay tag, no hay release publicado, no hay job ni runbook de publicación
+(tag → build → checksums → subida a Releases). Agravante: al no haber firma de
+código (R-38, reserva aceptada), los **checksums SHA-256 publicados** son la
+única verificación de integridad posible para el usuario — y no se generan en
+ninguna parte. SECURITY.md pide «verifica que descargas desde el repositorio
+oficial» sin dar el mecanismo.
 
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | `USAGE.md:479-481` reza: «Contrato de salida estable: los datos van a stdout y los diagnósticos y errores a stderr, siempre en UTF-8; código de salida 0 en éxito y distinto de 0 en error». La realidad (ver R-05) es que `timing.log()` y `timed_command` usan stdout. |
-| **Propuesta** | Actualizar el texto en `USAGE.md` para reflejar el contrato de salida correcto (los diagnósticos van a stderr y solo los datos estables a stdout) tras el cierre de R-05. |
-| **Tradeoffs y Justificación** | La opción elegida (Sincronización de USAGE.md) es obligatoria para la coherencia de la documentación técnica. |
+**Escenario**: hoy no existe nada que un usuario pueda descargar; y cuando
+exista, no podrá verificar su integridad.
 
-#### R-28 — Inexactitud del ejemplo de salida de `doctor`
+**Propuesta**: (a) definir el flujo de release, aunque sea manual, documentado
+en BUILD.md o RELEASING.md: taggear `vX.Y.Z`, correr el pipeline, descargar
+los 4 artefactos, generar `SHA256SUMS.txt`, publicar en GitHub Releases con
+las notas del CHANGELOG; (b) añadir al CI un step que emita el SHA-256 de cada
+artefacto en el log del job (verificable de punta a punta); (c) crear el tag
+`v0.1.0` cuando se cierre el gate de esta auditoría.
+
+**Tradeoffs**: automatizar la publicación desde CircleCI exige un token de
+GitHub en el CI (superficie de secretos); el flujo manual documentado es
+suficiente para 0.1.0.
+
+#### N-15 — `voice add --compute-backend` es una flag muerta
 
 | | |
 |---|---|
 | **Severidad** | Menor |
-| **Evidencia** | `USAGE.md:154` muestra `Python: 3.11.x ...` mientras el proyecto exige Python 3.13+ (`pyproject.toml:9`, `docs/BUILD.md:9`). |
-| **Propuesta** | Reemplazar el ejemplo de salida del comando `doctor` en `USAGE.md` con un bloque que muestre Python 3.13 en consonancia con los requisitos reales. |
-| **Tradeoffs y Justificación** | La opción elegida (Corrección cosmética) elimina inconsistencias que restan credibilidad a la documentación oficial. |
+| **Evidencia** | `cli.py:803-806` (la flag existe); `cmd_voice_add` → `register_voice_files` no instancia el motor |
 
-#### R-29 — README describe el modelo como «MIT» sin matiz de verificación
+Desde que el registro es ligero (precomputación diferida al primer `speak`),
+la flag no tiene efecto.
 
-| | |
-|---|---|
-| **Severidad** | Menor |
-| **Evidencia** | `README.md:4-7` y el diagrama de arquitectura mencionan «Chatterbox Multilingual V3 (MIT)». La licencia efectiva de los pesos en HuggingFace no está verificada desde el repo. |
-| **Propuesta** | Especificar explícitamente en el README que la licencia del proyecto es GPLv3 y que la licencia 'MIT' aplica exclusivamente a los pesos del modelo de Chatterbox y ciertas dependencias empaquetadas. |
-| **Tradeoffs y Justificación** | La opción elegida (Aclaración de licencias) evita confusiones comunes entre la licencia de código copyleft y la de los modelos de pesos permisivos. |
+**Propuesta**: eliminarla del subparser (los argumentos desconocidos fallan
+ruidosamente, lo que es correcto) o documentar que se ignora.
 
 ---
 
-## Dimensión 9 — Licenciamiento y Cumplimiento
+## Tabla resumen de hallazgos
 
-### Veredicto **[NO LISTO]**
-
-La estructura básica de cumplimiento GPLv3 está: `LICENSE` presente, `pyproject.toml` y `package.json` declaran `GPL-3.0-or-later`, `copy_license_files` (`build_utils.py:259-275`) empaqueta `LICENSE` + `THIRD-PARTY-LICENSES.md` dentro de cada artefacto, el instalador Windows muestra la GPL como paso de aceptación (`create_installer_windows.py:81-82`), y THIRD-PARTY-LICENSES documenta la excepción del bootloader de PyInstaller. CLAUDE.md alerta correctamente de no confundir la licencia del proyecto con la del modelo.
-
-Sin embargo, hay tres brechas materiales: la ausencia de aviso de uso responsable ante la combinación watermark-bypass + clonación de voz, la omisión de libsndfile (LGPL), y la inexactitud general de THIRD-PARTY-LICENSES.
-
----
-
-### Hallazgos
-
-#### R-30 — Ausencia total de aviso de uso responsable
-
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | `engine.py:272-275` anula `apply_watermark` con un `noop_watermark`. La documentación del engine (`engine.py:11-13`) lo presenta solo como optimización de velocidad. Combinado con clonación de voz arbitraria (mediante `voice add`), el release público distribuye una herramienta que genera voz clonada **sin marca de agua**, sin ninguna nota de uso aceptable, sin advertencia ética, sin información de contacto para reportes de abuso. |
-| **Escenario** | Riesgo reputacional/legal directo al publicar. Un actor malicioso puede usar la herramienta para generar deepfakes de voz sin ninguna señal detectable. La ausencia de advertencias no exime legalmente, pero sí establece un estándar de diligencia debida. |
-| **Propuesta** | Añadir una sección prominente titulada «Uso Ético y Responsable» en el `README.md` y en `USAGE.md` con pautas claras sobre no suplantar identidades de voz sin consentimiento explícito. |
-| **Tradeoffs y Justificación** | La opción elegida (Aviso destacado de uso ético) mitiga el riesgo legal y reputacional de la clonación de voz. Alternativas evaluadas: (A) Impedir técnicamente el bypass del watermark: fácilmente sorteable en código abierto. Justificación: Un aviso ético claro es el estándar adoptado por la industria de IA de código abierto para promover la diligencia debida. |
-
-#### R-31 — Dependencia LGPL (libsndfile) no declarada
-
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | `librosa` y `soundfile` enlazan dinámicamente con **libsndfile** (LGPL-2.1+). PyInstaller, al empaquetar las dependencias, lleva libsndfile dentro del bundle. `THIRD-PARTY-LICENSES.md` no menciona libsndfile ni la LGPL en ninguna sección. |
-| **Escenario** | LGPL sobre binarios distribuidos exige, en general, la posibilidad de re-enlace. La GPLv3 del proyecto es compatible con LGPL, pero la LGPL **debe declararse** y, en la mayoría de interpretaciones, las obligaciones de re-enlace deben satisfacerse o documentarse como no aplicables. La omisión es un incumplimiento menor pero real. |
-| **Propuesta** | Registrar explícitamente la dependencia LGPL de `libsndfile` en `THIRD-PARTY-LICENSES.md`, indicando que se enlaza dinámicamente y proveyendo enlaces a su código fuente original. |
-| **Tradeoffs y Justificación** | La opción elegida (Declaración estricta de LGPL) cumple con los términos de redistribución de la licencia sin imponer re-enlazado complejo en el binario estático de PyInstaller. Justificación: Garantiza el cumplimiento de la licencia LGPL en sistemas que empaquetan libremente. |
-
-#### R-32 — THIRD-PARTY-LICENSES inexacto e incompleto
-
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | `THIRD-PARTY-LICENSES.md:32` lista `simpleaudio` (MIT) y la línea 133 lista `pyalsaaudio` (PSF-2.0) — pero **ninguno está en `requirements.txt` ni en `pyproject.toml`**. El proyecto usa `sounddevice` como dependencia de audio, no `simpleaudio` ni `pyalsaaudio`. A la vez, omite transitivas que PyInstaller sí empaqueta: `certifi`, `soundfile`, `huggingface_hub` (Apache 2.0), `urllib3`, `idna`, `charset-normalizer`, `click`, `h11`, `anyio`, `starlette`-deps, `numba/llvmlite`, etc. |
-| **Escenario** | Atribución incorrecta (lista paquetes no usados) e incompleta (omite paquetes sí usados) en un artefacto público. Una auditoría de cumplimiento por un abogado o por un proyecto downstream que verifique licencias detectará las inconsistencias. |
-| **Propuesta** | Configurar una tarea automatizada en el pipeline que genere `THIRD-PARTY-LICENSES.md` a partir de `pip-licenses` en cada build, manteniendo el archivo de atribución siempre actualizado. |
-| **Tradeoffs y Justificación** | La opción elegida (Automatización de atribución) elimina el error humano en la declaración de licencias. Alternativas evaluadas: (A) Actualización manual: propensa a omitir dependencias transitivas y a incluir paquetes obsoletos. Justificación: Asegura la exactitud legal y la reproducibilidad de la atribución sin coste manual de mantenimiento. |
-
-#### R-33 — Licencia efectiva de los pesos del modelo no verificada
-
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | Todo el material (`README.md:4`, `THIRD-PARTY-LICENSES.md:28`) afirma MIT para el modelo `es-mx-latam`. Pero la licencia del repo `ResembleAI/Chatterbox-Multilingual-es-mx-latam` en HuggingFace no se verifica desde el repo. Adicionalmente, el bypass del watermark (`engine.py:272-275`) podría contravenir los términos de uso del modelo, si especifican que la marca de agua debe preservarse. |
-| **Escenario** | Si los pesos son efectivamente MIT, la situación es clara. Si son otra licencia (CC-BY-NC, por ejemplo), hay incumplimiento en el release. Si los términos de uso prohíben el bypass, el diseño actual del engine los viola. |
-| **Propuesta** | Verificar la licencia efectiva en Hugging Face del language pack y documentar detalladamente el link de su licencia original en `THIRD-PARTY-LICENSES.md`. |
-| **Tradeoffs y Justificación** | La opción elegida (Verificación y enlace) da seguridad jurídica a los adoptadores comerciales de la herramienta. |
-
-#### R-34 — Sin oferta de código fuente explícita en el artefacto
-
-| | |
-|---|---|
-| **Severidad** | Menor |
-| **Evidencia** | La GPLv3 §6 exige acompañar el binario de la fuente correspondiente o una oferta escrita de la fuente. La distribución via Releases del mismo repo en GitHub lo satisface de facto (el código fuente está disponible en la misma URL que el binario), pero ningún archivo del bundle apunta explícitamente a la fuente. |
-| **Propuesta** | Incluir el enlace al repositorio de código fuente en la InfoAfter del instalador Windows, satisfaciendo la obligación de oferta de código de la GPLv3. |
-| **Tradeoffs y Justificación** | La opción elegida (Oferta en instalador) es la vía más sencilla y robusta para cumplir con las condiciones de la licencia GPLv3. |
+| ID | Severidad | Hallazgo | Evidencia principal |
+|----|-----------|----------|---------------------|
+| N-01 | **Bloqueante** | `main()` del instalador Windows truncada; el `.exe` nunca se compila y el build reporta éxito falso | `create_installer_windows.py:165-223` vs `256-315` |
+| N-02 | Mayor | El daemon rechaza los `--voice-audio` del ejemplo documentado; restricción sin documentar | `server.py:99-106`, `USAGE.md:273` |
+| N-03 | Mayor | `cleanup` sin `--yes`: `input()` + `EOFError` sin capturar rompe el uso programático | `cli.py:680`, `cli.py:892-900` |
+| N-04 | Mayor | Sin proceso de release: sin tags, sin publicación a Releases, sin checksums SHA-256 | `.circleci/config.yml`, `git tag` vacío |
+| N-05 | Mayor | AppImage x86_64 arrastra CUDA completo; tamaños declarados contradictorios | `requirements-lock.txt`, `USAGE.md:506` vs `BUILD.md:302` |
+| N-06 | Mayor | Baseline glibc 2.35 ni validada ni documentada | CI: `cimg/python:3.13` / `ubuntu-2204` |
+| N-07 | Mayor | `LSMinimumSystemVersion=12.0` sin respaldo del toolchain (pyenv en Xcode 26.4) | `build_macos.py:299`, CI |
+| N-08 | Menor | InfoAfter afirma incluir el código fuente (falso) + typo + «LICENSE.txt» inexistente | `create_installer_windows.py:249-251` |
+| N-09 | Menor | Ciclo de vida del daemon imprime progreso por stdout | `daemon.py:55,121,192-199` |
+| N-10 | Menor | `--compute-backend` ignorado en silencio vía daemon | `protocol.py:22-24`, `USAGE.md:259` |
+| N-11 | Menor | Límites de texto divergentes (2000 warn / 5000 hard / ∞) y exit 5 para entrada inválida vía daemon | `protocol.py:10`, `cli.py:150` |
+| N-12 | Menor | `--output` a directorio inexistente: directo crea, daemon falla | `engine.py:621` vs `cli.py:91` |
+| N-13 | Menor | Ventana ciega start/stop/status durante la carga del modelo (sin PID file) | `run.py:84-139`, `daemon.py:117-121` |
+| N-14 | Menor | Docs desincronizadas: «162 tests» (son 185), CHANGELOG sin decisión de corte para 0.1.0 | `GOAL.md:140`, `CLAUDE.md` |
+| N-15 | Menor | `voice add --compute-backend` flag muerta | `cli.py:803-806` |
+| N-16 | Menor | Actualización de versión sin documentar; symlink AppImage queda apuntando a la versión vieja | `cli.py:472-501`, USAGE |
+| N-17 | Menor | `setup` carga el modelo en RAM cuando solo necesita descargarlo | `cli.py:612-613` |
 
 ---
 
-## Dimensión 10 — Cadena de Suministro y CI
+## Gate mínimo de release
 
-### Veredicto **[PARCIALMENTE LISTO]**
-
-El tooling de build está rigurosamente pineado: `PYINSTALLER_PIN=6.21.0`, `INNOSETUP_PIN=6.3.3` (`build_utils.py:44-45`), y el tooling del AppImage por **URL + SHA-256** con verificación en `fetch_pinned_asset` (`build_utils.py:134-172`). El CI espeja esos pines (Python 3.13.14, pyinstaller 6.21.0, innosetup 6.3.3 en `config.yml:43, 50, 51`). Las descargas externas verificadas son una fortaleza real de supply-chain.
-
-Sin embargo, las dependencias de runtime **no** están pineadas, y el job de macOS no fija la versión de Python.
-
----
-
-### Hallazgos
-
-#### R-35 — Las dependencias de runtime NO están pineadas
-
-| | |
-|---|---|
-| **Severidad** | Bloqueante |
-| **Evidencia** | `requirements.txt:11-24` y `pyproject.toml:15-24` usan exclusivamente `>=` para todas las dependencias de runtime (`chatterbox-tts>=0.3.0`, `sounddevice>=0.4.0`, `requests>=2.28.0`, `psutil>=5.9.0`, `fastapi>=0.110.0`, `uvicorn[standard]>=0.29.0`, `pydantic>=2.0.0`, `pycaw>=20240210`). No hay lockfile ni hashes. El CI hace `pip install -r requirements.txt` sin `--require-hashes`. |
-| **Escenario** | Dos builds en fechas distintas empaquetan versiones diferentes de torch/transformers/chatterbox-tts. Un release de cualquiera de esas puede romper el binario silenciosamente, y —dado que no hay smoke test (R-23)— publicarse como artefacto «verde». Adicionalmente, es el vector de supply-chain por excelencia: una versión comprometida de una transitiva (caso real reciente de `torchtriton`, `ctx-python`, `aiohttp`) entra al binario sin barrera. |
-| **Propuesta** | Adoptar `pip-tools` para generar `requirements-lock.txt` con hashes verificados a partir de `pyproject.toml`, y configurar el CI para instalar dependencias con `--require-hashes`. |
-| **Tradeoffs y Justificación** | La opción elegida (requirements-lock.txt con hashes de pip-tools) garantiza un build inmutable, reproducible y protegido contra inyecciones de código en dependencias. Alternativas evaluadas: (A) Migrar a Poetry: introduce sobrecarga en el flujo de desarrollo y CI heredado. (B) Pines simples en requirements.txt: no protege contra la manipulación de binarios en el hub de PyPI. Justificación: Mantiene el flujo de CircleCI sencillo pero introduce seguridad estricta a nivel de supply-chain. |
-
-#### R-36 — macOS no pinea la versión de Python
-
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | Windows (`config.yml:43`: `choco install python313 -y --version=3.13.14`) y Linux (image `cimg/python:3.13`) fijan Python. El job macOS (`config.yml:137-175`) usa el `python3` del runner sin fijarlo: `python3 --version` se imprime, pero no se verifica ni se fuerza una versión. |
-| **Escenario** | El intérprete embebido en el `.app` depende de la versión de Python que traiga el runner de macOS en cada momento, comprometiendo reproducibilidad y la coherencia del `requires-python>=3.13`. Si CircleCI actualiza el runner, el binario resultante cambia silenciosamente. |
-| **Propuesta** | Fijar e instalar de forma explícita Python 3.13 en el job de macOS de CircleCI utilizando `pyenv` para garantizar que la compilación es 100% reproducible e independiente de las actualizaciones del runner. |
-| **Tradeoffs y Justificación** | La opción elegida (Fijar Python vía Pyenv en macOS) garantiza la consistencia del runtime embebido. Alternativas evaluadas: (A) Usar el Python del sistema: introduce variabilidad silenciosa si CircleCI actualiza la imagen base. Justificación: Asegura la inmutabilidad absoluta del entorno de compilación de releases. |
-
-#### R-37 — Sin validación post-build automatizada (reitera R-23)
-
-| | |
-|---|---|
-| **Severidad** | Mayor |
-| **Evidencia** | El pipeline compila y publica; no ejecuta el artefacto (ver R-23). |
-| **Propuesta** | Aplicar R-23 en todos los jobs de build. |
-| **Tradeoffs** | Ver análisis de R-23. |
-
-#### R-38 — Artefactos sin firma de código
-
-| | |
-|---|---|
-| **Severidad** | Menor |
-| **Evidencia** | Limitación conocida y documentada en `docs/BUILD.md:147-154` y `USAGE.md:566-583` (sección «El sistema bloquea el primer arranque»). |
-| **Propuesta** | Incorporar documentación detallada y enlaces en el README sobre SmartScreen (Windows) y Gatekeeper (macOS) para guiar al usuario sobre cómo permitir la ejecución de binarios auto-firmados. |
-| **Tradeoffs y Justificación** | La opción elegida (Mitigación documental) es la única viable para un proyecto de código abierto sin financiación para certificados anuales de Apple/Microsoft. Justificación: Transparencia total ante el usuario sobre la ausencia de firma. |
+1. **N-01** — Reconstruir `main()` del instalador + test que ejercite `main()`
+   con ISCC mockeado + endurecer el step de staging del CI.
+2. **N-04** — Taggear `v0.1.0`, documentar el flujo de publicación (manual es
+   suficiente) y generar/publicar SHA-256 de los 4 artefactos.
+3. **N-02** — Documentar la restricción de directorios del daemon en
+   USAGE/DAEMON-MODE y dar un mensaje de error accionable.
+4. **N-03** — Añadir `cleanup --yes` y capturar `EOFError` como cancelación.
+5. **N-05/N-06** — Medir el AppImage real, decidir CPU-only vs. CUDA, y
+   declarar los requisitos reales (tamaño y glibc) en README/USAGE.
 
 ---
 
-## Resumen Ejecutivo y Gate de Release
+## Recomendación global
 
-### Tabla-Resumen de Hallazgos por Severidad
+### **NO LISTO** (a corta distancia de listo-con-reservas)
 
-| ID | Dim | Sev | Resumen |
-|----|-----|-----|---------|
-| **R-10** | 4 | **Bloqueante** | Caché hardcodeada ignora `HF_HOME`/`HF_HUB_CACHE` → bucle «no descargado» |
-| **R-15** | 5 | **Bloqueante** | macOS no genera universal2 real; artefacto mal etiquetado |
-| **R-19** | 6 | **Bloqueante** | Enlace de descarga del README apunta a repo ajeno (resemble-ai) |
-| **R-35** | 10 | **Bloqueante** | Dependencias de runtime sin pinear → build no reproducible + vector supply-chain |
-| R-01 | 1 | Mayor | `voice add` descarga el modelo saltándose el gate de `setup` |
-| R-02 | 1 | Mayor | Ctrl+C en síntesis → traceback en vez de cierre limpio (código 130) |
-| R-05 | 2 | Mayor | Diagnósticos a stdout, no stderr: contrato programático falso |
-| R-06 | 2 | Mayor | Códigos de salida sin granularidad (20 sys.exit(1)) |
-| R-08 | 3 | Mayor | `--port` medio cableado: stop/status/speak ignoran puerto no-default |
-| R-11 | 4 | Mayor | Sin desaprovisionamiento de modelo ni datos de usuario |
-| R-12 | 4 | Mayor | `ve.safetensors` no verificado → fuga en «100% offline» |
-| R-16 | 5 | Mayor | Versión mínima de macOS inconsistente (10.13 vs 12+) |
-| R-20 | 6 | Mayor | Nombres de artefacto del README no coinciden con los reales |
-| R-22 | 7 | Mayor | Tests solo en Linux; Windows/macOS sin ejercer |
-| R-23 | 7 | Mayor | Sin smoke test del binario congelado en CI |
-| R-26 | 8 | Mayor | Vacío de gobernanza: sin CHANGELOG/CONTRIBUTING/SECURITY/soporte |
-| R-27 | 8 | Mayor | USAGE repite el contrato stderr incorrecto |
-| R-30 | 9 | Mayor | Sin aviso de uso responsable (watermark bypass + clonación) |
-| R-31 | 9 | Mayor | libsndfile (LGPL) empaquetado y no declarado |
-| R-32 | 9 | Mayor | THIRD-PARTY inexacto e incompleto |
-| R-33 | 9 | Mayor | Licencia de pesos del modelo no verificada |
-| R-36 | 10 | Mayor | macOS no pinea Python |
-| R-37 | 10 | Mayor | Sin validación post-build automatizada (alias de R-23) |
-| R-03 | 1 | Menor | Texto largo truncado en silencio (sin warning) |
-| R-04 | 1 | Menor | Caché truncada pasa el chequeo de existencia |
-| R-07 | 2 | Menor | Esquema JSON no versionado ni documentado |
-| R-09 | 3 | Menor | `/shutdown` sin auth; superficie local no documentada |
-| R-13 | 4 | Menor | Sin mecanismo de actualización del modelo |
-| R-14 | 4 | Menor | Sin pre-chequeo de espacio en disco |
-| R-17 | 5 | Menor | Windows exige admin sin declararlo |
-| R-18 | 5 | Menor | Rendimiento declarado sin peor caso (CPU/AVX/RAM) |
-| R-21 | 6 | Menor | macOS: fricción sudo del `.command` no anticipada en README |
-| R-24 | 7 | Menor | build_linux/macos sin tests |
-| R-25 | 7 | Menor | Conteo de tests documentado desfasado (real: 139) |
-| R-28 | 8 | Menor | Ejemplo `doctor` muestra Python 3.11 (exige 3.13) |
-| R-29 | 8 | Menor | «Modelo MIT» sin matiz de verificación |
-| R-34 | 9 | Menor | Sin oferta de fuente explícita en el artefacto |
-| R-38 | 10 | Menor | Artefactos sin firma (mitigación solo documental) |
+La distancia al release es corta pero real. La ironía central de esta ronda es
+instructiva: el commit que cerraba los hallazgos menores del gate anterior
+(`8a18fad`) **rompió el artefacto principal de Windows**, y las tres redes de
+seguridad existentes (tests, log del build, CI) lo dejaron pasar porque todas
+validan las partes puras y ninguna el flujo completo. N-01 es un fix de
+minutos; N-04 es el trabajo estructural que falta para que «publicado y
+distribuible» sea verdad — hoy no hay nada publicado que un usuario pueda
+descargar ni verificar.
 
-**Totales:** 4 Bloqueantes · 23 Mayores · 15 Menores
+Con el gate de 5 puntos cerrado, la evaluación pasaría a
+**listo-con-reservas**, siendo las reservas las ya conocidas y honestamente
+documentadas: validación end-to-end por SO pendiente (criterios 1-3 y 9 de
+GOAL.md) y binarios sin firma (R-38).
 
-> **Nota sobre la revisión:** la revisión adversarial-constructiva del borrador original detectó (a) erratas y mezclas de idioma que fueron corregidas, (b) referencias de línea imprecisas que se verificaron, (c) el conteo real de tests (139, no 95 ni 148), y (d) matices sobre R-19, R-20 y R-25 que se incorporaron explícitamente en sus descripciones. El total de hallazgos pasó de 18 mayores a 23 mayores tras la revisión, porque se desglosaron hallazgos solapados (R-23 y R-37) y se precisaron otros con evidencia adicional. Una **segunda pasada de revisión** corrigió inconsistencias internas remanentes (conteo de tests 148 vs. 139 dentro del propio documento, conteo de `sys.exit(1)` 22 vs. 20 en la tabla-resumen, una severidad en inglés) y refinó las propuestas de R-01, R-02, R-06, R-08 y R-10 con detalles de implementación verificados contra el código (p. ej., el parámetro `precompute` ya existente en `add_voice`, y que `DaemonManager` ya acepta puerto).
+Respecto a la promesa de GOAL.md («API de voz unificada, nativa, invocable
+desde cualquier lenguaje»): el **diseño** la cumple — contrato de exit codes
+congelado, JSON versionado, UTF-8 forzado, daemon en loopback, paridad de UX
+entre SO cuidada hasta el detalle. Lo que aún no la cumple es la **entrega**:
+sin instalador de Windows funcional, sin releases publicados y con los claims
+de compatibilidad (glibc, macOS 12) sin validar, la promesa está implementada
+pero no distribuida.
 
 ---
 
-### Gate de Release
+## Decisiones del propietario
 
-Antes de publicar un primer release público, deben cerrarse los **4 bloqueantes** y, como mínimo, los **mayores** que tocan al usuario en su primer contacto y a la corrección legal:
+Resueltas interactivamente con el propietario el 2026-07-03 (fase de resolución
+previa al plan de corrección). Los 10 hallazgos no listados aquí tienen
+corrección autoevidente y pasan al plan como requisitos directos.
 
-#### 1. Onboarding roto (bloqueantes directos al primer uso)
-- **R-19**: Corregir enlace de descarga en `README.md:22` → URL correcta del proyecto.
-- **R-20**: Actualizar nombres de artefactos en README para reflejar la realidad (y opcionalmente en USAGE para que coincidan exactamente).
-- **R-10**: Implementar soporte para `HF_HOME`/`HF_HUB_CACHE` en `hub_cache_path()`.
-
-#### 2. Corrección del artefacto y reproducibilidad (confianza en lo que se entrega)
-- **R-15**: Corregir el naming del artefacto macOS a la arquitectura real (`arm64.dmg` o `x86_64.dmg`) o implementar lipo con dos runners.
-- **R-35**: Generar `requirements-lock.txt` con pins exactos y hashes; usar `--require-hashes` en CI.
-- **R-36**: Fijar Python 3.13 explícitamente en el job macOS de CI.
-- **R-23** + **R-37**: Añadir smoke test del binario congelado en CI (`tts-sidecar version` con exit 0).
-
-#### 3. Contrato programático (razón de ser del producto)
-- **R-05** + **R-27**: Redirigir output de progreso a stderr y actualizar documentación (USAGE, docstring cli.py, README).
-- **R-06**: Añadir granularidad de códigos de salida (recomendado vía campo `error_code` en JSON para retrocompatibilidad).
-- **R-08**: Completar implementación de `--port` en todos los subcomandos de daemon (start/stop/restart/status) y/o usar variable de entorno `TTS_SIDECAR_DAEMON_PORT`.
-
-#### 4. Fiabilidad del flujo central
-- **R-01**: Añadir check de modelo cacheado en `cmd_voice_add` (paralelo a `cmd_speak` y `cmd_daemon start`).
-- **R-02**: Manejar `KeyboardInterrupt` con `try/except` en `main()` y `sys.exit(130)`.
-- **R-12**: Verificar `ve.safetensors` en la caché del modelo base en `is_model_cached` y/o descargarlo explícitamente en `setup`.
-- **R-11**: Crear comando `cleanup` con flags `--model` / `--voices` / `--all` / `--dry-run` para desaprovisionamiento.
-
-#### 5. Cumplimiento y responsabilidad legal
-- **R-30**: Añadir sección «Uso Responsable» en README y USAGE.
-- **R-31** + **R-32**: Regenerar `THIRD-PARTY-LICENSES.md` con `pip-licenses` (incluyendo libsndfile LGPL).
-- **R-33**: Verificar la licencia y los términos de uso del modelo `es-mx-latam` en HuggingFace.
-
-#### 6. Gobernanza mínima para release público
-- **R-26**: Crear `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`. Considerar `CODE_OF_CONDUCT.md` y plantillas de Issues.
-
-#### 7. Mejoras paralelas recomendadas (mayores adicionales)
-- **R-16**: Unificar `LSMinimumSystemVersion` a 12.0 en `Info.plist`.
-- **R-22**: Añadir job de tests en Windows en CI.
-
----
-
-### Recomendación Global de Madurez
-
-**NO LISTO** para un primer release público.
-
-El proyecto está **ingenierilmente maduro en su núcleo**: la lógica de voces, la seguridad del daemon, la resolución de caché, la política de dependencias de build pineadas por SHA-256, y la documentación de usuario reflejan un trabajo cuidadoso. Las dos auditorías previas de equivalencia de UX cerraron la mayoría de las fricciones de plataforma.
-
-Sin embargo, la auditoría de las capas no cubiertas antes —y la revisión posterior del propio reporte— revelan una brecha sistemática entre **lo que el repo construye** y **lo que el usuario/integrador realmente recibe**:
-
-- Los **4 bloqueantes** son fallos que un usuario nuevo encuentra en los primeros minutos: no puede descargar (R-19), el binario de macOS no es lo que dice ser (R-15), el modelo «no se descarga» en entornos con `HF_HOME` (R-10), y nadie puede reproducir el build (R-35).
-- El **contrato programático** —la razón de existir del sidecar— tiene su afirmación central (stderr) desmentida por el código, carece de granularidad de códigos de salida, y rompe `--port` para la mitad de los subcomandos de daemon.
-- El frente de **cumplimiento** (watermark sin aviso, LGPL no declarada, atribuciones inexactas, licencia del modelo sin verificar) expone al proyecto a riesgo legal y reputacional que un release público materializa de inmediato.
-- La **revisión adversarial** del propio reporte descubrió erratas y mezclas de idioma que, aunque cosméticas, erosionan la confianza en un documento de gobernanza.
-
-La distancia hasta «listo» es de **cierre de gate**, no de rediseño. Casi todos los hallazgos son acotados y localizados. Con los bloqueantes y los mayores del gate resueltos —y un smoke test del binario congelado en CI que cierre el lazo entre «compila» y «funciona»— el proyecto pasaría a **listo-con-reservas** (las reservas siendo la firma de código y la validación manual por SO que solo hardware real puede dar).
-
-> **Actualización 2026-07-03 — gate cerrado.** El gate de release se ejecutó por
-> completo (T1–T16). Los **4 bloqueantes**, los **23 mayores** y 4 menores quedaron
-> resueltos (ver «Estado de remediación del gate» al inicio del documento); restan 11
-> menores de pulido. Con ello el proyecto pasa de **NO LISTO** a
-> **LISTO-CON-RESERVAS**: las reservas residuales son la **firma/notarización de
-> código** (R-38) y la **validación manual end-to-end en hardware real por SO**
-> (instaladores, `setup`, síntesis), que el CI no puede cubrir. El veredicto «NO LISTO»
-> de arriba refleja el estado en el momento de la auditoría y se conserva como registro.
-
----
-
-*Auditoría realizada el 2026-07-02. Primera revisión adversarial-constructiva aplicada el mismo día; segunda pasada de verificación el 2026-07-03. Código base: commit `a0a77cc`. Conteo de tests verificado: 139 (`pytest tests/ --collect-only -q`).*
+| ID | Decisión | Enfoque elegido |
+|----|----------|-----------------|
+| N-04 | Flujo de release | **Flujo manual documentado + SHA-256 en CI**: runbook (tag `vX.Y.Z` → pipeline → descargar artefactos → `SHA256SUMS.txt` → GitHub Release) más un step de CI que emite el SHA-256 de cada artefacto en el log. Sin publicación automatizada ni secretos nuevos en CI. |
+| N-05 | Torch del build Linux | **Torch CPU-only en Linux** (homogeneizar hacia abajo): el AppImage empaqueta torch del índice CPU de PyTorch; Windows y Linux quedan idénticos (CPU-only) y macOS conserva `mps`. `--compute-backend cuda` deja de funcionar en el AppImage; la vía GPU-NVIDIA se documenta como instalación desde código fuente. Exige lock/índice específico para el build Linux. |
+| N-06 | Baseline glibc | **Documentar «glibc ≥ 2.35»** (Ubuntu 22.04+, Debian 12+, Fedora 36+) en README/USAGE, con el error `GLIBC_2.35 not found` en solución de problemas. CI intacto. |
+| N-07 | Claim de macOS mínimo | **Subir `LSMinimumSystemVersion` al target real del toolchain** y alinear GOAL/README. No se recompila CPython con target 12.0. |
+| N-13 | Ventana ciega del daemon | **Documentar la ventana en DAEMON-MODE.md** (30-90 s donde status/stop no ven el proceso; esperar el «Daemon listo» de start). Sin PID file, coherente con SUGGESTION-03. |
+| N-15 | Flag muerta `voice add --compute-backend` | **Eliminarla del subparser**: los usos existentes fallan ruidosamente (argumento desconocido), que es el comportamiento honesto. |
+| N-17 | Provisión en `setup` | **Descargar con `snapshot_download` + `hf_hub_download` (ve.safetensors) sin instanciar el motor**; la validación de carga real queda en `doctor`/primer `speak` más el chequeo de header safetensors existente. |

@@ -274,6 +274,33 @@ antes de commitear para auditar qué versiones y hashes cambian. Las herramienta
 de build (`pyinstaller`, `pytest`) se instalan aparte con su pin exacto (`==`),
 en invocaciones de pip separadas del lock.
 
+### Lock CPU-only de Linux (`requirements-lock-linux-cpu.txt`)
+
+El lock universal resuelve, para `sys_platform == 'linux' and platform_machine
+== 'x86_64'`, el stack `nvidia-*-cu12` (~41 paquetes) que PyPI empareja por
+defecto con `torch` en esa combinación de plataforma/arquitectura — el AppImage
+lo arrastraba vía `--collect-all torch` aunque el proyecto no usa GPU NVIDIA.
+`arm64` no se ve afectado (esos marcadores excluyen `platform_machine !=
+'x86_64'`), así que solo el job `build-linux-x64` instala desde este lock
+alternativo; `build-linux-arm64`, los jobs de test y los builds de
+Windows/macOS siguen usando `requirements-lock.txt`.
+
+`requirements-lock-linux-cpu.txt` fija `torch`/`torchaudio` a los wheels
+`+cpu` del índice oficial de PyTorch en vez de los de PyPI, sin ningún paquete
+`nvidia-*`. Se regenera con:
+
+```bash
+uv pip compile --generate-hashes --python-version 3.13 \
+    --python-platform x86_64-unknown-linux-gnu \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    --index-strategy unsafe-best-match \
+    pyproject.toml -o requirements-lock-linux-cpu.txt
+```
+
+Un usuario que necesite aceleración NVIDIA debe compilar desde código fuente
+instalando el `requirements-lock.txt` universal (que sí resuelve el stack CUDA
+en x86_64/Linux) en vez de usar el AppImage distribuido.
+
 ### `chatterbox-tts` metadata
 
 `chatterbox/__init__.py` llama `importlib.metadata.version("chatterbox-tts")` al importar.
@@ -299,7 +326,13 @@ Los paquetes que requieren `--collect-all` son: `chatterbox`, `transformers`,
 ## 8. Notas importantes
 
 - **PyInstaller --onedir**: genera una carpeta con el ejecutable y todas las dependencias
-  (~1.7 GB sin comprimir). Es el artefacto que el script de empaquetado consume.
+  (del orden de 1-2 GB sin comprimir en Windows/macOS y en el AppImage `arm64`
+  de Linux, que resuelven `torch` desde `requirements-lock.txt`). El AppImage
+  `x86_64` de Linux, construido desde `requirements-lock-linux-cpu.txt` (ver
+  «Lock CPU-only de Linux» más arriba), es sensiblemente más liviano al no
+  arrastrar el stack `nvidia-*-cu12`; el tamaño exacto queda pendiente de medir
+  en un run de CI (`build-linux-x64`) y actualizar aquí. Es el artefacto que el
+  script de empaquetado consume.
 - **Tiempo de build**: ~10 min en frío, ~5 min incremental.
 - **Windows**: el instalador Inno Setup es el artefacto que recibe el usuario final;
   ajusta el `PATH`, muestra la página informativa del modelo y ofrece ejecutar `setup`.

@@ -169,3 +169,17 @@ def test_bundle_size_mb_suma_archivos_anidados(tmp_path):
 
     esperado_mb = (1024 + 1024) / (1024 * 1024)
     assert bundle_size_mb(tmp_path) == pytest.approx(esperado_mb)
+
+
+def test_lock_cpu_linux_no_contiene_paquetes_nvidia():
+    """N-05: el AppImage x86_64 debe quedar libre del stack CUDA."""
+    repo_root = Path(__file__).resolve().parent.parent
+    lock_path = repo_root / "requirements-lock-linux-cpu.txt"
+    assert lock_path.exists(), "requirements-lock-linux-cpu.txt no existe"
+
+    lineas_nvidia = [
+        linea
+        for linea in lock_path.read_text(encoding="utf-8").splitlines()
+        if linea.lower().startswith("nvidia-")
+    ]
+    assert not lineas_nvidia, f"paquetes nvidia-* en el lock CPU-only: {lineas_nvidia}"

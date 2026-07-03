@@ -60,6 +60,16 @@ chmod +x tts-sidecar-<versión>-x86_64.AppImage    # o -aarch64.AppImage en ARM6
 > Mac Intel (x86_64) no está soportado: el toolchain actual (torch≥2.3) no
 > publica wheels macOS x86_64.
 
+> El AppImage de Linux requiere **glibc ≥ 2.35** (Ubuntu 22.04+, Debian 12+,
+> Fedora 36+ o equivalente): es la versión mínima que soportan los wheels
+> manylinux de las dependencias empaquetadas (torch, onnxruntime). En una
+> distro más antigua, `tts-sidecar` falla al arrancar con un error del tipo
+> `GLIBC_2.35 not found` (ver solución de problemas en [USAGE.md](USAGE.md)).
+
+Cada Release publica un `SHA256SUMS.txt` con el hash de los 4 artefactos;
+verifica tu descarga contra él antes de ejecutar el instalador (ver
+[SECURITY.md](SECURITY.md) y [docs/RELEASING.md](docs/RELEASING.md)).
+
 ### Primer arranque: SmartScreen / Gatekeeper
 
 Los binarios distribuidos **no están firmados ni notarizados** (reserva conocida:

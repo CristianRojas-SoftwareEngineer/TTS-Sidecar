@@ -23,6 +23,13 @@ npm run build-windows
 # Regenerar el lockfile de dependencias (universal, con hashes) tras editar pyproject.toml
 uv pip compile --universal --generate-hashes --python-version 3.13 pyproject.toml -o requirements-lock.txt
 
+# Regenerar el lock CPU-only de Linux (torch/torchaudio +cpu, sin nvidia-*; usado solo por build-linux-x64)
+uv pip compile --generate-hashes --python-version 3.13 \
+    --python-platform x86_64-unknown-linux-gnu \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    --index-strategy unsafe-best-match \
+    pyproject.toml -o requirements-lock-linux-cpu.txt
+
 # Ejecutar tests
 pytest tests/ -v
 
@@ -203,7 +210,7 @@ assets/                  # Material fuente (audios de la voz default, logo)
 src/chatterbox_tts/      # Código fuente Python
 └── daemon/              # Daemon mode
 
-tests/                   # Tests pytest (162 tests)
+tests/                   # Tests pytest (199 tests)
 ├── conftest.py
 ├── test_audio.py
 ├── test_build_utils.py

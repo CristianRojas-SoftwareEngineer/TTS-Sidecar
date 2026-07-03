@@ -58,5 +58,10 @@ limitada, pero conviene explicitar sus supuestos:
 ## Artefactos sin firmar
 
 Los binarios distribuidos **no están firmados ni notarizados**: Gatekeeper (macOS) y
-SmartScreen (Windows) advierten en el primer arranque. Verifica que descargas los
-artefactos desde el repositorio oficial de Releases.
+SmartScreen (Windows) advierten en el primer arranque. Sin firma de código, la
+única verificación de integridad disponible es cotejar el SHA-256 del artefacto
+descargado contra el archivo `SHA256SUMS.txt` publicado junto a cada
+[Release](https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar/releases)
+— esos hashes, a su vez, deben coincidir con los emitidos en el log del
+pipeline de CI que construyó el artefacto. Ver el flujo completo de
+publicación y verificación en [docs/RELEASING.md](docs/RELEASING.md).

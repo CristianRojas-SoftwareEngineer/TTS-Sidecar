@@ -162,6 +162,39 @@ def generate_iss(source_dir: Path, output_dir: Path, version: str, info_after: P
     return "\n".join(lines)
 
 
+def info_after_text() -> str:
+    """Contenido de la página InfoAfter del instalador: provisión + oferta GPLv3.
+
+    Muestra al usuario, tras terminar la instalación, cómo descargar el modelo y
+    dónde obtener el código fuente bajo GPLv3 (oferta §6d de la licencia: el
+    código completo está disponible públicamente en el repositorio). Se mantiene
+    como función pura (sin I/O) para poder testear su contenido desde
+    tests/test_create_installer_windows.py.
+    """
+    return (
+        "Provisión del modelo de voz\r\n"
+        "===========================\r\n\r\n"
+        "tts-sidecar ya está instalado, pero el modelo de voz (es-mx-latam, varios\r\n"
+        "cientos de MB) NO viene incluido en el instalador: se descarga aparte, una\r\n"
+        "sola vez, a la caché de tu usuario.\r\n\r\n"
+        "Marca la casilla \"Descargar ahora el modelo de voz (setup)\" para hacerlo\r\n"
+        "al terminar, o ejecútalo más tarde desde una terminal con:\r\n\r\n"
+        "    tts-sidecar setup\r\n\r\n"
+        "Hasta que el modelo esté descargado, los comandos 'speak' y 'daemon start'\r\n"
+        "fallarán de inmediato y te recordarán ejecutar 'tts-sidecar setup'.\r\n\r\n"
+        "El instalador añadió la carpeta de instalación al PATH del sistema, por lo\r\n"
+        "que podrás invocar 'tts-sidecar' por nombre en una terminal nueva.\r\n\r\n"
+        "Código fuente (GPLv3)\r\n"
+        "======================\r\n\r\n"
+        "tts-sidecar se distribuye bajo la GNU General Public License v3 o\r\n"
+        "posterior. El código fuente completo está disponible públicamente bajo\r\n"
+        "GPLv3 en el repositorio:\r\n\r\n"
+        "    https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar\r\n\r\n"
+        "Si necesitas el código fuente por separado, descárgalo del repositorio o\r\n"
+        "solicítalo al autor; el código está disponible públicamente bajo GPLv3.\r\n"
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Create tts-sidecar Windows installer via Inno Setup"
@@ -221,37 +254,6 @@ def main():
     print(f"ISCC: {iscc}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
-
-def info_after_text() -> str:
-    """Contenido de la página InfoAfter del instalador: provisión + oferta GPLv3.
-
-    Muestra al usuario, tras terminar la instalación, cómo descargar el modelo y
-    dónde obtener el código fuente bajo GPLv3 (requisito §6 de la licencia:
-    el instalador debe ofrecer accompanied source). Se mantiene como función pura
-    (sin I/O) para poder testear su contenido desde tests/test_create_installer_windows.py.
-    """
-    return (
-        "Provisión del modelo de voz\r\n"
-        "===========================\r\n\r\n"
-        "tts-sidecar ya está instalado, pero el modelo de voz (es-mx-latam, varios\r\n"
-        "cientos de MB) NO viene incluido en el instalador: se descarga aparte, una\r\n"
-        "sola vez, a la caché de tu usuario.\r\n\r\n"
-        "Marca la casilla \"Descargar ahora el modelo de voz (setup)\" para hacerlo\r\n"
-        "al terminar, o ejecútalo más tarde desde una terminal con:\r\n\r\n"
-        "    tts-sidecar setup\r\n\r\n"
-        "Hasta que el modelo esté descargado, los comandos 'speak' y 'daemon start'\r\n"
-        "fallarán de inmediato y te recordarán ejecutar 'tts-sidecar setup'.\r\n\r\n"
-        "El instalador añadió la carpeta de instalación al PATH del sistema, por lo\r\n"
-        "que podrás invocar 'tts-sidecar' por nombre en una terminal nueva.\r\n\r\n"
-        "Código fuente (GPLv3)\r\n"
-        "======================\r\n\r\n"
-        "tts-sidecar se distribuye bajo la GNU General Public License v3 o\r\n"
-        "posterior. El instalador incluye el código fuente accompanido (ver\r\n"
-        "LICENSE.txt junto a este programa), y el repositorio público es:\r\n\r\n"
-        "    https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar\r\n\r\n"
-        "Si necesitas el código fuente por separado, descárgalo del repositorio o\r\n"
-        "solicítalo al autor; el código está disponible públicamente bajo GPLv3.\r\n"
-    )
 
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".txt", delete=False, encoding="utf-8"

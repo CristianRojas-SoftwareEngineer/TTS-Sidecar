@@ -7,28 +7,7 @@ y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [No publicado]
 
-### Añadido
-
-- **`schema_version`** en todos los payloads JSON del CLI (`version`, `devices`,
-  `voice list`, `doctor`, `daemon status`); documentado en USAGE.md.
-- **Warning de texto largo** en `speak` (>2000 chars): avisa sobre truncamiento
-  por límite de tokens del T3 (no bloqueante).
-- **`setup --force-update`**: re-descarga limpia del modelo borrando snapshots.
-- **Pre-chequeo de disco** en `setup` (2 GB libres, `shutil.disk_usage`).
-- **Chequeo de RAM advisory** en `doctor` (estado `WARN` si < 8 GB; no altera
-  exit code); requisitos de hardware documentados en USAGE.md.
-- **Validación de integridad** del header `.safetensors` en `is_model_cached`
-  (detecta caché truncada antes de que falle la carga).
-- **Tests de templates de build**: `test_build_linux.py` (AppRun, .desktop) y
-  `test_build_macos.py` (Info.plist, scripts .command).
-
-### Cambiado
-
-- README: nota de **requisito de admin** en instalador Windows; subsección
-  «Primer arranque: SmartScreen / Gatekeeper» con enlace a USAGE.
-- USAGE: ejemplo de `doctor` corregido a Python 3.13.x.
-- Instalador Windows: **oferta de código fuente GPLv3** en InfoAfter con enlace
-  al repositorio (GPLv3 §6).
+Sin cambios pendientes de publicar.
 
 ## [0.1.0] — 2026-07-03
 
@@ -44,17 +23,42 @@ clonación de voz en español latinoamericano (Chatterbox Multilingual, alias
   `cleanup` y `version`.
 - **`cleanup`**: desaprovisionamiento quirúrgico del modelo y las voces de usuario
   (`--model`, `--voices`, `--all`, `--dry-run`).
+- **`cleanup --yes`** y captura de `EOFError` como cancelación limpia (N-03):
+  permite invocación programática vía `subprocess` con stdin cerrado.
 - **Modo daemon**: servidor HTTP persistente en loopback que mantiene el modelo en
   memoria entre invocaciones.
+- **UX `--voice-audio`/`--speech-audio` vía daemon** (N-02): degradación
+  automática a modo directo con aviso en stderr (sondeo automático) o error
+  accionable con exit 4 (`--daemon` explícito); sandbox de rutas intacta.
 - **Mapa de códigos de salida** del CLI como contrato público: `0` éxito, `1` error
   genérico, `2` modelo no provisionado, `3` voz/audio no encontrado, `4` entrada
   inválida, `5` daemon inalcanzable, `130` interrupción (SIGINT).
 - **Lockfile universal con hashes** (`requirements-lock.txt`) para builds
   reproducibles e íntegros; CI instala con `--require-hashes`.
+- **Lock CPU-only de Linux** (`requirements-lock-linux-cpu.txt`, N-05): instala
+  `torch`/`torchaudio` `+cpu` desde el índice oficial de PyTorch sin el stack
+  `nvidia-*-cu12` (~41 paquetes), reduciendo el AppImage x86_64 a cientos de MB.
 - **Smoke test** del binario congelado en los 4 jobs de build de CI.
 - **Triple puerta de tests** en CI (`test-linux`, `test-windows`, `test-macos`):
   la suite `pytest` corre en los tres SO nativos y bloquea los builds, con
   cobertura equivalente entre plataformas.
+- **Instalador Windows restaurado** (N-01): `scripts/create_installer_windows.py`
+  compila el `.exe` con Inno Setup; CI aborta si el artefacto falta; InfoAfter
+  corrige la oferta GPLv3 §6d (código en el repo, no `LICENSE.txt`).
+- **Runbook de release** `docs/RELEASING.md` y **SHA-256 en CI** (N-04): cada job
+  de build emite el hash del artefacto para verificación cruzada en el Release.
+- **Límite unificado de texto** en `speak` (N-11): `MAX_TEXT_LENGTH = 5000`
+  validado en el cliente antes de cualquier despacho; exit 4 (`INVALID_INPUT`) en
+  ambas rutas (directa y daemon).
+- **Warning `--compute-backend` ignorado vía daemon** (N-10): aviso por stderr
+  cuando el flag explícito no es `auto` y la síntesis va por daemon.
+- **`_emit_audio` crea directorios padres** (N-12): simetría con
+  `engine._save_wav` para `--output` en modo daemon.
+- **Flag muerta `voice add --compute-backend` eliminada** (N-15): error ruidoso
+  de argparse (flag desconocida) en lugar de ignoración silenciosa.
+- **Provisión ligera en `setup` vía `snapshot_download`** (N-17): descarga el
+  modelo sin instanciar `ChatterboxEngine` (pico de RAM ~2 GB evitado); la carga
+  real queda para `doctor`/primer `speak`.
 - Sección de **uso ético y responsable** en README y USAGE (consentimiento, no
   suplantación, divulgación del watermark desactivado, canal de reporte).
 - Documentos de gobernanza: `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`.
@@ -65,18 +69,31 @@ clonación de voz en español latinoamericano (Chatterbox Multilingual, alias
   completo. **Breaking**: ya no es posible configurar el puerto ni correr dos
   daemons simultáneos.
 - Diagnósticos e instrumentación de progreso redirigidos a **stderr**; stdout
-  queda reservado para datos (salidas `--json`, rutas de resultado).
+  queda reservado para datos (salidas `--json`, rutas de resultado). Incluye
+  mensajes de progreso de `DaemonManager` (N-09).
 - `voice add` ya no instancia el motor de inferencia: valida y copia los audios en
   menos de un segundo; la precomputación se difiere al primer `speak` con la voz.
 - `model_cache` respeta `HF_HOME`/`HF_HUB_CACHE` al resolver la caché del modelo.
-- Build de macOS: artefacto renombrado a `arm64` (Apple Silicon); se retiró la
-  falsa promesa `universal2`/Mac Intel. `LSMinimumSystemVersion` alineada a 12.0.
+- **Build de macOS**: `LSMinimumSystemVersion` dinámica (N-07) derivada de
+  `sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")` con fallback a
+  `platform.mac_ver()`; ya no hay literal `12.0` que se desincronice del toolchain.
+- **Requisito de glibc ≥ 2.35 documentado** (N-06) en README y USAGE (Ubuntu
+  22.04+, Debian 12+, Fedora 36+); entrada de troubleshooting para
+  `GLIBC_2.35 not found`.
+- **Ventana de arranque del daemon (30–90 s) documentada** (N-13) en
+  `docs/DAEMON-MODE.md`: `status`/`stop` no ven el proceso hasta que el puerto
+  abre; orquestadores deben esperar confirmación de `daemon start` o sondear
+  `/health`.
+- **Sección "Actualizar de versión" en USAGE.md** (N-16): tres caminos por SO
+  (Windows: instalar nuevo `.exe`; Linux: nuevo AppImage + `setup` para
+  re-apuntar symlink; macOS: re-arrastrar `.app` + re-ejecutar `.command`).
 - Dependencia `chatterbox-tts` corregida a `>=0.1.7` (la versión declarada
   `>=0.3.0` era insatisfacible en PyPI).
 - `THIRD-PARTY-LICENSES.md` regenerado desde el lockfile: licencias de modelo
   verificadas (MIT), declaración de libsndfile (LGPL-2.1+), `soxr` (LGPL),
   `pykakasi` (GPLv3+) y los runtimes NVIDIA CUDA; se retiraron `simpleaudio` y
   `pyalsaaudio` (no usados).
+- Conteo de tests actualizado a **199** en `docs/GOAL.md` y `CLAUDE.md`.
 
 ### Corregido
 

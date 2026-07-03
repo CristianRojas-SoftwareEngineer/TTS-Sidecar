@@ -131,6 +131,34 @@ tts-sidecar speak --text "Hola" --no-daemon
 > cuando la operación de ciclo de vida falla. Ver la tabla completa de códigos en
 > `USAGE.md` (sección «Experiencia unificada entre sistemas operativos»).
 
+> **Ventana de arranque (30-90 s)**: el puerto 8765 no abre hasta que el modelo
+> termina de cargarse en memoria, lo que puede tardar entre 30 y 90 segundos
+> según el hardware. `daemon start` bloquea internamente hasta confirmar
+> «Daemon listo» (o el timeout de 120 s) antes de devolver el control, así que
+> un script que lo invoca y espera esa confirmación no necesita hacer nada
+> especial. Pero si algo consulta `daemon status` o `daemon stop` **en paralelo**
+> durante esa ventana — antes de que `daemon start` confirme —, verá «no está
+> corriendo» aunque el proceso ya esté lanzado y cargando el modelo: no hay
+> PID file que distinga "arrancando" de "no arrancado". Un orquestador que
+> lance `daemon start` en background debe esperar su confirmación (o sondear
+> `/health`) antes de asumir que el daemon está listo.
+
+## Seguridad: directorios de audio permitidos
+
+El endpoint `/synthesize` **no acepta rutas de audio arbitrarias del sistema
+de archivos**: `voice_audio`/`speech_audio` deben resolver (tras seguir
+symlinks) dentro de un directorio de voces conocido (fábrica o usuario, ver
+`voices.allowed_audio_dirs()` en `src/chatterbox_tts/voices.py`). Cualquier
+otra ruta se rechaza con `400`.
+
+Esta restricción evita que un proceso local cualquiera use el daemon como
+lector arbitrario de `.wav` del sistema (el daemon escucha en loopback sin
+autenticación; ver `SECURITY.md`). **No se relaja bajo ninguna circunstancia.**
+El CLI (`speak --voice-audio`/`--speech-audio`) anticipa esta restricción del
+lado cliente antes de despachar al daemon: sin `--daemon` explícito degrada a
+modo directo con un aviso; con `--daemon` explícito falla con un mensaje
+accionable (ver USAGE.md, sección de `speak`).
+
 ## Parámetros Optimizados
 
 Los parámetros optimizados son configuración propia del engine
