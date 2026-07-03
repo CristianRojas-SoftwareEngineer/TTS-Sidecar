@@ -104,7 +104,7 @@ Las voces se resuelven con precedencia **usuario→fábrica** (`voices.py`):
 - **Fábrica**: `voices/` en la raíz del repo, commiteadas y empaquetadas vía
   `--add-data`; de solo lectura. Se resuelven en `paths.bundled_voices_dir()`
   (raíz del repo en modo fuente, `sys._MEIPASS` congelado). Incluye la voz
-  `default`, construida desde `assets/`.
+  `default`, construida desde `assets/audios/`.
 - **Usuario**: `data_root()/voices` (user-data-dir por SO congelado; `src/voices`
   en modo fuente, hoy sin uso). Escribibles vía `voice add`.
 
@@ -120,9 +120,14 @@ El alias de modelo expuesto por el CLI es **`es-mx-latam`** (repo oficial
 `ResembleAI/Chatterbox-Multilingual-es-mx-latam`); el modelo no se empaqueta en el
 ejecutable y se descarga a `~/.cache/huggingface/hub` mediante `setup`. `setup`
 corre los chequeos de `doctor` y descarga el modelo solo si falta (idempotente).
+En Linux, ejecutado desde un AppImage (variable `APPIMAGE` presente), `setup`
+además integra el PATH creando el symlink `~/.local/bin/tts-sidecar → $APPIMAGE`;
+`setup --remove-path` lo revierte sin correr chequeos ni descargas.
 `speak` y `daemon start` **fallan rápido** (vía `is_model_cached`) si el modelo no
 está cacheado, remitiendo a `tts-sidecar setup` sin disparar descargas. En Windows
-el instalador agrega `{app}` al PATH y ofrece una casilla que ejecuta `setup`.
+el instalador agrega `{app}` al PATH y ofrece una casilla que ejecuta `setup`; en
+macOS el `.dmg` incluye scripts de instalación (symlink en `/usr/local/bin` +
+oferta de `setup`) y desinstalación.
 <!-- </model_provisioning> -->
 
 <!-- <license> -->
@@ -139,8 +144,10 @@ modelo Chatterbox y todas las dependencias empaquetadas conservan sus licencias 
 ## Comandos CLI
 
 ```bash
-# Provisión del modelo (chequeos + descarga si falta; idempotente)
+# Provisión del modelo (chequeos + descarga si falta; idempotente).
+# En Linux (AppImage) también crea el symlink de PATH en ~/.local/bin.
 tts-sidecar setup
+tts-sidecar setup --remove-path   # revierte el symlink de PATH (Linux)
 
 # Daemon mode
 tts-sidecar daemon start              # Iniciar daemon
@@ -172,14 +179,17 @@ tts-sidecar version [--json]
 
 ```
 voices/                  # Voces de FÁBRICA (commiteadas, empaquetadas, solo lectura)
-└── default/             # Voz por defecto (derivada de assets/)
+└── default/             # Voz por defecto (derivada de assets/audios/)
     ├── reference.wav    # Audio para timbre (cualquier largo)
     └── speech.wav       # Audio para conditioning (10s+)
 # Las voces de USUARIO viven en el user-data-dir por SO (no en el repo)
 
-assets/                  # Audios fuente (voz default) y de prueba
-├── Voice Sampler.wav
-└── Speech Sampler.wav
+assets/                  # Material fuente (audios de la voz default, logo)
+├── audios/              # Audios fuente (voz default) y de prueba
+│   ├── Voice Sampler.wav
+│   └── Speech Sampler.wav
+└── images/              # Logo del proyecto (fuente única de los iconos de build)
+    └── TTS Sidecar - Logo.png
 
 src/chatterbox_tts/      # Código fuente Python
 └── daemon/              # Daemon mode

@@ -1,5 +1,6 @@
 """Tests para los comandos del CLI."""
 
+import os
 import pytest
 import sys
 from pathlib import Path
@@ -23,6 +24,7 @@ class MockArgs:
         self.daemon = kwargs.get("daemon", False)
         self.no_daemon = kwargs.get("no_daemon", False)
         self.json = kwargs.get("json", False)
+        self.remove_path = kwargs.get("remove_path", False)
 
 
 class TestResolveVoicePaths:
@@ -393,6 +395,130 @@ class TestCmdDevicesError:
 
         err = capsys.readouterr().err
         assert "Error" in err
+
+
+def _symlinks_supported(tmp_path) -> bool:
+    """En Windows crear symlinks exige Developer Mode o privilegios; se sondea."""
+    probe = tmp_path / "_symlink_probe"
+    try:
+        probe.symlink_to(tmp_path)
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
+class TestSetupLinuxPath:
+    """Integración de PATH de setup en Linux (symlink $APPIMAGE → ~/.local/bin)."""
+
+    def _fake_home(self, monkeypatch, tmp_path):
+        home = tmp_path / "home"
+        home.mkdir()
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+        return home
+
+    def _linux_appimage_env(self, monkeypatch, tmp_path):
+        appimage = tmp_path / "tts-sidecar-x86_64.AppImage"
+        appimage.write_bytes(b"fake appimage")
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setenv("APPIMAGE", str(appimage))
+        return appimage
+
+    def test_crea_symlink_desde_appimage(self, monkeypatch, tmp_path, capsys):
+        if not _symlinks_supported(tmp_path):
+            pytest.skip("el entorno no permite crear symlinks")
+        from chatterbox_tts.cli import _integrate_linux_path
+
+        home = self._fake_home(monkeypatch, tmp_path)
+        appimage = self._linux_appimage_env(monkeypatch, tmp_path)
+
+        _integrate_linux_path()
+
+        link = home / ".local" / "bin" / "tts-sidecar"
+        assert link.is_symlink()
+        assert link.resolve() == appimage.resolve()
+        assert "symlink creado" in capsys.readouterr().out
+
+    def test_actualiza_symlink_existente_idempotente(self, monkeypatch, tmp_path, capsys):
+        if not _symlinks_supported(tmp_path):
+            pytest.skip("el entorno no permite crear symlinks")
+        from chatterbox_tts.cli import _integrate_linux_path
+
+        home = self._fake_home(monkeypatch, tmp_path)
+        appimage = self._linux_appimage_env(monkeypatch, tmp_path)
+        link = home / ".local" / "bin" / "tts-sidecar"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(tmp_path / "otro-viejo.AppImage")
+
+        _integrate_linux_path()
+        _integrate_linux_path()  # segunda pasada: idempotente
+
+        assert link.is_symlink()
+        assert link.resolve() == appimage.resolve()
+
+    def test_sin_appimage_no_toca_el_filesystem(self, monkeypatch, tmp_path, capsys):
+        from chatterbox_tts.cli import _integrate_linux_path
+
+        home = self._fake_home(monkeypatch, tmp_path)
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.delenv("APPIMAGE", raising=False)
+
+        _integrate_linux_path()
+
+        assert not (home / ".local").exists()
+
+    def test_no_sobrescribe_archivo_regular(self, monkeypatch, tmp_path, capsys):
+        from chatterbox_tts.cli import _integrate_linux_path
+
+        home = self._fake_home(monkeypatch, tmp_path)
+        self._linux_appimage_env(monkeypatch, tmp_path)
+        link = home / ".local" / "bin" / "tts-sidecar"
+        link.parent.mkdir(parents=True)
+        link.write_text("no soy un symlink", encoding="utf-8")
+
+        _integrate_linux_path()
+
+        assert not link.is_symlink()
+        assert link.read_text(encoding="utf-8") == "no soy un symlink"
+        assert "no se modifica" in capsys.readouterr().out
+
+    def test_remove_path_elimina_symlink(self, monkeypatch, tmp_path, capsys):
+        if not _symlinks_supported(tmp_path):
+            pytest.skip("el entorno no permite crear symlinks")
+        from chatterbox_tts.cli import cmd_setup
+
+        home = self._fake_home(monkeypatch, tmp_path)
+        link = home / ".local" / "bin" / "tts-sidecar"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(tmp_path)
+
+        cmd_setup(MockArgs(remove_path=True))
+
+        assert not link.exists()
+        assert "Symlink eliminado" in capsys.readouterr().out
+
+    def test_remove_path_sin_symlink_informa(self, monkeypatch, tmp_path, capsys):
+        from chatterbox_tts.cli import cmd_setup
+
+        self._fake_home(monkeypatch, tmp_path)
+
+        cmd_setup(MockArgs(remove_path=True))
+
+        assert "No hay nada que quitar" in capsys.readouterr().out
+
+    def test_remove_path_rechaza_archivo_regular(self, monkeypatch, tmp_path, capsys):
+        from chatterbox_tts.cli import cmd_setup
+
+        home = self._fake_home(monkeypatch, tmp_path)
+        link = home / ".local" / "bin" / "tts-sidecar"
+        link.parent.mkdir(parents=True)
+        link.write_text("no soy un symlink", encoding="utf-8")
+
+        with pytest.raises(SystemExit):
+            cmd_setup(MockArgs(remove_path=True))
+
+        assert link.exists()
+        assert "no es un symlink" in capsys.readouterr().err
 
 
 class TestCmdSpeakTextVacio:

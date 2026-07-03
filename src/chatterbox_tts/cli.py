@@ -378,8 +378,70 @@ def cmd_doctor(args):
         sys.exit(1)
 
 
+def _linux_path_symlink() -> Path:
+    """Ruta del symlink de PATH que setup gestiona en Linux (~/.local/bin/tts-sidecar)."""
+    return Path.home() / ".local" / "bin" / "tts-sidecar"
+
+
+def _integrate_linux_path():
+    """Crea/actualiza el symlink ~/.local/bin/tts-sidecar → $APPIMAGE.
+
+    Solo actúa en Linux cuando el proceso corre desde un AppImage (el runtime
+    expone la ruta absoluta del archivo en la variable de entorno APPIMAGE).
+    Fuera de ese contexto no toca el filesystem. ~/.local/bin es el directorio
+    de usuario estándar XDG, presente en el PATH por defecto de las distros
+    modernas, sin necesidad de sudo.
+    """
+    appimage = os.environ.get("APPIMAGE")
+    if sys.platform != "linux" or not appimage:
+        return
+
+    link = _linux_path_symlink()
+    link.parent.mkdir(parents=True, exist_ok=True)
+    if link.is_symlink():
+        link.unlink()
+    elif link.exists():
+        # Un archivo regular homónimo no es nuestro: no se sobrescribe.
+        print(f"\n[SKIP] PATH: {link} existe y no es un symlink; no se modifica.")
+        return
+    link.symlink_to(appimage)
+    print(f"\n[PASS] PATH: symlink creado {link} -> {appimage}")
+    print("El comando 'tts-sidecar' queda disponible por nombre en la terminal.")
+    print("Para revertirlo: tts-sidecar setup --remove-path")
+
+    if str(link.parent) not in os.environ.get("PATH", "").split(os.pathsep):
+        print(f"[WARN] {link.parent} no está en el PATH de esta sesión.")
+        print('Añade esta línea a tu shell profile (~/.bashrc, ~/.zshrc, ...):')
+        print('    export PATH="$HOME/.local/bin:$PATH"')
+
+
+def _remove_linux_path():
+    """Elimina el symlink de PATH creado por setup (rama --remove-path)."""
+    link = _linux_path_symlink()
+    if link.is_symlink():
+        link.unlink()
+        print(f"Symlink eliminado: {link}")
+    elif link.exists():
+        print(
+            f"Error: {link} existe pero no es un symlink; no se elimina.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    else:
+        print(f"No hay nada que quitar: {link} no existe.")
+
+
 def cmd_setup(args):
-    """Provisiona el runtime: corre los chequeos de entorno y descarga el modelo si falta."""
+    """Provisiona el runtime: corre los chequeos de entorno y descarga el modelo si falta.
+
+    En Linux, ejecutado desde un AppImage, también integra el comando en el PATH
+    (symlink de $APPIMAGE en ~/.local/bin); --remove-path revierte ese symlink
+    sin correr chequeos ni descargas.
+    """
+    if getattr(args, "remove_path", False):
+        _remove_linux_path()
+        return
+
     print("=== Chatterbox TTS Setup ===\n")
 
     # 1. Chequeos de entorno (implementación compartida con doctor).
@@ -389,7 +451,10 @@ def cmd_setup(args):
             sys.exit(1)
         print(f"[{status}] {name}: {detail}")
 
-    # 2. Provisión del modelo (idempotente): descarga solo si no está ya en caché.
+    # 2. Integración de PATH (solo Linux desde AppImage; no-op en el resto).
+    _integrate_linux_path()
+
+    # 3. Provisión del modelo (idempotente): descarga solo si no está ya en caché.
     # El modelo se descarga a la caché de HuggingFace (ver engine._download_model),
     # estable tanto desde fuente como en el ejecutable onedir.
     model_dir = os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub")
@@ -552,7 +617,11 @@ def main():
     doctor_parser.set_defaults(func=cmd_doctor)
 
     # comando setup
-    setup_parser = subparsers.add_parser("setup", help="Provisiona el runtime: corre chequeos y descarga el modelo si falta")
+    setup_parser = subparsers.add_parser("setup", help="Provisiona el runtime: corre chequeos, descarga el modelo si falta "
+                                                       "y en Linux (AppImage) integra el comando en el PATH")
+    setup_parser.add_argument("--remove-path", action="store_true",
+                              help="Elimina el symlink de PATH (~/.local/bin/tts-sidecar) creado por setup en Linux "
+                                   "y termina sin correr chequeos ni descargas")
     setup_parser.set_defaults(func=cmd_setup)
 
     # comando daemon

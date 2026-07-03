@@ -76,8 +76,30 @@ Provisión completa. No hay nada que descargar.
 
 - **Windows**: el instalador agrega `tts-sidecar` al PATH y ofrece una casilla
   post-instalación que ejecuta `setup` en tu contexto de usuario.
-- **Linux / macOS**: tras instalar y dejar el binario accesible (p. ej. en el
-  PATH), ejecuta `tts-sidecar setup` manualmente.
+- **Linux**: `setup` es el punto único de provisión. Ejecutado desde el AppImage,
+  además de descargar el modelo crea el symlink `~/.local/bin/tts-sidecar`
+  apuntando al AppImage, dejando el comando invocable por nombre:
+
+  ```bash
+  # Primer uso con el AppImage descargado
+  chmod +x tts-sidecar-x86_64.AppImage
+  ./tts-sidecar-x86_64.AppImage setup
+  # → chequeos + symlink en ~/.local/bin + descarga del modelo
+
+  # Desde entonces, en una terminal nueva:
+  tts-sidecar speak --text "Hola"
+
+  # Reversión del symlink (desinstalación limpia):
+  tts-sidecar setup --remove-path
+  ```
+
+  Si `~/.local/bin` no está en tu PATH, `setup` te lo advierte con la línea a
+  añadir al shell profile.
+- **macOS**: el `.dmg` incluye `Instalar (PATH + modelo).command`, que enlaza
+  `tts-sidecar` en `/usr/local/bin` (pide sudo) y a continuación ofrece ejecutar
+  `setup` como tu usuario. Para desinstalar, el mismo `.dmg` trae
+  `Desinstalar (quitar del PATH).command`, que elimina el symlink; el `.app` se
+  borra arrastrándolo a la Papelera.
 
 > **Importante**: hasta que el modelo esté provisionado, `speak` y `daemon start`
 > **abortan de inmediato** con un mensaje que remite a `tts-sidecar setup`. Nunca

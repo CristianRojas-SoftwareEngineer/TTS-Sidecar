@@ -4,6 +4,7 @@ Provee logging con timestamp [HH:MM:SS], tracking de etapas y el empaquetado
 de los avisos de licencia en el bundle distribuible.
 """
 
+import base64
 import shutil
 import subprocess
 import sys
@@ -14,6 +15,16 @@ from pathlib import Path
 # Archivos de cumplimiento de licencia que deben viajar dentro de cada artefacto
 # distribuible (PyInstaller elimina los avisos de licencia de las dependencias).
 LICENSE_FILES = ("LICENSE", "THIRD-PARTY-LICENSES.md")
+
+# Fuente única del logo del proyecto (PNG 256×256), del que los tres builds
+# derivan su icono nativo: PNG directo en Linux, .ico en Windows, .icns en macOS.
+LOGO_SOURCE = Path(__file__).parent.parent / "assets" / "images" / "TTS Sidecar - Logo.png"
+
+# PNG 1×1 transparente (base64) usado como placeholder de icono cuando la fuente
+# del logo no existe. appimage-builder exige un icono presente en el AppDir.
+_PLACEHOLDER_PNG_1X1 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
 
 # Timeout aplicado a los subprocesos de empaquetado de plataforma (appimage-builder
 # en Linux, create-dmg en macOS) para que un empaquetador colgado no cuelgue el job
@@ -27,23 +38,82 @@ BUILD_SUBPROCESS_TIMEOUT = 600
 # simplemente tarda más en un runner de CI cargado (WARNING-05).
 PYINSTALLER_TIMEOUT = 1800
 
+# Versiones pineadas de las herramientas de build, espejo de las que instala
+# .circleci/config.yml: un build local con estas versiones produce el mismo
+# artefacto que el CI. Actualizar deliberadamente y en ambos lugares a la vez.
+PYINSTALLER_PIN = "6.21.0"
+APPIMAGE_BUILDER_PIN = "1.1.0"
+INNOSETUP_PIN = "6.3.3"
+
+
+def module_available(module_name: str) -> bool:
+    """Comprueba si un módulo Python es importable, sin importarlo.
+
+    Invalida las cachés de los finders para que una instalación pip hecha en
+    este mismo proceso (ensure_build_dependency) sea visible al re-verificar.
+    """
+    import importlib
+    import importlib.util
+
+    importlib.invalidate_caches()
+    return importlib.util.find_spec(module_name) is not None
+
+
+def ensure_build_dependency(name, check, install_cmd=None, required=False) -> bool:
+    """Verifica una dependencia de build y, si falta, avisa y ofrece instalarla.
+
+    Política única de los tres scripts de build (misma UX en Windows, Linux y
+    macOS, sobre pip/brew/choco):
+
+    - `check` (callable → bool) presente: no pregunta nada, retorna True.
+    - Ausente con TTY: muestra el comando exacto (`install_cmd`, lista argv) y
+      pregunta s/n; instala solo con confirmación y re-verifica con `check`.
+    - Ausente sin TTY (CI) o sin `install_cmd`: no pregunta; emite la
+      instrucción de instalación manual y resuelve según criticidad.
+    - `required=True` distingue las dependencias del producto o del compilador
+      (sin ellas el build no tiene sentido: aborta con sys.exit(1) si no se
+      resuelven) de las herramientas del empaquetador (retorna False y el
+      llamador degrada con warning).
+    """
+    if check():
+        log(f"{name}: instalado")
+        return True
+
+    log(f"WARNING: {name} no está instalado")
+    manual_cmd = " ".join(install_cmd) if install_cmd else None
+
+    if install_cmd and sys.stdin.isatty():
+        answer = input(f"¿Instalar {name} ahora con '{manual_cmd}'? (s/n): ")
+        if answer.strip().lower() in ("s", "si", "sí", "y", "yes"):
+            log(f"Instalando {name}: {manual_cmd}")
+            subprocess.run(install_cmd, check=True, timeout=BUILD_SUBPROCESS_TIMEOUT)
+            if check():
+                log(f"{name}: instalado correctamente")
+                return True
+            log(f"WARNING: {name} sigue sin estar disponible tras la instalación")
+
+    if manual_cmd:
+        log(f"Instalación manual: {manual_cmd}")
+    if required:
+        log(f"ERROR: {name} es una dependencia requerida del build; abortando")
+        sys.exit(1)
+    return False
+
 
 def check_pyinstaller() -> None:
-    """Verifica que PyInstaller esté instalado (e instala si falta).
+    """Verifica que PyInstaller esté instalado (ofrece instalarlo si falta).
 
     Fuente única para los tres scripts de build: antes cada uno duplicaba este
-    mismo bloque de try/except (SUGGESTION-04).
+    mismo bloque de try/except (SUGGESTION-04). Criticidad required: sin el
+    compilador el build no tiene sentido.
     """
     with StageTimer("CheckDeps", "Verificando dependencias"):
-        try:
-            import PyInstaller
-            log(f"PyInstaller: {PyInstaller.__version__}")
-        except ImportError:
-            log("PyInstaller no encontrado, instalando...")
-            subprocess.run(
-                [sys.executable, "-m", "pip", "install", "pyinstaller"],
-                check=True,
-            )
+        ensure_build_dependency(
+            "PyInstaller",
+            lambda: module_available("PyInstaller"),
+            install_cmd=[sys.executable, "-m", "pip", "install", f"pyinstaller=={PYINSTALLER_PIN}"],
+            required=True,
+        )
 
 
 def common_pyinstaller_args(
@@ -130,6 +200,72 @@ def copy_license_files(dest_dir) -> None:
             log(f"Licencia empaquetada: {name} -> {dest}")
         else:
             log(f"WARNING: no se encontró {name} en la raíz; no se empaquetó")
+
+
+def ensure_png_icon(dest_path) -> Path:
+    """Copia el logo del proyecto a dest_path como icono PNG.
+
+    Si LOGO_SOURCE no existe, materializa un PNG 1×1 transparente como
+    placeholder (preserva el comportamiento previo del AppImage, que exige un
+    icono presente en el AppDir). Devuelve siempre la ruta de destino.
+    """
+    dest = Path(dest_path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if LOGO_SOURCE.exists():
+        shutil.copy2(LOGO_SOURCE, dest)
+        log(f"Icono PNG: {LOGO_SOURCE.name} -> {dest}")
+    else:
+        dest.write_bytes(base64.b64decode(_PLACEHOLDER_PNG_1X1))
+        log(f"WARNING: no se encontró {LOGO_SOURCE}; se usó placeholder 1×1 en {dest}")
+    return dest
+
+
+def ensure_ico(dest_dir) -> Path:
+    """Genera un .ico multi-resolución (16/32/48/256) desde el logo del proyecto.
+
+    Devuelve la ruta del .ico generado, o None si Pillow o la fuente faltan
+    (degradación con gracia: el build sigue sin icono nativo).
+    """
+    try:
+        from PIL import Image
+
+        dest = Path(dest_dir)
+        dest.mkdir(parents=True, exist_ok=True)
+        ico_path = dest / "tts-sidecar.ico"
+        with Image.open(LOGO_SOURCE) as img:
+            img.save(
+                ico_path,
+                format="ICO",
+                sizes=[(16, 16), (32, 32), (48, 48), (256, 256)],
+            )
+        log(f"Icono ICO generado: {ico_path}")
+        return ico_path
+    except (ImportError, FileNotFoundError, OSError) as exc:
+        log(f"WARNING: no se pudo generar el .ico ({exc}); build sin icono nativo")
+        return None
+
+
+def ensure_icns(dest_dir) -> Path:
+    """Genera un .icns desde el logo del proyecto para el bundle .app de macOS.
+
+    Devuelve la ruta del .icns generado, o None si Pillow o la fuente faltan
+    (degradación con gracia: el .app mantiene el CFBundleIconFile vacío).
+    """
+    try:
+        from PIL import Image
+
+        dest = Path(dest_dir)
+        dest.mkdir(parents=True, exist_ok=True)
+        icns_path = dest / "tts-sidecar.icns"
+        with Image.open(LOGO_SOURCE) as img:
+            # Pillow escribe .icns a partir de la imagen fuente; los tamaños del
+            # iconset se derivan internamente. El logo es 256×256, tamaño válido.
+            img.save(icns_path, format="ICNS")
+        log(f"Icono ICNS generado: {icns_path}")
+        return icns_path
+    except (ImportError, FileNotFoundError, OSError) as exc:
+        log(f"WARNING: no se pudo generar el .icns ({exc}); .app sin icono nativo")
+        return None
 
 
 def get_version(init_path: Path = None) -> str:

@@ -6,6 +6,7 @@ in an AppImage for distribution.
 """
 
 import os
+import shutil
 import sys
 import subprocess
 from pathlib import Path
@@ -18,7 +19,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from build_utils import (
     log, StageTimer, BuildTimer, copy_license_files, get_version,
     check_pyinstaller, common_pyinstaller_args, bundle_size_mb,
-    BUILD_SUBPROCESS_TIMEOUT, PYINSTALLER_TIMEOUT,
+    ensure_png_icon, ensure_build_dependency, module_available,
+    BUILD_SUBPROCESS_TIMEOUT, PYINSTALLER_TIMEOUT, APPIMAGE_BUILDER_PIN,
 )
 
 
@@ -27,25 +29,26 @@ def check_dependencies():
     check_pyinstaller()
 
     with StageTimer("CheckDeps", "Checking dependencies"):
-        try:
-            import sounddevice
-        except ImportError:
-            log("sounddevice not installed, installing...")
-            subprocess.run(
-                [sys.executable, "-m", "pip", "install", "sounddevice"],
-                check=True,
-            )
+        # sounddevice es dependencia del producto (sin ella el bundle saldría
+        # sin audio): required. Sin pin: es dependencia de runtime gobernada
+        # por requirements.txt, no una herramienta de build.
+        ensure_build_dependency(
+            "sounddevice",
+            lambda: module_available("sounddevice"),
+            install_cmd=[sys.executable, "-m", "pip", "install", "sounddevice"],
+            required=True,
+        )
 
-        # appimage-builder genera el AppImage a partir del bundle onedir
-        try:
-            import appimagebuilder
-            log("appimage-builder: installed")
-        except ImportError:
-            log("appimage-builder not found, installing...")
-            subprocess.run(
-                [sys.executable, "-m", "pip", "install", "appimage-builder"],
-                check=True,
-            )
+        # appimage-builder genera el AppImage a partir del bundle onedir;
+        # es herramienta del empaquetador (opcional): sin ella el onedir
+        # sigue siendo usable y el stage AppImage degrada con warning.
+        ensure_build_dependency(
+            "appimage-builder",
+            lambda: module_available("appimagebuilder"),
+            install_cmd=[sys.executable, "-m", "pip", "install",
+                         f"appimage-builder=={APPIMAGE_BUILDER_PIN}"],
+            required=False,
+        )
 
 
 def build_linux(target_arch="x86_64"):
@@ -99,14 +102,19 @@ def build_linux(target_arch="x86_64"):
                 log(f"Create {appimageyml} with appimage-builder config.")
                 return
 
+            if not shutil.which("appimage-builder"):
+                log("WARNING: appimage-builder not available — AppImage not generated; "
+                    "the onedir bundle is still in dist/")
+                return
+
             # El spec toma la versión y la arquitectura del entorno.
             env = os.environ.copy()
             env["APP_VERSION"] = get_version()
             env["TARGET_ARCH"] = appimage_arch
 
-            # appimage-builder requiere un icono presente en el AppDir; genera uno
-            # mínimo si no existe (el proyecto es una CLI sin icono propio).
-            _ensure_placeholder_icon(PROJECT_ROOT)
+            # appimage-builder requiere un icono presente en el AppDir; materializa
+            # el logo del proyecto (o un placeholder 1×1 si la fuente faltara).
+            ensure_png_icon(PROJECT_ROOT / "tts-sidecar.png")
 
             result = subprocess.run(
                 ["appimage-builder", "--recipe", str(appimageyml), "--skip-test"],
@@ -136,19 +144,6 @@ def build_linux(target_arch="x86_64"):
                 log(f"AppImage created: {generated}")
             else:
                 log("WARNING: appimage-builder ran but no .AppImage was found")
-
-
-def _ensure_placeholder_icon(project_root: Path):
-    """Crea un icono PNG mínimo si no existe (appimage-builder lo exige)."""
-    icon = project_root / "tts-sidecar.png"
-    if icon.exists():
-        return
-    # PNG 1x1 transparente (base64) — suficiente como placeholder de icono.
-    import base64
-    png_1x1 = base64.b64decode(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
-    )
-    icon.write_bytes(png_1x1)
 
 
 if __name__ == "__main__":

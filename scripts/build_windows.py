@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from build_utils import (
     log, StageTimer, BuildTimer, copy_license_files,
     check_pyinstaller, common_pyinstaller_args, bundle_size_mb,
-    PYINSTALLER_TIMEOUT,
+    BUILD_SUBPROCESS_TIMEOUT, PYINSTALLER_TIMEOUT,
 )
 
 
@@ -74,16 +74,17 @@ def build_windows():
 
         with StageTimer("Installer", "Generando instalador Inno Setup"):
             installer_script = PROJECT_ROOT / "scripts" / "create_installer_windows.py"
-            result = subprocess.run(
-                [sys.executable, str(installer_script), str(DIST_DIR / "tts-sidecar")],
-                check=False,
-            )
-            if result.returncode != 0:
-                log(f"Generación del instalador fallida (rc={result.returncode})")
-                if result.stdout:
-                    print(result.stdout)
-                if result.stderr:
-                    print(result.stderr, file=sys.stderr)
+            try:
+                returncode = subprocess.run(
+                    [sys.executable, str(installer_script), str(DIST_DIR / "tts-sidecar")],
+                    check=False,
+                    timeout=BUILD_SUBPROCESS_TIMEOUT,
+                ).returncode
+            except subprocess.TimeoutExpired:
+                log(f"[TIMEOUT] La generación del instalador excedió {BUILD_SUBPROCESS_TIMEOUT}s")
+                returncode = 1
+            if returncode != 0:
+                log(f"Generación del instalador fallida (rc={returncode})")
                 # No fatal: el bundle onedir sigue siendo usable
                 log("WARNING: Instalador no creado — el bundle onedir está disponible en dist/")
             else:

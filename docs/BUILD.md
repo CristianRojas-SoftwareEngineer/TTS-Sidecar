@@ -13,9 +13,27 @@
 
 | Plataforma | Herramienta | Instalación |
 |------------|-------------|-------------|
-| Windows | Inno Setup 6 | `choco install innosetup` o [jrsoftware.org](https://jrsoftware.org/isdl.php) |
-| Linux | appimage-builder | `pip install appimage-builder` |
-| macOS | create-dmg | `pip install create-dmg` (o `brew install create-dmg`) |
+| Windows | Inno Setup 6 | `choco install innosetup -y --version=6.3.3` o [jrsoftware.org](https://jrsoftware.org/isdl.php) |
+| Linux | appimage-builder | `pip install appimage-builder==1.1.0` |
+| macOS | create-dmg | `brew install create-dmg` (script de shell de Homebrew, no existe en PyPI) |
+
+### Política interactiva de dependencias de build
+
+Los tres scripts de build comparten una única política, implementada en
+`build_utils.ensure_build_dependency`: **verificar → avisar → preguntar →
+instalar pineado o degradar**. Si una herramienta falta y hay TTY, el script
+muestra el comando exacto de instalación y pregunta s/n; sin TTY (CI) no
+pregunta, emite la instrucción manual y resuelve según criticidad:
+
+- **Requeridas** (PyInstaller, sounddevice en Linux): sin ellas el build no
+  tiene sentido; el script aborta si no se resuelven.
+- **Empaquetadores** (appimage-builder, create-dmg, Inno Setup): sin ellos el
+  bundle onedir/.app sigue siendo usable; el stage degrada con warning.
+
+Las versiones pineadas viven como constantes en `scripts/build_utils.py`
+(`PYINSTALLER_PIN=6.21.0`, `APPIMAGE_BUILDER_PIN=1.1.0`, `INNOSETUP_PIN=6.3.3`),
+espejo de las que instala `.circleci/config.yml`: un build local produce el
+mismo artefacto que el CI.
 
 ---
 
@@ -23,7 +41,7 @@
 
 | Plataforma | Comando | Artefacto |
 |------------|---------|-----------|
-| Windows x64 | `python scripts/build_windows.py` | `dist/tts-sidecar-0.1.0-setup.exe` (instalador) |
+| Windows x64 | `python scripts/build_windows.py` | `dist/tts-sidecar-0.1.0-x64-setup.exe` (instalador) |
 | Linux x64 | `python scripts/build_linux.py --arch x86_64` | `dist/tts-sidecar-x86_64.AppImage` |
 | Linux ARM64 | `python scripts/build_linux.py --arch arm64` | `dist/tts-sidecar-aarch64.AppImage` |
 | macOS universal2 | `python scripts/build_macos.py --arch universal2` | `dist/tts-sidecar-universal2.dmg` |
@@ -100,14 +118,34 @@ dist/tts-sidecar/tts-sidecar.exe doctor
 dist/tts-sidecar/tts-sidecar.exe setup
 
 # Instalador (Windows)
-dist/tts-sidecar-0.1.0-setup.exe
+dist/tts-sidecar-0.1.0-x64-setup.exe
 ```
 
-> El instalador de Windows agrega `{app}` al `PATH` del sistema, muestra una página
-> informativa sobre el modelo y ofrece una casilla post-instalación que ejecuta
-> `setup` en contexto de usuario. En Linux/macOS, ejecuta `tts-sidecar setup`
-> manualmente tras instalar. El modelo `es-mx-latam` se descarga a
-> `~/.cache/huggingface/hub` y no se empaqueta en el ejecutable.
+### Matriz de integración con el SO
+
+Cada plataforma integra `tts-sidecar` en el sistema con un mecanismo distinto,
+pero la experiencia resultante es homóloga (comando en el PATH + provisión
+guiada + desinstalación limpia):
+
+| Aspecto | Windows | Linux | macOS |
+|---------|---------|-------|-------|
+| PATH | Automático: el instalador agrega `{app}` al PATH del sistema | `tts-sidecar setup` crea el symlink `~/.local/bin/tts-sidecar → $APPIMAGE` | Opt-in: `Instalar (PATH + modelo).command` del `.dmg` (symlink en `/usr/local/bin`, con sudo) |
+| Guía hacia `setup` | Página informativa + casilla post-instalación que lo ejecuta en contexto de usuario | `setup` es el punto único de provisión (modelo + PATH) | El script de instalación ofrece ejecutar `setup` (sin sudo) tras enlazar |
+| Desinstalación | Desinstalador de Inno Setup (revierte PATH y registro) | `tts-sidecar setup --remove-path` + borrar el `.AppImage` | `Desinstalar (quitar del PATH).command` del `.dmg` + arrastrar el `.app` a la Papelera |
+| Dependencias de build | Política interactiva común (`ensure_build_dependency`) | Ídem | Ídem |
+
+> El modelo `es-mx-latam` se descarga a `~/.cache/huggingface/hub` y no se
+> empaqueta en el ejecutable; `speak` y `daemon start` fallan rápido remitiendo
+> a `setup` mientras falte.
+
+### Limitación conocida: firma de código y notarización
+
+Los artefactos **no están firmados ni notarizados**: en macOS, Gatekeeper
+bloquea la primera apertura del `.app`/`.dmg` (clic derecho → Abrir, o
+`xattr -d com.apple.quarantine`); en Windows, SmartScreen muestra la advertencia
+de editor desconocido en el instalador. Firmar/notarizar requiere certificados
+de pago (Apple Developer ID, certificado Authenticode) y queda fuera del
+alcance actual del pipeline.
 
 ---
 
@@ -153,7 +191,7 @@ Los artefactos publicados por CI se almacenan en `dist/`:
 
 ```
 dist/
-├── tts-sidecar-0.1.0-setup.exe    # Windows (instalador Inno Setup)
+├── tts-sidecar-0.1.0-x64-setup.exe # Windows (instalador Inno Setup)
 ├── tts-sidecar/                     # Windows onedir (carpeta)
 ├── tts-sidecar-x86_64.AppImage     # Linux x64
 ├── tts-sidecar-aarch64.AppImage    # Linux ARM64
@@ -205,6 +243,9 @@ Los paquetes que requieren `--collect-all` son: `chatterbox`, `transformers`,
 - **Tiempo de build**: ~10 min en frío, ~5 min incremental.
 - **Windows**: el instalador Inno Setup es el artefacto que recibe el usuario final;
   ajusta el `PATH`, muestra la página informativa del modelo y ofrece ejecutar `setup`.
-- **Linux**: el AppImage es un único archivo ejecutable, compatible con la mayoría de distribuciones.
-- **macOS**: el `.dmg` es el instalador estándar de macOS; el `.app` bundle es la aplicación.
-- **macOS code signing**: para distribución fuera de App Store se recomienda firmar/notarize el `.app`.
+- **Linux**: el AppImage es un único archivo ejecutable, compatible con la mayoría de
+  distribuciones; `tts-sidecar setup` lo integra en el PATH (symlink en `~/.local/bin`).
+- **macOS**: el `.dmg` es el instalador estándar de macOS; incluye el `.app` bundle más
+  los scripts de instalación (PATH + oferta de `setup`) y desinstalación.
+- **Firma de código**: ver la limitación conocida en la sección 3 (artefactos sin
+  firmar/notarizar: Gatekeeper y SmartScreen advierten en el primer arranque).

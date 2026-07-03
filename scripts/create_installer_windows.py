@@ -11,13 +11,14 @@ Example:
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from build_utils import get_version
+from build_utils import get_version, ensure_ico, ensure_build_dependency, INNOSETUP_PIN
 
 
 def get_inno_setup_path():
@@ -40,7 +41,7 @@ def get_inno_setup_path():
 
 
 def generate_iss(source_dir: Path, output_dir: Path, version: str, info_after: Path,
-                 license_file: Path = None) -> str:
+                 license_file: Path = None, icon_file: Path = None) -> str:
     """
     Genera un script .iss mínimo para Inno Setup.
 
@@ -65,7 +66,7 @@ def generate_iss(source_dir: Path, output_dir: Path, version: str, info_after: P
     lines.append("DefaultDirName={autopf}\\tts-sidecar")
     lines.append("DefaultGroupName=tts-sidecar")
     lines.append("OutputDir=" + output_win)
-    lines.append("OutputBaseFilename=tts-sidecar-" + version + "-setup")
+    lines.append("OutputBaseFilename=tts-sidecar-" + version + "-x64-setup")
     lines.append("WizardStyle=modern")
     lines.append("PrivilegesRequired=admin")
     lines.append("ArchitecturesAllowed=x64compatible")
@@ -77,14 +78,23 @@ def generate_iss(source_dir: Path, output_dir: Path, version: str, info_after: P
     # Página de licencia (GPL v3) mostrada como paso de aceptación en el asistente.
     if license_file is not None and license_file.exists():
         lines.append("LicenseFile=" + str(license_file.resolve()).replace("/", "\\"))
+    # Icono del asistente del instalador (logo del proyecto); se omite si no se generó.
+    has_icon = icon_file is not None and icon_file.exists()
+    if has_icon:
+        lines.append("SetupIconFile=" + str(icon_file.resolve()).replace("/", "\\"))
     lines.append("")
     lines.append("[Files]")
     lines.append("Source: " + source_win + "\\*; DestDir: {app}; Flags: ignoreversion recursesubdirs createallsubdirs")
+    if has_icon:
+        # Copia el .ico a {app} para que los accesos directos apunten al logo.
+        icon_win = str(icon_file.resolve()).replace("/", "\\")
+        lines.append("Source: " + icon_win + "; DestDir: {app}; Flags: ignoreversion")
     lines.append("")
     lines.append("[Icons]")
-    lines.append("Name: {group}\\tts-sidecar; Filename: {app}\\tts-sidecar.exe")
+    icon_suffix = "; IconFilename: {app}\\tts-sidecar.ico" if has_icon else ""
+    lines.append("Name: {group}\\tts-sidecar; Filename: {app}\\tts-sidecar.exe" + icon_suffix)
     lines.append("Name: {group}\\Uninstall tts-sidecar; Filename: {uninstallexe}")
-    lines.append("Name: {autodesktop}\\tts-sidecar; Filename: {app}\\tts-sidecar.exe")
+    lines.append("Name: {autodesktop}\\tts-sidecar; Filename: {app}\\tts-sidecar.exe" + icon_suffix)
     lines.append("")
     lines.append("[Registry]")
     lines.append('Root: HKLM; Subkey: "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\tts-sidecar"; ValueType: string; ValueName: "DisplayName"; ValueData: "tts-sidecar"; Flags: uninsdeletekey')
@@ -159,12 +169,24 @@ def main():
     print(f"Source: {source_dir}")
     print(f"Output: {output_dir}")
 
-    iscc = get_inno_setup_path()
-    if not iscc:
+    # Inno Setup es herramienta del empaquetador (opcional en el sistema de
+    # build: el padre rescata el sys.exit(1) como no-fatal y el onedir sigue
+    # siendo usable). Se ofrece instalarlo vía Chocolatey pineado si choco existe.
+    resolved = ensure_build_dependency(
+        "Inno Setup (iscc.exe)",
+        lambda: get_inno_setup_path() is not None,
+        install_cmd=(
+            ["choco", "install", "innosetup", "-y", f"--version={INNOSETUP_PIN}"]
+            if shutil.which("choco") else None
+        ),
+        required=False,
+    )
+    if not resolved:
         print("ERROR: Inno Setup (iscc.exe) not found.", file=sys.stderr)
         print("Install Inno Setup 6 from: https://jrsoftware.org/isdl.php", file=sys.stderr)
-        print("Or via Chocolatey: choco install innosetup -y", file=sys.stderr)
+        print(f"Or via Chocolatey: choco install innosetup -y --version={INNOSETUP_PIN}", file=sys.stderr)
         sys.exit(1)
+    iscc = get_inno_setup_path()
     print(f"ISCC: {iscc}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -190,12 +212,18 @@ def main():
         info_after_path = Path(info_f.name)
         info_f.write(info_after_text)
 
+    # Genera el .ico del logo (degradación con gracia: None si Pillow o la fuente
+    # faltan, en cuyo caso el .iss se emite sin líneas de icono).
+    icon_dir = Path(tempfile.mkdtemp(prefix="tts-icon-"))
+    icon_file = ensure_ico(icon_dir)
+
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".iss", delete=False, encoding="utf-8"
     ) as f:
         iss_path = Path(f.name)
         license_file = Path(__file__).parent.parent / "LICENSE"
-        f.write(generate_iss(source_dir, output_dir, version, info_after_path, license_file))
+        f.write(generate_iss(source_dir, output_dir, version, info_after_path,
+                             license_file, icon_file))
 
     try:
         print("Compilando instalador con Inno Setup...")
@@ -211,7 +239,7 @@ def main():
             print("STDERR:", result.stderr, file=sys.stderr)
             sys.exit(1)
 
-        installer_name = f"tts-sidecar-{version}-setup.exe"
+        installer_name = f"tts-sidecar-{version}-x64-setup.exe"
         installer_path = output_dir / installer_name
 
         if installer_path.exists():
@@ -219,7 +247,7 @@ def main():
             print(f"Installer created: {installer_path}")
             print(f"Size: {size_mb:.1f} MB")
         else:
-            candidates = list(output_dir.glob("tts-sidecar-*-setup.exe"))
+            candidates = list(output_dir.glob("tts-sidecar-*-x64-setup.exe"))
             if candidates:
                 p = candidates[0]
                 size_mb = p.stat().st_size / 1024 / 1024
@@ -234,6 +262,10 @@ def main():
                 tmp.unlink()
             except OSError:
                 pass
+        try:
+            shutil.rmtree(icon_dir)
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":
