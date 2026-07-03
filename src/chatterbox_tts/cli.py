@@ -40,6 +40,22 @@ EXIT_INVALID_INPUT = 4        # entrada inválida (texto vacío, nombre ilegal, 
 EXIT_DAEMON_UNREACHABLE = 5   # daemon inalcanzable o no gestionable
 EXIT_INTERRUPTED = 130        # interrupción por el usuario (128 + SIGINT)
 
+# Versión del esquema de la salida --json del CLI (contrato legible por máquina).
+# Se emite como "schema_version" en TODOS los payloads JSON. Es un campo aditivo:
+# los consumidores lo usan para detectar cambios de forma; añadir claves nuevas no
+# incrementa la versión, solo lo haría un cambio incompatible de las existentes.
+SCHEMA_VERSION = "1"
+
+# Umbral mínimo de espacio libre en disco para descargar el modelo en 'setup'.
+# El language pack + Voice Encoder ocupan varios cientos de MB; 2 GB deja margen
+# para la descarga, la descompresión y la caché temporal de HuggingFace (R-14).
+MIN_FREE_DISK_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
+
+# RAM recomendada para una síntesis fluida (chequeo advisory de 'doctor', R-18).
+# Por debajo de este umbral la inferencia en CPU funciona pero puede paginar en
+# textos largos; es un WARN, no un FAIL (no altera el exit code).
+RECOMMENDED_RAM_BYTES = 8 * 1024 * 1024 * 1024  # 8 GB
+
 # Imports perezosos (lazy): solo se cargan cuando se ejecutan los comandos.
 # Esto permite que --help funcione sin las dependencias instaladas.
 
@@ -127,6 +143,17 @@ def cmd_speak(args):
         if not args.text or not args.text.strip():
             print("Error: --text no puede estar vacío.", file=sys.stderr)
             sys.exit(EXIT_INVALID_INPUT)
+
+        # Advertencia no bloqueante para textos muy largos: el T3 topa a
+        # MAX_NEW_TOKENS=500, así que una entrada larga puede truncarse en la
+        # síntesis. Se avisa por stderr (sin abortar) sugiriendo fragmentar (R-03).
+        if len(args.text) > 2000:
+            print(
+                f"Advertencia: el texto tiene {len(args.text)} caracteres; los textos "
+                "muy largos pueden truncarse al sintetizar (límite interno de tokens). "
+                "Considera fragmentarlo en oraciones o párrafos para mejores resultados.",
+                file=sys.stderr,
+            )
 
         # Exige que el modelo esté en caché antes de sintetizar.
         # Las descargas son responsabilidad exclusiva de 'setup'.
@@ -268,7 +295,7 @@ def cmd_voice_list(args):
 
         if getattr(args, "json", False):
             import json
-            print(json.dumps({"voices": voice_list}))
+            print(json.dumps({"schema_version": SCHEMA_VERSION, "voices": voice_list}))
             return
 
         if voice_list:
@@ -300,7 +327,7 @@ def cmd_devices(args):
 
     if getattr(args, "json", False):
         import json
-        print(json.dumps({"devices": devices}))
+        print(json.dumps({"schema_version": SCHEMA_VERSION, "devices": devices}))
         return
 
     print("Dispositivos de salida de audio:")
@@ -314,7 +341,7 @@ def cmd_version(args):
 
     if getattr(args, "json", False):
         import json
-        print(json.dumps({"name": "tts-sidecar", "version": __version__}))
+        print(json.dumps({"schema_version": SCHEMA_VERSION, "name": "tts-sidecar", "version": __version__}))
     else:
         print(f"tts-sidecar {__version__}")
 
@@ -387,12 +414,33 @@ def cmd_doctor(args):
     else:
         checks.append(("SKIP", "Voices directory", "sin voces de usuario aún (opcional)"))
 
+    # Chequea la RAM total (advisory, R-18): por debajo del umbral recomendado la
+    # síntesis funciona pero puede paginar en textos largos. Es un WARN, no un
+    # FAIL: no cuenta como chequeo fallido ni altera el exit code.
+    try:
+        import psutil
+        total = psutil.virtual_memory().total
+        total_gb = total / (1024 ** 3)
+        if total < RECOMMENDED_RAM_BYTES:
+            checks.append((
+                "WARN", "RAM",
+                f"{total_gb:.1f} GB detectados; se recomiendan 8 GB "
+                "(4 GB mínimo). La síntesis puede paginar con textos largos.",
+            ))
+        else:
+            checks.append(("PASS", "RAM", f"{total_gb:.1f} GB"))
+    except Exception as e:
+        # psutil no disponible o error de lectura: se omite sin penalizar.
+        checks.append(("SKIP", "RAM", f"no se pudo determinar ({e})"))
+
+    # Solo FAIL cuenta como fallo: WARN/SKIP no penalizan el exit code.
     checks_failed = sum(1 for status, _, _ in checks if status == "FAIL")
-    checks_passed = len(checks) - checks_failed
+    checks_passed = sum(1 for status, _, _ in checks if status == "PASS")
 
     if getattr(args, "json", False):
         import json
         print(json.dumps({
+            "schema_version": SCHEMA_VERSION,
             "python": sys.version,
             "platform": f"{platform.system()} {platform.release()}",
             "checks": [{"status": s, "name": n, "detail": d} for s, n, d in checks],
@@ -516,6 +564,20 @@ def cmd_setup(args):
     from .model_cache import hub_cache_path
     model_dir = str(hub_cache_path())
 
+    # --force-update: borra los snapshots del modelo antes del gate para forzar
+    # una re-descarga limpia (R-13). Borrado quirúrgico acotado a las carpetas
+    # models--ResembleAI--* del proyecto, misma defensa en profundidad que cleanup.
+    if getattr(args, "force_update", False):
+        import shutil
+        from .model_cache import model_cache_dirs
+        print("\n[force-update] Eliminando el modelo en caché para re-descargarlo...", file=sys.stderr)
+        for p in model_cache_dirs():
+            if not p.name.startswith("models--ResembleAI--"):
+                raise RuntimeError(f"Ruta inesperada fuera del proyecto: {p}")
+            if p.exists():
+                shutil.rmtree(p)
+                print(f"[force-update] Eliminado: {p}", file=sys.stderr)
+
     try:
         from .model_cache import is_model_cached
 
@@ -523,6 +585,26 @@ def cmd_setup(args):
             print(f"\n[PASS] El modelo 'es-mx-latam' ya está en caché en: {model_dir}", file=sys.stderr)
             print("Provisión completa. No hay nada que descargar.", file=sys.stderr)
             return
+
+        # Pre-chequeo de espacio en disco antes de descargar (R-14): el modelo
+        # pesa varios cientos de MB; con menos de 2 GB libres la descarga puede
+        # fallar a medias y dejar una caché truncada. Se aborta antes de empezar.
+        # disk_usage exige una ruta existente: en una máquina limpia la caché aún
+        # no existe, así que se sube al primer ancestro presente.
+        import shutil
+        probe = hub_cache_path()
+        while not probe.exists() and probe != probe.parent:
+            probe = probe.parent
+        free = shutil.disk_usage(probe).free
+        if free < MIN_FREE_DISK_BYTES:
+            free_gb = free / (1024 ** 3)
+            print(
+                f"[FAIL] Espacio en disco insuficiente: {free_gb:.1f} GB libres, "
+                "se requieren al menos 2 GB para descargar el modelo. "
+                "Libera espacio y reintenta 'tts-sidecar setup'.",
+                file=sys.stderr,
+            )
+            sys.exit(EXIT_ERROR)
 
         print("\nDescargando el modelo es-mx-latam...", file=sys.stderr)
         print("(Puede tardar varios minutos en la primera ejecución)\n", file=sys.stderr)
@@ -656,7 +738,7 @@ def cmd_daemon(args):
 
         if getattr(args, "json", False):
             import json
-            print(json.dumps(status))
+            print(json.dumps({"schema_version": SCHEMA_VERSION, **status}))
             return
 
         if status.get("running"):
@@ -746,6 +828,9 @@ def main():
     setup_parser.add_argument("--remove-path", action="store_true",
                               help="Elimina el symlink de PATH (~/.local/bin/tts-sidecar) creado por setup en Linux "
                                    "y termina sin correr chequeos ni descargas")
+    setup_parser.add_argument("--force-update", action="store_true",
+                              help="Elimina el modelo en caché y lo vuelve a descargar (fuerza una "
+                                   "re-descarga limpia, p. ej. para actualizarlo)")
     setup_parser.set_defaults(func=cmd_setup)
 
     # comando cleanup

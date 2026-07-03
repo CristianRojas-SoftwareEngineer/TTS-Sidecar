@@ -51,3 +51,15 @@ def test_sin_clave_uninstall_manual(iss):
     # W-02: Inno Setup genera su propia entrada ({AppId}_is1); la clave manual
     # duplicaría el programa en «Aplicaciones y características».
     assert "CurrentVersion\\Uninstall\\tts-sidecar" not in iss
+
+
+def test_info_after_ofrece_codigo_fuente_gplv3():
+    """R-34: la página InfoAfter del instalador debe ofrecer el código fuente
+    bajo GPLv3 y enlazar al repositorio (GPLv3 §6)."""
+    from create_installer_windows import info_after_text
+
+    text = info_after_text()
+    assert "GPLv3" in text or "GPL-3.0" in text
+    assert "github.com/CristianRojas-SoftwareEngineer/tts-sidecar" in text
+    # Debe seguir explicando la provisión del modelo (compatibilidad con W-03).
+    assert "tts-sidecar setup" in text

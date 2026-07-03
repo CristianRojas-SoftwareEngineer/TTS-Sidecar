@@ -25,6 +25,7 @@ class MockArgs:
         self.no_daemon = kwargs.get("no_daemon", False)
         self.json = kwargs.get("json", False)
         self.remove_path = kwargs.get("remove_path", False)
+        self.force_update = kwargs.get("force_update", False)
 
 
 class TestResolveVoicePaths:
@@ -83,14 +84,16 @@ class TestCmdVoiceList:
     @patch("chatterbox_tts.voices.list_voices")
     def test_cmd_voice_list_json(self, mock_list_voices, capsys):
         import json
-        from chatterbox_tts.cli import cmd_voice_list
+        from chatterbox_tts.cli import SCHEMA_VERSION, cmd_voice_list
 
         mock_list_voices.return_value = ["crist", "testcli"]
 
         cmd_voice_list(MockArgs(json=True))
 
         out = capsys.readouterr().out
-        assert json.loads(out) == {"voices": ["crist", "testcli"]}
+        assert json.loads(out) == {
+            "schema_version": SCHEMA_VERSION, "voices": ["crist", "testcli"],
+        }
 
 
 class TestCmdVoiceAdd:
@@ -193,7 +196,7 @@ class TestCmdDevices:
     @patch("chatterbox_tts.audio.get_audio_devices")
     def test_cmd_devices_json(self, mock_get_devices, capsys):
         import json
-        from chatterbox_tts.cli import cmd_devices
+        from chatterbox_tts.cli import SCHEMA_VERSION, cmd_devices
 
         devices = [{"id": 0, "name": "Speaker 1", "latency": 0.01}]
         mock_get_devices.return_value = devices
@@ -201,7 +204,9 @@ class TestCmdDevices:
         cmd_devices(MockArgs(json=True))
 
         out = capsys.readouterr().out
-        assert json.loads(out) == {"devices": devices}
+        assert json.loads(out) == {
+            "schema_version": SCHEMA_VERSION, "devices": devices,
+        }
 
 
 class TestCmdVersion:
@@ -216,12 +221,15 @@ class TestCmdVersion:
     def test_cmd_version_json(self, capsys):
         import json
         from chatterbox_tts import __version__
-        from chatterbox_tts.cli import cmd_version
+        from chatterbox_tts.cli import SCHEMA_VERSION, cmd_version
 
         cmd_version(MockArgs(json=True))
 
         out = capsys.readouterr().out
-        assert json.loads(out) == {"name": "tts-sidecar", "version": __version__}
+        assert json.loads(out) == {
+            "schema_version": SCHEMA_VERSION,
+            "name": "tts-sidecar", "version": __version__,
+        }
 
 
 class TestCmdSpeakDaemonDispatch:
@@ -822,3 +830,190 @@ class TestCmdSpeakTextVacio:
 
         err = capsys.readouterr().err
         assert "--text" in err
+
+
+class TestSchemaVersionJSON:
+    """R-07: todo payload --json incluye 'schema_version'."""
+
+    def test_version_json_incluye_schema_version(self, capsys):
+        import json
+        from chatterbox_tts.cli import cmd_version, SCHEMA_VERSION
+
+        cmd_version(MockArgs(json=True))
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["schema_version"] == SCHEMA_VERSION
+        assert payload["name"] == "tts-sidecar"
+
+    def test_devices_json_incluye_schema_version(self, capsys):
+        import json
+        from chatterbox_tts.cli import cmd_devices, SCHEMA_VERSION
+
+        with patch("chatterbox_tts.audio.get_audio_devices", return_value=[]):
+            cmd_devices(MockArgs(json=True))
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["schema_version"] == SCHEMA_VERSION
+        assert payload["devices"] == []
+
+    def test_voice_list_json_incluye_schema_version(self, capsys):
+        import json
+        from chatterbox_tts.cli import cmd_voice_list, SCHEMA_VERSION
+
+        with patch("chatterbox_tts.voices.list_voices", return_value=["default"]):
+            cmd_voice_list(MockArgs(json=True))
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["schema_version"] == SCHEMA_VERSION
+        assert payload["voices"] == ["default"]
+
+    def test_doctor_json_incluye_schema_version(self, capsys):
+        import json
+        from chatterbox_tts.cli import cmd_doctor, SCHEMA_VERSION
+
+        with patch("chatterbox_tts.model_cache.is_model_cached", return_value=True):
+            cmd_doctor(MockArgs(json=True))
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["schema_version"] == SCHEMA_VERSION
+
+    def test_daemon_status_json_incluye_schema_version(self, capsys):
+        import argparse
+        import json
+        from chatterbox_tts.cli import cmd_daemon, SCHEMA_VERSION
+
+        args = argparse.Namespace(action="status", json=True)
+        manager = MagicMock()
+        manager.status.return_value = {"running": False}
+        with patch("chatterbox_tts.daemon.DaemonManager", return_value=manager):
+            cmd_daemon(args)
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["schema_version"] == SCHEMA_VERSION
+        assert payload["running"] is False
+
+
+class TestSpeakTextoLargo:
+    """R-03: un texto muy largo emite una advertencia (no bloqueante) a stderr."""
+
+    def test_texto_largo_advierte_y_continua(self, capsys):
+        from chatterbox_tts.cli import cmd_speak
+
+        largo = "a" * 2500
+        with patch("chatterbox_tts.model_cache.is_model_cached", return_value=False):
+            with pytest.raises(SystemExit):
+                cmd_speak(MockArgs(text=largo, no_daemon=True))
+        assert "Advertencia" in capsys.readouterr().err
+
+    def test_texto_corto_no_advierte(self, capsys):
+        from chatterbox_tts.cli import cmd_speak
+
+        with patch("chatterbox_tts.model_cache.is_model_cached", return_value=False):
+            with pytest.raises(SystemExit):
+                cmd_speak(MockArgs(text="Hola mundo", no_daemon=True))
+        assert "Advertencia" not in capsys.readouterr().err
+
+
+class TestDoctorRAM:
+    """R-18: doctor incluye un chequeo de RAM advisory (WARN) que no penaliza."""
+
+    def test_ram_baja_da_warn(self, capsys):
+        import chatterbox_tts.cli as cli
+
+        fake_mem = MagicMock()
+        fake_mem.total = 4 * 1024 ** 3
+        with patch.object(cli, "_environment_checks", return_value=[]), \
+                patch("chatterbox_tts.model_cache.is_model_cached", return_value=True), \
+                patch("psutil.virtual_memory", return_value=fake_mem):
+            cli.cmd_doctor(MockArgs(json=False))
+        out = capsys.readouterr().out
+        assert "[WARN] RAM" in out
+
+    def test_ram_suficiente_da_pass(self, capsys):
+        import chatterbox_tts.cli as cli
+
+        fake_mem = MagicMock()
+        fake_mem.total = 16 * 1024 ** 3
+        with patch.object(cli, "_environment_checks", return_value=[]), \
+                patch("chatterbox_tts.model_cache.is_model_cached", return_value=True), \
+                patch("psutil.virtual_memory", return_value=fake_mem):
+            cli.cmd_doctor(MockArgs(json=False))
+        out = capsys.readouterr().out
+        assert "[PASS] RAM" in out
+
+    def test_warn_de_ram_no_altera_el_exit_code(self, capsys):
+        import chatterbox_tts.cli as cli
+
+        fake_mem = MagicMock()
+        fake_mem.total = 2 * 1024 ** 3
+        with patch.object(cli, "_environment_checks",
+                          return_value=[("PASS", "Chatterbox TTS", "0.1.7")]), \
+                patch("chatterbox_tts.model_cache.is_model_cached", return_value=True), \
+                patch("psutil.virtual_memory", return_value=fake_mem):
+            cli.cmd_doctor(MockArgs(json=False))
+
+    def test_ram_en_json_aparece_como_check_con_status_warn(self, capsys):
+        import json
+        import chatterbox_tts.cli as cli
+
+        fake_mem = MagicMock()
+        fake_mem.total = 4 * 1024 ** 3
+        with patch.object(cli, "_environment_checks", return_value=[]), \
+                patch("chatterbox_tts.model_cache.is_model_cached", return_value=True), \
+                patch("psutil.virtual_memory", return_value=fake_mem):
+            cli.cmd_doctor(MockArgs(json=True))
+        payload = json.loads(capsys.readouterr().out)
+        ram = next(c for c in payload["checks"] if c["name"] == "RAM")
+        assert ram["status"] == "WARN"
+        assert payload["failed"] == 0
+
+
+class TestSetupDiscoYForceUpdate:
+    """R-13/R-14: pre-chequeo de disco y --force-update en setup."""
+
+    def test_disco_insuficiente_aborta_antes_de_descargar(self, monkeypatch, capsys):
+        import shutil
+        import chatterbox_tts.cli as cli
+
+        monkeypatch.setattr(
+            cli, "_environment_checks",
+            lambda: [("PASS", "Chatterbox TTS", "0.1.7")],
+        )
+        poco = shutil._ntuple_diskusage(total=10 * 1024 ** 3, used=9 * 1024 ** 3,
+                                        free=1 * 1024 ** 3)
+        with patch("chatterbox_tts.model_cache.is_model_cached", return_value=False), \
+                patch("shutil.disk_usage", return_value=poco):
+            with pytest.raises(SystemExit) as exc:
+                cli.cmd_setup(MockArgs(remove_path=False))
+        assert exc.value.code == cli.EXIT_ERROR
+        assert "Espacio en disco insuficiente" in capsys.readouterr().err
+
+    def test_disco_no_se_chequea_si_ya_esta_cacheado(self, monkeypatch, capsys):
+        import chatterbox_tts.cli as cli
+
+        monkeypatch.setattr(
+            cli, "_environment_checks",
+            lambda: [("PASS", "Chatterbox TTS", "0.1.7")],
+        )
+        with patch("chatterbox_tts.model_cache.is_model_cached", return_value=True), \
+                patch("shutil.disk_usage", side_effect=AssertionError("no debe llamarse")):
+            cli.cmd_setup(MockArgs(remove_path=False))
+        assert "Provisión completa" in capsys.readouterr().err
+
+    def test_force_update_borra_los_snapshots_del_modelo(self, monkeypatch, tmp_path, capsys):
+        import shutil
+        import chatterbox_tts.cli as cli
+
+        monkeypatch.setattr(
+            cli, "_environment_checks",
+            lambda: [("PASS", "Chatterbox TTS", "0.1.7")],
+        )
+        model_dir = tmp_path / "models--ResembleAI--Chatterbox-Multilingual-es-mx-latam"
+        (model_dir / "snapshots").mkdir(parents=True)
+        (model_dir / "snapshots" / "marca.txt").write_text("x", encoding="utf-8")
+
+        poco = shutil._ntuple_diskusage(total=10 * 1024 ** 3, used=10 * 1024 ** 3,
+                                        free=0)
+        with patch("chatterbox_tts.model_cache.model_cache_dirs", return_value=[model_dir]), \
+                patch("chatterbox_tts.model_cache.is_model_cached", return_value=False), \
+                patch("shutil.disk_usage", return_value=poco):
+            with pytest.raises(SystemExit):
+                cli.cmd_setup(MockArgs(remove_path=False, force_update=True))
+
+        assert not model_dir.exists()
+        assert "force-update" in capsys.readouterr().err

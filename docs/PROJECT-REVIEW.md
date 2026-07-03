@@ -83,9 +83,10 @@ El reporte original se sometió a una **revisión adversarial-constructiva** pos
 > contradiga la tabla de abajo está superada por la remediación y no debe tomarse
 > como estado vigente.
 
-**Resultado:** los **4 bloqueantes**, los **23 mayores** y **4 de los 15 menores**
-quedaron **resueltos**; los **11 menores** restantes siguen **pendientes** (todos de
-pulido, ninguno bloquea el release). Suite de tests tras el gate: **162** (era 139).
+**Resultado:** los **4 bloqueantes**, los **23 mayores** y **todos los 15 menores**
+quedaron **resueltos**; solo **R-38** (firma de artefactos, reserva conocida que
+requiere financiación de certificados) sigue **pendiente**. Suite de tests tras
+el cierre: **185** (era 162, se añadieron 23 tests de los hallazgos menores).
 
 **Refinamiento posterior al gate (2026-07-03):** la puerta de tests en CI se hizo
 **simétrica en los tres SO** — el job `test` se renombró a `test-linux` y se añadió
@@ -128,26 +129,22 @@ reporte, por decisión de diseño pre-release: R-06 (mapa de exit codes del SO e
 | R-21 | Menor | Advertencia del prompt de sudo del `.command` de macOS añadida al README. (T2) |
 | R-25 | Menor | Conteo de tests actualizado a **162** en `CLAUDE.md` y `docs/GOAL.md`. (cierre) |
 | R-29 | Menor | README enlaza la licencia MIT verificada del modelo y aclara que GPLv3 es la licencia del proyecto. (T15) |
+| **R-03** | Menor | Warning no bloqueante en `cmd_speak` cuando `len(text) > 2000` (límite de tokens del T3); test de advierte/no-advierte. (Lote B) |
+| **R-04** | Menor | `_safetensors_header_ok()` valida header-length plausible en `t3_es_mx_latam.safetensors`; `is_model_cached` lo usa; tests de truncado/válido/excesivo. (Lote C) |
+| **R-07** | Menor | Constante `SCHEMA_VERSION = "1"` en `cli.py`; campo `"schema_version"` en **todos** los payloads `--json` (version, devices, voice list, doctor, daemon status); docs en USAGE. (Lote B) |
+| **R-13** | Menor | Flag `--force-update` en `setup`: borra snapshots del modelo (`models--ResembleAI--*`) y fuerz a re-descarga; test de borrado + aborto por disco. (Lote B) |
+| **R-14** | Menor | Pre-chequeo `shutil.disk_usage` (2 GB) en `setup` antes de descargar; se omite si modelo ya cacheado; test de aborto + no-chequeo. (Lote B) |
+| **R-17** | Menor | README §Instalación Windows: nota de que el instalador requiere privilegios de admin (Program Files + PATH HKLM). (Lote A) |
+| **R-18** | Menor | USAGE §«Requisitos de hardware»: CPU con AVX2, RAM 8 GB rec / 4 GB mín, disco ~1 GB; `doctor` chequea RAM advisory (`WARN` no bloquea). (Lote B) |
+| **R-24** | Menor | `build_linux.py`: `_apprun_script()`, `_desktop_entry()` extraídas; `build_macos.py` ya tenía `_info_plist_content`, `_path_install_script`, `_path_uninstall_script`. Tests `test_build_linux.py`, `test_build_macos.py` (Lote E). |
+| **R-28** | Menor | USAGE §`doctor` ejemplo: `Python: 3.13.x` (antes 3.11.x). (Lote A) |
+| **R-34** | Menor | InfoAfter del instalador Windows (`info_after_text()`): oferta de código fuente GPLv3 + enlace al repo; test de contenido. (Lote D) |
 
-### Hallazgos pendientes (todos menores, no bloquean el release)
-
-Checklist de reanudación: cada fila describe el trabajo que resta. El detalle completo
-(evidencia, escenario, propuesta y tradeoffs) de cada hallazgo está en su sección de
-Dimensión más abajo.
+### Hallazgos pendientes (solo reserva conocida)
 
 | ID | Sev | Trabajo pendiente |
 |----|-----|-------------------|
-| R-03 | Menor | Emitir un warning cuando el texto de entrada se trunca por exceder `max_new_tokens`. |
-| R-04 | Menor | Verificar la integridad del header `.safetensors` del modelo al cargarlo. |
-| R-07 | Menor | Versionar y documentar el esquema de la salida JSON del CLI. |
-| R-13 | Menor | Añadir un flag `--force-update` para re-descargar el modelo. |
-| R-14 | Menor | Pre-chequear el espacio libre en disco antes de descargar en `setup`. |
-| R-17 | Menor | Documentar el requisito de permisos de administrador del instalador Windows. |
-| R-18 | Menor | Documentar los requisitos mínimos de hardware (CPU/AVX/RAM). |
-| R-24 | Menor | Añadir tests de los templates generados por `build_linux.py`/`build_macos.py`. |
-| R-28 | Menor | Corregir el ejemplo de `doctor` en USAGE (muestra Python 3.11 en vez de 3.13). |
-| R-34 | Menor | Añadir la oferta explícita de código fuente (GPLv3) en la InfoAfter del instalador. |
-| R-38 | Menor | Firma/notarización de artefactos — reserva conocida; requiere financiación de certificados. |
+| R-38 | Menor | Firma/notarización de artefactos — reserva conocida; requiere financiación de certificados. Mitigación documental en README §«Primer arranque: SmartScreen / Gatekeeper» y USAGE §«El sistema bloquea el primer arranque (binarios sin firmar)». |
 
 ---
 

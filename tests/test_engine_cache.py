@@ -241,7 +241,11 @@ class TestIsModelCached:
         model_dir = hub / ES_MX_FOLDER
         snap = _make_snapshot(model_dir, "abc123")
         _set_ref_main(model_dir, "abc123")
-        (snap / "t3_es_mx_latam.safetensors").write_bytes(b"\x00")
+        # Header safetensors válido: header_length=100 (u64 LE) + 100 bytes de relleno.
+        # Antes de R-04 bastaba con `b"\x00"` (pasaba el .exists()): ahora se valida
+        # la integridad del header, así que se usa un header-length plausible.
+        t3 = b"\x64\x00\x00\x00\x00\x00\x00\x00" + b"\x00" * 100
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(t3)
         (snap / "ve.safetensors").write_bytes(b"\x00")
         assert is_model_cached("es-mx-latam") is True
 
@@ -252,7 +256,8 @@ class TestIsModelCached:
         model_dir = hub / ES_MX_FOLDER
         snap = _make_snapshot(model_dir, "abc123")
         _set_ref_main(model_dir, "abc123")
-        (snap / "t3_es_mx_latam.safetensors").write_bytes(b"\x00")
+        t3 = b"\x64\x00\x00\x00\x00\x00\x00\x00" + b"\x00" * 100
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(t3)
         assert is_model_cached("es-mx-latam") is False
 
     def test_ve_en_el_modelo_base_tambien_cuenta(self, tmp_path, monkeypatch):
@@ -261,7 +266,8 @@ class TestIsModelCached:
         model_dir = hub / ES_MX_FOLDER
         snap = _make_snapshot(model_dir, "abc123")
         _set_ref_main(model_dir, "abc123")
-        (snap / "t3_es_mx_latam.safetensors").write_bytes(b"\x00")
+        t3 = b"\x64\x00\x00\x00\x00\x00\x00\x00" + b"\x00" * 100
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(t3)
 
         base_dir = hub / "models--ResembleAI--chatterbox"
         base_snap = _make_snapshot(base_dir, "base01")
@@ -280,3 +286,48 @@ class TestIsModelCached:
         _make_snapshot(model_dir, "actual", mtime=now - 1000)  # sin checkpoint
         _set_ref_main(model_dir, "actual")
         assert is_model_cached("es-mx-latam") is False
+
+    def test_header_safetensors_truncado_devuelve_false(self, tmp_path, monkeypatch):
+        """R-04: un t3_es_mx_latam.safetensors truncado (header-length inválido)
+        debe tratarse como caché corrupta: 'doctor' lo marcará FAIL y remitirá
+        a 'setup' para una re-descarga limpia."""
+        from chatterbox_tts.model_cache import _safetensors_header_ok
+
+        hub = self._fake_hub(tmp_path, monkeypatch)
+        model_dir = hub / ES_MX_FOLDER
+        snap = _make_snapshot(model_dir, "abc123")
+        _set_ref_main(model_dir, "abc123")
+
+        # Header-length 0 (los 8 primeros bytes a cero): archivo vacío/truncado.
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(b"\x00" * 8)
+        (snap / "ve.safetensors").write_bytes(b"\x00")
+        assert is_model_cached("es-mx-latam") is False
+        # El helper en sí también lo rechaza: el header-length de 0 nunca es
+        # válido (un header JSON de tamaño 0 no codifica metadatos del tensor).
+        assert _safetensors_header_ok(snap / "t3_es_mx_latam.safetensors") is False
+
+    def test_header_safetensors_valido_devuelve_true(self, tmp_path, monkeypatch):
+        """Un .safetensors con header-length plausible (en el rango (0, size))
+        pasa la validación ligera; se mantiene el resto del flujo de is_ve_cached."""
+        from chatterbox_tts.model_cache import _safetensors_header_ok
+
+        hub = self._fake_hub(tmp_path, monkeypatch)
+        model_dir = hub / ES_MX_FOLDER
+        snap = _make_snapshot(model_dir, "abc123")
+        _set_ref_main(model_dir, "abc123")
+        # header_len = 100 (little-endian), seguido de 100 bytes de relleno:
+        # tamaño plausible (100 < 8+100).
+        t3 = b"\x64\x00\x00\x00\x00\x00\x00\x00" + b"\x00" * 100
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(t3)
+        (snap / "ve.safetensors").write_bytes(b"\x00")
+        assert _safetensors_header_ok(snap / "t3_es_mx_latam.safetensors") is True
+        assert is_model_cached("es-mx-latam") is True
+
+    def test_header_safetensors_mayor_que_archivo_devuelve_false(self, tmp_path):
+        """Un header-length que excede el tamaño del archivo es signo claro de
+        truncamiento: el helper debe rechazarlo sin necesidad de parsear JSON."""
+        from chatterbox_tts.model_cache import _safetensors_header_ok
+
+        p = tmp_path / "fake.safetensors"
+        p.write_bytes(b"\xff\xff\xff\xff\xff\xff\xff\x7f" + b"x" * 4)  # ~9.2 EB
+        assert _safetensors_header_ok(p) is False

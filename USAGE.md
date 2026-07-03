@@ -119,6 +119,11 @@ Los comandos de lectura (`version`, `doctor`, `devices`, `voice list`,
 `daemon status`) aceptan `--json` para salida legible por máquina, útil al
 invocar `tts-sidecar` desde otro programa.
 
+Todo payload `--json` incluye el campo **`"schema_version"`** (actualmente
+`"1"`), que identifica la forma del esquema. Es un campo aditivo: añadir claves
+nuevas no lo incrementa; solo un cambio incompatible de las claves existentes lo
+haría. Un consumidor puede leerlo para detectar cambios de contrato.
+
 ---
 
 ### `version`
@@ -153,7 +158,7 @@ tts-sidecar doctor --json
 ```
 === Chatterbox TTS Doctor ===
 
-Python: 3.11.x ...
+Python: 3.13.x ...
 Plataforma: Windows 11 / Linux 6.x / Darwin 24.x
 
 [PASS] Chatterbox TTS: 0.3.x
@@ -484,6 +489,23 @@ Finished in 21.3s
 
 Los tiempos de `[Stage 2a]` (generación de tokens) y `[Stage 2b]` (vocoder) se
 muestran en ambos modos, para que puedas comparar el rendimiento.
+
+### Requisitos de hardware
+
+La síntesis corre en CPU por defecto (sin GPU). Requisitos orientativos:
+
+- **CPU**: x86-64 (o ARM64) moderna con soporte **AVX2**. La mayoría de los
+  procesadores de escritorio/portátil desde ~2015 lo tienen; en CPUs muy antiguas
+  sin AVX2, PyTorch puede fallar al cargar o correr mucho más lento. *(AVX2 no se
+  detecta automáticamente porque el chequeo es frágil entre plataformas; si tu CPU
+  es de antes de 2015, verifícalo en las especificaciones del fabricante.)*
+- **RAM**: **8 GB recomendados**, **4 GB mínimo**. Con menos memoria la síntesis
+  funciona pero puede paginar (ralentizarse) en textos largos. `doctor` emite un
+  `[WARN]` de RAM por debajo de 8 GB (no bloquea nada).
+- **Disco**: ~1 GB para el modelo descargado (`setup` aborta si hay menos de 2 GB
+  libres). El ejecutable ocupa varios cientos de MB adicionales.
+- **GPU (opcional)**: con `--compute-backend cuda` (NVIDIA) o `mps` (Apple Silicon)
+  la inferencia es más rápida; no es necesaria para el funcionamiento.
 
 ---
 

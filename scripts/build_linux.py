@@ -56,6 +56,39 @@ def provision_appimage_tooling(appimage_arch):
     return appimagetool, runtime
 
 
+def _apprun_script() -> str:
+    """Contenido del entry point AppRun del AppImage.
+
+    El runtime del AppImage ejecuta este script; se limita a localizar el
+    directorio real del AppDir (resolviendo symlinks) y delegar en el ejecutable
+    del bundle onedir con los argumentos tal cual. Pura función (sin I/O) para
+    poder testearla desde tests/test_build_linux.py (R-24).
+    """
+    return (
+        '#!/bin/sh\n'
+        'HERE="$(dirname "$(readlink -f "$0")")"\n'
+        'exec "$HERE/usr/bin/tts-sidecar" "$@"\n'
+    )
+
+
+def _desktop_entry() -> str:
+    """Contenido del archivo .desktop del AppImage (estándar freedesktop).
+
+    Appimagetool exige este archivo en la raíz del AppDir; se replica en
+    usr/share/applications/ para la convención del estándar. El Terminal=true
+    mantiene visible la salida del CLI (paridad con el .command de macOS).
+    """
+    return (
+        "[Desktop Entry]\n"
+        "Type=Application\n"
+        "Name=tts-sidecar\n"
+        "Exec=tts-sidecar\n"
+        "Icon=tts-sidecar\n"
+        "Categories=Utility;\n"
+        "Terminal=true\n"
+    )
+
+
 def check_dependencies(target_arch="x86_64"):
     """Check required dependencies are installed."""
     check_pyinstaller()
@@ -147,25 +180,12 @@ def build_linux(target_arch="x86_64"):
             # AppRun: el runtime del AppImage lo ejecuta como entry point; delega
             # en el ejecutable del bundle pasando los argumentos tal cual.
             apprun = appdir / "AppRun"
-            apprun.write_text(
-                '#!/bin/sh\n'
-                'HERE="$(dirname "$(readlink -f "$0")")"\n'
-                'exec "$HERE/usr/bin/tts-sidecar" "$@"\n',
-                encoding="utf-8",
-            )
+            apprun.write_text(_apprun_script(), encoding="utf-8")
             os.chmod(apprun, 0o755)
 
             # .desktop e icono: appimagetool los exige en la raíz del AppDir;
             # se replican en usr/share/ (ubicación estándar freedesktop).
-            desktop_content = (
-                "[Desktop Entry]\n"
-                "Type=Application\n"
-                "Name=tts-sidecar\n"
-                "Exec=tts-sidecar\n"
-                "Icon=tts-sidecar\n"
-                "Categories=Utility;\n"
-                "Terminal=true\n"
-            )
+            desktop_content = _desktop_entry()
             (appdir / "tts-sidecar.desktop").write_text(desktop_content, encoding="utf-8")
             applications_dir = appdir / "usr" / "share" / "applications"
             applications_dir.mkdir(parents=True, exist_ok=True)

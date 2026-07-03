@@ -222,7 +222,15 @@ def main():
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    info_after_text = (
+def info_after_text() -> str:
+    """Contenido de la página InfoAfter del instalador: provisión + oferta GPLv3.
+
+    Muestra al usuario, tras terminar la instalación, cómo descargar el modelo y
+    dónde obtener el código fuente bajo GPLv3 (requisito §6 de la licencia:
+    el instalador debe ofrecer accompanied source). Se mantiene como función pura
+    (sin I/O) para poder testear su contenido desde tests/test_create_installer_windows.py.
+    """
+    return (
         "Provisión del modelo de voz\r\n"
         "===========================\r\n\r\n"
         "tts-sidecar ya está instalado, pero el modelo de voz (es-mx-latam, varios\r\n"
@@ -234,14 +242,22 @@ def main():
         "Hasta que el modelo esté descargado, los comandos 'speak' y 'daemon start'\r\n"
         "fallarán de inmediato y te recordarán ejecutar 'tts-sidecar setup'.\r\n\r\n"
         "El instalador añadió la carpeta de instalación al PATH del sistema, por lo\r\n"
-        "que podrás invocar 'tts-sidecar' por nombre en una terminal nueva.\r\n"
+        "que podrás invocar 'tts-sidecar' por nombre en una terminal nueva.\r\n\r\n"
+        "Código fuente (GPLv3)\r\n"
+        "======================\r\n\r\n"
+        "tts-sidecar se distribuye bajo la GNU General Public License v3 o\r\n"
+        "posterior. El instalador incluye el código fuente accompanido (ver\r\n"
+        "LICENSE.txt junto a este programa), y el repositorio público es:\r\n\r\n"
+        "    https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar\r\n\r\n"
+        "Si necesitas el código fuente por separado, descárgalo del repositorio o\r\n"
+        "solicítalo al autor; el código está disponible públicamente bajo GPLv3.\r\n"
     )
 
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".txt", delete=False, encoding="utf-8"
     ) as info_f:
         info_after_path = Path(info_f.name)
-        info_f.write(info_after_text)
+        info_f.write(info_after_text())
 
     # Genera el .ico del logo (degradación con gracia: None si Pillow o la fuente
     # faltan, en cuyo caso el .iss se emite sin líneas de icono).

@@ -47,6 +47,33 @@ def cache_folder_for(model_name: str) -> str:
     return CACHE_NAMES.get(model_name, f"models--{model_name.replace('/', '--')}")
 
 
+def _safetensors_header_ok(path: Path) -> bool:
+    """Validación ligera del header de un .safetensors: tamaño del header plausible.
+
+    El formato safetensors empieza con un u64 little-endian que codifica la longitud
+    en bytes del header JSON (RFC del formato). Un truncamiento, una descarga a
+    medias o un FS corrupto suele dejar un archivo cuyo header-length es 0 o excede
+    el tamaño del propio archivo: ambos casos se detectan aquí sin parsear JSON.
+
+    Devuelve True si el header-length está en el rango (0, tamaño_del_archivo). No
+    es una validación criptográfica (no hay SHA) pero cubre el escenario R-04:
+    caché truncada que pasa el chequeo de existencia y revienta al cargar.
+    """
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return False
+    if size < 8:
+        return False
+    try:
+        with open(path, "rb") as f:
+            raw = f.read(8)
+    except OSError:
+        return False
+    header_len = int.from_bytes(raw, byteorder="little", signed=False)
+    return 0 < header_len < size
+
+
 def _resolve_cached_snapshot(model_cache_dir: Path) -> Optional[Path]:
     """
     Resuelve el snapshot vigente de un modelo en la caché de HuggingFace.
@@ -103,8 +130,15 @@ def is_model_cached(model: str = "es-mx-latam") -> bool:
     # es-mx-latam exige el checkpoint del language-pack más el Voice Encoder
     # (ve.safetensors, compartido con el modelo base): sin él, el primer speak
     # dispararía una descarga, rompiendo la promesa «100 % offline tras setup».
+    # Además se valida la integridad del header safetensors (R-04): un .pt/.st
+    # truncado por una descarga a medias pasa el .exists() pero revienta al
+    # cargar, así que se reporta como no cacheado para que 'doctor' lo marque
+    # FAIL y remita a 'setup' (re-descarga limpia).
     if model == "es-mx-latam" or "es-mx-latam" in model_name:
-        if not (cached / "t3_es_mx_latam.safetensors").exists():
+        t3_path = cached / "t3_es_mx_latam.safetensors"
+        if not t3_path.exists():
+            return False
+        if not _safetensors_header_ok(t3_path):
             return False
         return is_ve_cached(cached)
 

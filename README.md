@@ -41,6 +41,8 @@ Descarga el ejecutable para tu plataforma desde [Releases](https://github.com/Cr
 
 ```bash
 # Windows: ejecuta el instalador tts-sidecar-<versión>-x86_64-setup.exe.
+# Requiere privilegios de administrador: instala en Program Files y escribe el
+# PATH del sistema en HKLM (aparecerá el prompt de Control de cuentas de usuario).
 # Agrega tts-sidecar al PATH, muestra una página informativa sobre el modelo y
 # ofrece una casilla para descargarlo (ejecuta 'tts-sidecar setup') al terminar.
 
@@ -57,6 +59,20 @@ chmod +x tts-sidecar-<versión>-x86_64.AppImage    # o -aarch64.AppImage en ARM6
 
 > Mac Intel (x86_64) no está soportado: el toolchain actual (torch≥2.3) no
 > publica wheels macOS x86_64.
+
+### Primer arranque: SmartScreen / Gatekeeper
+
+Los binarios distribuidos **no están firmados ni notarizados** (reserva conocida:
+la firma de código requiere certificados de pago que el proyecto aún no financia),
+por lo que el sistema puede bloquear la **primera** apertura:
+
+- **Windows (SmartScreen)**: si aparece «Windows protegió tu PC», pulsa
+  **Más información** → **Ejecutar de todas formas**.
+- **macOS (Gatekeeper)**: haz clic derecho sobre el `.app`/`.dmg` → **Abrir** y
+  confirma (o quita la cuarentena con `xattr`).
+
+Solo ocurre en el primer arranque. Ver el detalle paso a paso en
+[USAGE.md](USAGE.md#el-sistema-bloquea-el-primer-arranque-binarios-sin-firmar).
 
 ### Provisión del modelo (`setup`)
 

@@ -7,6 +7,29 @@ y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [No publicado]
 
+### Añadido
+
+- **`schema_version`** en todos los payloads JSON del CLI (`version`, `devices`,
+  `voice list`, `doctor`, `daemon status`); documentado en USAGE.md.
+- **Warning de texto largo** en `speak` (>2000 chars): avisa sobre truncamiento
+  por límite de tokens del T3 (no bloqueante).
+- **`setup --force-update`**: re-descarga limpia del modelo borrando snapshots.
+- **Pre-chequeo de disco** en `setup` (2 GB libres, `shutil.disk_usage`).
+- **Chequeo de RAM advisory** en `doctor` (estado `WARN` si < 8 GB; no altera
+  exit code); requisitos de hardware documentados en USAGE.md.
+- **Validación de integridad** del header `.safetensors` en `is_model_cached`
+  (detecta caché truncada antes de que falle la carga).
+- **Tests de templates de build**: `test_build_linux.py` (AppRun, .desktop) y
+  `test_build_macos.py` (Info.plist, scripts .command).
+
+### Cambiado
+
+- README: nota de **requisito de admin** en instalador Windows; subsección
+  «Primer arranque: SmartScreen / Gatekeeper» con enlace a USAGE.
+- USAGE: ejemplo de `doctor` corregido a Python 3.13.x.
+- Instalador Windows: **oferta de código fuente GPLv3** en InfoAfter con enlace
+  al repositorio (GPLv3 §6).
+
 ## [0.1.0] — 2026-07-03
 
 Primer release del gate de preparación para producción. Motor TTS offline con
