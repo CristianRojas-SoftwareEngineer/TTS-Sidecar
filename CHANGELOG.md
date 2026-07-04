@@ -1,6 +1,6 @@
 # Changelog
 
-Todos los cambios notables de `tts-sidecar` se documentan en este archivo.
+Todos los cambios notables de TTS Sidecar se documentan en este archivo.
 
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
@@ -103,5 +103,5 @@ clonación de voz en español latinoamericano (Chatterbox Multilingual, alias
 - Onboarding del README: enlace de Releases al repositorio real y nombres de
   artefactos por SO corregidos.
 
-[No publicado]: https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar/releases/tag/v0.1.0
+[No publicado]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/releases/tag/v0.1.0

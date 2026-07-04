@@ -2,7 +2,7 @@
 
 ## Resumen ejecutivo
 
-`tts-sidecar` es un motor de síntesis de voz (TTS) **100% local** que usa **Chatterbox Multilingual V3** para clonación de voz en español latinoamericano. El usuario puede clonar su propia voz a partir de ~10 segundos de audio y generar narración de alta calidad.
+TTS Sidecar es un motor de síntesis de voz (TTS) **100% local** que usa **Chatterbox Multilingual V3** para clonación de voz en español latinoamericano. El usuario puede clonar su propia voz a partir de ~10 segundos de audio y generar narración de alta calidad.
 
 - **Licencia**: GPL-3.0-or-later (código del proyecto); el modelo y las dependencias conservan sus licencias permisivas (MIT/BSD/Apache)
 - **Idiomas**: 23+ incluyendo Español (es)
@@ -42,9 +42,9 @@
 ## Estructura del proyecto
 
 ```
-tts-sidecar/
+TTS-Sidecar/
 ├── src/
-│   └── chatterbox_tts/           # Paquete Python
+│   └── tts_sidecar/           # Paquete Python
 │       ├── __init__.py            # Imports perezosos (lazy)
 │       ├── engine.py              # Wrapper de ChatterboxTTS
 │       ├── audio.py               # Reproducción de audio multiplataforma
@@ -197,7 +197,7 @@ python scripts/build_macos.py --arch arm64
 
 Para añadir un nuevo motor TTS:
 
-1. Crear nuevo módulo en `src/chatterbox_tts/`
+1. Crear nuevo módulo en `src/tts_sidecar/`
 2. Mantener la misma interfaz CLI en `cli.py`
 3. Re-empaquetar con PyInstaller para cada plataforma
 

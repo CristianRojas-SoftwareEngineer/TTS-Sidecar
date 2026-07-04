@@ -7,7 +7,7 @@ precedencia usuario→fábrica sobre directorios temporales.
 
 import pytest
 
-from chatterbox_tts import voices
+from tts_sidecar import voices
 
 
 @pytest.fixture
@@ -180,7 +180,7 @@ class TestCmdVoiceRemoveErroresDeIO:
 
     def test_permission_error_da_mensaje_distinto_y_sale_1(self, voice_roots, monkeypatch, capsys):
         import shutil as shutil_module
-        from chatterbox_tts import cli
+        from tts_sidecar import cli
 
         user_root, _ = voice_roots
         _make_voice(user_root, "mia")
@@ -199,7 +199,7 @@ class TestCmdVoiceRemoveErroresDeIO:
         assert "no encontrada" not in err
 
     def test_voz_inexistente_da_mensaje_distinto(self, voice_roots, capsys):
-        from chatterbox_tts import cli
+        from tts_sidecar import cli
 
         with pytest.raises(SystemExit) as exc_info:
             cli.cmd_voice_remove(self._args("no_existe"))

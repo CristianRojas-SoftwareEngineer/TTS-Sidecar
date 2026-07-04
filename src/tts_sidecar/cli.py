@@ -1,5 +1,5 @@
 """
-Interfaz CLI de Chatterbox TTS.
+Interfaz CLI de TTS Sidecar.
 Consumible desde cualquier lenguaje de programación vía subprocess.
 
 Contrato de salida (estable entre SO y lenguajes):
@@ -531,7 +531,7 @@ def cmd_doctor(args):
             sys.exit(EXIT_ERROR)
         return
 
-    print("=== Chatterbox TTS Doctor ===\n")
+    print("=== TTS Sidecar Doctor ===\n")
     print(f"Python: {sys.version}")
     print(f"Plataforma: {platform.system()} {platform.release()}")
     print()
@@ -614,7 +614,7 @@ def cmd_setup(args):
         _remove_linux_path()
         return
 
-    print("=== Chatterbox TTS Setup ===\n", file=sys.stderr)
+    print("=== TTS Sidecar Setup ===\n", file=sys.stderr)
 
     # 1. Integración de PATH (solo Linux desde AppImage; no-op en el resto).
     # Va antes de los chequeos para que un host degradado (p. ej. sin audio)
@@ -851,7 +851,7 @@ def main():
 
     parser = argparse.ArgumentParser(
         prog="tts-sidecar",
-        description="Chatterbox TTS - TTS 100% local con clonación de voz"
+        description="TTS Sidecar - TTS 100% local con clonación de voz"
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Comandos disponibles")

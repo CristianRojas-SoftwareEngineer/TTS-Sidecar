@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tts-sidecar"
 version = "0.1.0"
-description = "Chatterbox TTS - 100% local voice cloning TTS"
+description = "TTS Sidecar - 100% local voice cloning TTS (Chatterbox Multilingual)"
 requires-python = ">=3.13"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]

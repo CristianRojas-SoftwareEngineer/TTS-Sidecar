@@ -1,9 +1,9 @@
-# Auditoría de Preparación para Distribución — `tts-sidecar` (segunda ronda)
+# Auditoría de Preparación para Distribución — TTS Sidecar (segunda ronda)
 
 ## Introducción
 
 Este documento es el reporte completo de la **segunda auditoría integral** de
-preparación para producción del proyecto `tts-sidecar`, realizada desde cero el
+preparación para producción del proyecto TTS Sidecar, realizada desde cero el
 2026-07-03, sobre el estado del repositorio en el commit `8a18fad`. Su objetivo
 es determinar qué tan listo está el producto para ser **publicado, empaquetado y
 distribuido** como proyecto Open Source (GPL-3.0-or-later) con soporte
@@ -33,7 +33,7 @@ La suite de tests se ejecutó durante la auditoría: **185/185 tests pasan**.
 
 | Capa | Archivos evaluados |
 |------|-------------------|
-| **Código fuente** | `src/chatterbox_tts/*.py` (cli.py, engine.py, audio.py, voices.py, paths.py, timing.py, model_cache.py, daemon/*) y `bin/tts-sidecar` |
+| **Código fuente** | `src/tts_sidecar/*.py` (cli.py, engine.py, audio.py, voices.py, paths.py, timing.py, model_cache.py, daemon/*) y `bin/tts-sidecar` |
 | **Scripts de build** | `scripts/build_windows.py`, `build_linux.py`, `build_macos.py`, `build_utils.py`, `create_installer_windows.py`, `clean_build.py` |
 | **CI** | `.circleci/config.yml` (3 jobs de test + 4 de build) |
 | **Dependencias** | `pyproject.toml`, `requirements.txt`, `requirements-lock.txt`, `package.json` |

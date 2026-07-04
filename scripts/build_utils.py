@@ -217,7 +217,7 @@ def common_pyinstaller_args(
         # Recolectar todos los paquetes que PyInstaller no puede seguir
         # automáticamente (imports perezosos, extensiones C, código compilado)
         "--collect-all", "chatterbox",
-        "--collect-all", "chatterbox_tts",
+        "--collect-all", "tts_sidecar",
         "--collect-all", "transformers",
         "--collect-all", "diffusers",
         "--collect-all", "s3tokenizer",
@@ -342,14 +342,14 @@ def ensure_icns(dest_dir) -> Path:
 
 
 def get_version(init_path: Path = None) -> str:
-    """Lee la versión de src/chatterbox_tts/__init__.py.
+    """Lee la versión de src/tts_sidecar/__init__.py.
 
     Fuente única de versión para los tres scripts de build (Windows, Linux,
     macOS) y el generador del instalador Inno Setup. `init_path` permite
     apuntar a otro __init__.py (tests).
     """
     if init_path is None:
-        init_path = Path(__file__).parent.parent / "src" / "chatterbox_tts" / "__init__.py"
+        init_path = Path(__file__).parent.parent / "src" / "tts_sidecar" / "__init__.py"
     for line in init_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line.startswith("__version__"):

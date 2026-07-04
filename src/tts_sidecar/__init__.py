@@ -1,5 +1,5 @@
 """
-Chatterbox TTS — síntesis de voz con clonación de voz.
+TTS Sidecar — síntesis de voz con clonación de voz.
 100% local, licencia GPL-3.0-or-later, soporte para español latinoamericano.
 """
 

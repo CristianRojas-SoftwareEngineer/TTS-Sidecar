@@ -13,7 +13,7 @@ class TestServerConcurrency:
         """Una síntesis bloqueada no debe congelar /health (WARNING-03)."""
         import threading
         from fastapi.testclient import TestClient
-        from chatterbox_tts.daemon import server
+        from tts_sidecar.daemon import server
 
         started = threading.Event()
         release = threading.Event()
@@ -58,8 +58,8 @@ class TestSynthesizeRutasPermitidas:
     def test_rechaza_ruta_fuera_de_directorios_permitidos(self, tmp_path, monkeypatch):
         """WARNING-02: una ruta .wav fuera de voices_root()/tempdir se rechaza con 400."""
         from fastapi.testclient import TestClient
-        from chatterbox_tts.daemon import server
-        from chatterbox_tts import voices
+        from tts_sidecar.daemon import server
+        from tts_sidecar import voices
 
         # Directorio ajeno a los permitidos (no es voices_root, factory ni tempdir).
         outside_root = tmp_path / "fuera_de_lo_permitido"
@@ -84,8 +84,8 @@ class TestSynthesizeRutasPermitidas:
     def test_acepta_ruta_dentro_de_voices_root(self, tmp_path, monkeypatch):
         """Una ruta dentro de voices_root() sigue siendo aceptada tras WARNING-02."""
         from fastapi.testclient import TestClient
-        from chatterbox_tts.daemon import server
-        from chatterbox_tts import voices
+        from tts_sidecar.daemon import server
+        from tts_sidecar import voices
 
         allowed_root = tmp_path / "voices_permitido"
         allowed_root.mkdir()
@@ -114,8 +114,8 @@ class TestSynthesizeValidacionHeaderYRutaCanonica:
     def test_rechaza_extension_wav_con_header_no_wav(self, tmp_path, monkeypatch):
         """Extensión .wav pero contenido no-RIFF/WAVE: rechazado con 400."""
         from fastapi.testclient import TestClient
-        from chatterbox_tts.daemon import server
-        from chatterbox_tts import voices
+        from tts_sidecar.daemon import server
+        from tts_sidecar import voices
 
         allowed_root = tmp_path / "voices_permitido"
         allowed_root.mkdir()
@@ -139,8 +139,8 @@ class TestSynthesizeValidacionHeaderYRutaCanonica:
         """El motor recibe os.path.realpath(path), resuelto una sola vez en la validación."""
         import os
         from fastapi.testclient import TestClient
-        from chatterbox_tts.daemon import server
-        from chatterbox_tts import voices
+        from tts_sidecar.daemon import server
+        from tts_sidecar import voices
 
         allowed_root = tmp_path / "voices_permitido"
         allowed_root.mkdir()
@@ -177,7 +177,7 @@ class TestKillPidVerificado:
 
     def test_no_termina_procesos_ajenos(self, capsys):
         """WARNING-04: si otro servicio ocupa el puerto, no se le hace terminate()."""
-        from chatterbox_tts.daemon.daemon import DaemonManager
+        from tts_sidecar.daemon.daemon import DaemonManager
 
         psutil_mock, proc = self._fake_psutil(["node", "otro-servidor.js"])
         with patch.dict(sys.modules, {"psutil": psutil_mock}):
@@ -187,10 +187,10 @@ class TestKillPidVerificado:
         assert "no parece ser el daemon" in capsys.readouterr().err
 
     def test_termina_el_daemon_propio(self):
-        from chatterbox_tts.daemon.daemon import DaemonManager
+        from tts_sidecar.daemon.daemon import DaemonManager
 
         psutil_mock, proc = self._fake_psutil(
-            ["python", "-m", "chatterbox_tts.daemon.run"]
+            ["python", "-m", "tts_sidecar.daemon.run"]
         )
         with patch.dict(sys.modules, {"psutil": psutil_mock}):
             DaemonManager()._kill_pid(1234)
@@ -201,7 +201,7 @@ class TestKillPidVerificado:
 class TestDaemonManager:
     @patch("requests.get")
     def test_is_running_true(self, mock_get):
-        from chatterbox_tts.daemon import DaemonIPCClient
+        from tts_sidecar.daemon import DaemonIPCClient
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_get.return_value = mock_resp
@@ -212,7 +212,7 @@ class TestDaemonManager:
     @patch("requests.get")
     def test_is_running_false_connection_error(self, mock_get):
         import requests
-        from chatterbox_tts.daemon import DaemonIPCClient
+        from tts_sidecar.daemon import DaemonIPCClient
         mock_get.side_effect = requests.ConnectionError("refused")
 
         client = DaemonIPCClient()
@@ -220,7 +220,7 @@ class TestDaemonManager:
 
     @patch("requests.get")
     def test_list_voices(self, mock_get):
-        from chatterbox_tts.daemon import DaemonIPCClient
+        from tts_sidecar.daemon import DaemonIPCClient
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"voices": ["crist", "testcli"]}
@@ -233,7 +233,7 @@ class TestDaemonManager:
     @patch("requests.get")
     def test_list_voices_on_error(self, mock_get):
         import requests
-        from chatterbox_tts.daemon import DaemonIPCClient
+        from tts_sidecar.daemon import DaemonIPCClient
         mock_get.side_effect = requests.Timeout()
 
         client = DaemonIPCClient()
@@ -243,7 +243,7 @@ class TestDaemonManager:
     @patch("requests.get")
     def test_list_voices_on_invalid_json(self, mock_get):
         """JSON inválido en el cuerpo de éxito degrada a [] igual que synthesize()."""
-        from chatterbox_tts.daemon import DaemonIPCClient
+        from tts_sidecar.daemon import DaemonIPCClient
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.side_effect = ValueError("invalid json")
@@ -255,7 +255,7 @@ class TestDaemonManager:
 
     @patch("requests.post")
     def test_synthesize_success(self, mock_post):
-        from chatterbox_tts.daemon import DaemonIPCClient
+        from tts_sidecar.daemon import DaemonIPCClient
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.content = b"RIFF" + b"\x00" * 40
@@ -268,7 +268,7 @@ class TestDaemonManager:
 
     @patch("requests.post")
     def test_synthesize_error(self, mock_post):
-        from chatterbox_tts.daemon import DaemonIPCClient, DaemonIPCError
+        from tts_sidecar.daemon import DaemonIPCClient, DaemonIPCError
         mock_resp = MagicMock()
         mock_resp.status_code = 500
         mock_resp.json.return_value = {"detail": "internal error"}

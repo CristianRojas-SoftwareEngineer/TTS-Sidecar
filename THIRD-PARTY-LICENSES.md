@@ -1,6 +1,6 @@
 # Licencias de terceros (Third-Party Licenses)
 
-`tts-sidecar` se distribuye bajo **GPL-3.0-or-later** (ver `LICENSE`). El binario
+TTS Sidecar se distribuye bajo **GPL-3.0-or-later** (ver `LICENSE`). El binario
 autocontenido generado con PyInstaller empaqueta software de terceros bajo sus propias
 licencias. Este documento reúne los avisos de copyright y las licencias correspondientes,
 cuya preservación exigen dichas licencias al redistribuir el software.
@@ -29,7 +29,7 @@ HuggingFace del usuario mediante `tts-sidecar setup`. Se listan por completitud.
 Ambos repositorios declaran licencia **MIT** en sus metadatos (verificado el 2026-07-03).
 El modelo base incluye además la nota de que su salida lleva un watermark neural
 (PerthNet) y un descargo de uso responsable («Don't use this model to do bad things»).
-`tts-sidecar` **desactiva ese watermark** en el motor; ver la sección «Uso ético y
+TTS Sidecar **desactiva ese watermark** en el motor; ver la sección «Uso ético y
 responsable» en `README.md`/`USAGE.md` para las obligaciones que ello traslada al usuario.
 
 ---
@@ -125,9 +125,9 @@ macOS arm64 (CPU/MPS, sin CUDA). Texto del EULA:
 
 ## Herramienta de empaquetado: PyInstaller
 
-`tts-sidecar` se compila con **PyInstaller**, distribuido bajo **GPL 2.0 con una excepción**
+TTS Sidecar se compila con **PyInstaller**, distribuido bajo **GPL 2.0 con una excepción**
 que permite redistribuir los ejecutables generados bajo cualquier licencia, siempre que no
-se modifique el *bootloader*. `tts-sidecar` usa el bootloader estándar sin modificar.
+se modifique el *bootloader*. TTS Sidecar usa el bootloader estándar sin modificar.
 Texto y excepción: <https://pyinstaller.org/en/stable/license.html>. (PyInstaller es una
 herramienta de build; no forma parte del contenido redistribuido más allá del bootloader.)
 

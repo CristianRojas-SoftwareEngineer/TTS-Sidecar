@@ -10,7 +10,7 @@ from pathlib import Path
 from io import StringIO
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from chatterbox_tts.timing import log, timed_command, timed, StageTimer
+from tts_sidecar.timing import log, timed_command, timed, StageTimer
 
 
 class TestLog:

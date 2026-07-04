@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 <!-- <project_overview> -->
 ## Proyecto
 
-`tts-sidecar` es un motor de síntesis de voz (TTS) offline en Python usando Chatterbox para clonación de voz en español latinoamericano.
+TTS Sidecar es un motor de síntesis de voz (TTS) offline en Python usando Chatterbox para clonación de voz en español latinoamericano.
 
 **Rama actual**: `main`
 <!-- </project_overview> -->
@@ -34,8 +34,8 @@ uv pip compile --generate-hashes --python-version 3.13 \
 pytest tests/ -v
 
 # Verificar sintaxis Python
-python -m py_compile src/chatterbox_tts/engine.py
-python -m py_compile src/chatterbox_tts/cli.py
+python -m py_compile src/tts_sidecar/engine.py
+python -m py_compile src/tts_sidecar/cli.py
 ```
 <!-- </common_commands> -->
 
@@ -46,7 +46,7 @@ python -m py_compile src/chatterbox_tts/cli.py
 
 ```
 bin/tts-sidecar              # Entry point (suprime warnings, delegar a cli.main)
-src/chatterbox_tts/
+src/tts_sidecar/
 ├── cli.py                   # CLI con argparse (speak, voice, daemon, devices, doctor, setup, version)
 ├── engine.py                # Wrapper Chatterbox + síntesis
 ├── audio.py                 # Playback multiplataforma
@@ -207,7 +207,7 @@ assets/                  # Material fuente (audios de la voz default, logo)
 └── images/              # Logo del proyecto (fuente única de los iconos de build)
     └── TTS Sidecar - Logo.png
 
-src/chatterbox_tts/      # Código fuente Python
+src/tts_sidecar/      # Código fuente Python
 └── daemon/              # Daemon mode
 
 tests/                   # Tests pytest (199 tests)

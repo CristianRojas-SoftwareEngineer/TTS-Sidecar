@@ -11,7 +11,7 @@ import os
 import time
 from pathlib import Path
 
-from chatterbox_tts.model_cache import (
+from tts_sidecar.model_cache import (
     _resolve_cached_snapshot,
     hub_cache_path,
     is_model_cached,
@@ -64,7 +64,7 @@ class TestResolveCachedSnapshot:
 class TestConditionalsCorruptos:
     def _engine_sin_modelo(self):
         """Instancia de ChatterboxEngine sin cargar el modelo real."""
-        from chatterbox_tts.engine import ChatterboxEngine
+        from tts_sidecar.engine import ChatterboxEngine
 
         eng = ChatterboxEngine.__new__(ChatterboxEngine)
         eng.compute_backend = "cpu"
@@ -77,7 +77,7 @@ class TestConditionalsCorruptos:
         assert eng.load_precomputed_conditionals(str(tmp_path)) is False
 
     def test_speak_recomputa_con_conditionals_corruptos(self, tmp_path, monkeypatch):
-        from chatterbox_tts.engine import ChatterboxEngine
+        from tts_sidecar.engine import ChatterboxEngine
 
         eng = self._engine_sin_modelo()
         voice = tmp_path / "voz"
@@ -104,7 +104,7 @@ class TestConditionalsCorruptos:
 
 class TestParametrosUnificados:
     def _engine_stub(self, tmp_path):
-        from chatterbox_tts.engine import ChatterboxEngine
+        from tts_sidecar.engine import ChatterboxEngine
 
         eng = ChatterboxEngine.__new__(ChatterboxEngine)
         eng.compute_backend = "cpu"
@@ -121,7 +121,7 @@ class TestParametrosUnificados:
         return eng
 
     def test_get_instance_incluye_models_dir_en_la_clave(self, monkeypatch):
-        from chatterbox_tts.engine import ChatterboxEngine
+        from tts_sidecar.engine import ChatterboxEngine
 
         monkeypatch.setattr(ChatterboxEngine, "_cache", {})
         monkeypatch.setattr(
@@ -133,7 +133,7 @@ class TestParametrosUnificados:
         assert ChatterboxEngine.get_instance(models_dir="/ruta/a") is a
 
     def test_modo_directo_usa_exaggeration_unificada(self, tmp_path, monkeypatch):
-        from chatterbox_tts.engine import ChatterboxEngine
+        from tts_sidecar.engine import ChatterboxEngine
 
         eng = self._engine_stub(tmp_path)
         monkeypatch.setattr(ChatterboxEngine, "_audio_to_wav", lambda self, w: b"RIFF")
@@ -147,7 +147,7 @@ class TestParametrosUnificados:
 
     def test_memoizacion_de_conditionals_por_mtime(self, tmp_path, monkeypatch):
         import os
-        from chatterbox_tts.engine import ChatterboxEngine
+        from tts_sidecar.engine import ChatterboxEngine
 
         eng = self._engine_stub(tmp_path)
         monkeypatch.setattr(ChatterboxEngine, "_audio_to_wav", lambda self, w: b"RIFF")
@@ -291,7 +291,7 @@ class TestIsModelCached:
         """R-04: un t3_es_mx_latam.safetensors truncado (header-length inválido)
         debe tratarse como caché corrupta: 'doctor' lo marcará FAIL y remitirá
         a 'setup' para una re-descarga limpia."""
-        from chatterbox_tts.model_cache import _safetensors_header_ok
+        from tts_sidecar.model_cache import _safetensors_header_ok
 
         hub = self._fake_hub(tmp_path, monkeypatch)
         model_dir = hub / ES_MX_FOLDER
@@ -309,7 +309,7 @@ class TestIsModelCached:
     def test_header_safetensors_valido_devuelve_true(self, tmp_path, monkeypatch):
         """Un .safetensors con header-length plausible (en el rango (0, size))
         pasa la validación ligera; se mantiene el resto del flujo de is_ve_cached."""
-        from chatterbox_tts.model_cache import _safetensors_header_ok
+        from tts_sidecar.model_cache import _safetensors_header_ok
 
         hub = self._fake_hub(tmp_path, monkeypatch)
         model_dir = hub / ES_MX_FOLDER
@@ -326,7 +326,7 @@ class TestIsModelCached:
     def test_header_safetensors_mayor_que_archivo_devuelve_false(self, tmp_path):
         """Un header-length que excede el tamaño del archivo es signo claro de
         truncamiento: el helper debe rechazarlo sin necesidad de parsear JSON."""
-        from chatterbox_tts.model_cache import _safetensors_header_ok
+        from tts_sidecar.model_cache import _safetensors_header_ok
 
         p = tmp_path / "fake.safetensors"
         p.write_bytes(b"\xff\xff\xff\xff\xff\xff\xff\x7f" + b"x" * 4)  # ~9.2 EB

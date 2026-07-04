@@ -1,4 +1,4 @@
-# Chatterbox TTS
+# TTS Sidecar
 
 Sistema de síntesis de voz (TTS) **100% local** con clonación de voz en **español latinoamericano**.
 
@@ -9,7 +9,7 @@ Sistema de síntesis de voz (TTS) **100% local** con clonación de voz en **espa
 
 ## Uso ético y responsable
 
-`tts-sidecar` clona voces arbitrarias y **el audio que genera no lleva marca de
+TTS Sidecar clona voces arbitrarias y **el audio que genera no lleva marca de
 agua** (el watermark de PerthNet está desactivado), por lo que no es distinguible
 por medios técnicos de una grabación real. Esto exige un uso responsable:
 
@@ -20,7 +20,7 @@ por medios técnicos de una grabación real. Esto exige un uso responsable:
 - **Divulgación**: al publicar o compartir audio sintetizado, indícalo como tal.
   Recuerda que el audio no contiene marca de agua que lo identifique.
 - **Reporte**: si detectas un uso indebido de este proyecto, repórtalo abriendo un
-  [Issue](https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar/issues).
+  [Issue](https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/issues).
 
 El proyecto no impone barreras técnicas (fácilmente sorteables en software libre):
 la responsabilidad del uso legítimo recae en quien lo emplea.
@@ -37,7 +37,7 @@ la responsabilidad del uso legítimo recae en quien lo emplea.
 
 ### Opción 1: Descargar binario pre-compilado
 
-Descarga el ejecutable para tu plataforma desde [Releases](https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar/releases):
+Descarga el ejecutable para tu plataforma desde [Releases](https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/releases):
 
 ```bash
 # Windows: ejecuta el instalador tts-sidecar-<versión>-x86_64-setup.exe.
@@ -237,4 +237,4 @@ verificado está en [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
 - [CHANGELOG.md](CHANGELOG.md) - Historial de cambios por versión
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Cómo contribuir (setup, tests, estilo, flujo de PR)
 - [SECURITY.md](SECURITY.md) - Política de seguridad y cómo reportar vulnerabilidades
-- [Issues](https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar/issues) - Reporte de bugs y solicitudes de función
+- [Issues](https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/issues) - Reporte de bugs y solicitudes de función

@@ -2,7 +2,7 @@
 Entry point del daemon de tts-sidecar.
 
 Uso:
-    python -m chatterbox_tts.daemon.run
+    python -m tts_sidecar.daemon.run
 """
 
 # Supresión de warnings antes de cualquier otro import
@@ -64,7 +64,7 @@ def serve(port: int = DEFAULT_PORT, auto_restart: bool = False, max_retries: int
     """
     Arranca el servidor del daemon en primer plano (bloqueante).
 
-    Reutilizable tanto por `main()` (modo `python -m chatterbox_tts.daemon.run`)
+    Reutilizable tanto por `main()` (modo `python -m tts_sidecar.daemon.run`)
     como por el subcomando `daemon serve` del ejecutable congelado.
     """
     # Registrar intentos de reinicio
@@ -167,7 +167,7 @@ def main():
     Punto de entrada CLI del daemon.
 
     Parsea argumentos y delega en serve(). Se invoca como:
-        python -m chatterbox_tts.daemon.run [--auto-restart] [--max-retries N]
+        python -m tts_sidecar.daemon.run [--auto-restart] [--max-retries N]
 
     El puerto es fijo (DEFAULT_PORT = 8765 en loopback); no hay flag --port.
     """

@@ -1,6 +1,6 @@
 # Guía de Uso de TTS Sidecar
 
-`tts-sidecar` es un sintetizador de voz (TTS) 100 % local con clonación de voz en
+TTS Sidecar es un sintetizador de voz (TTS) 100 % local con clonación de voz en
 español latinoamericano. Esta guía recorre cada caso de uso desde la perspectiva
 del usuario: qué comando ejecutar, qué ocurre y qué salida esperar.
 
@@ -60,7 +60,7 @@ reportando como `[FAIL]` con salida 1, como señal diagnóstica. En la primera
 ejecución verás algo como:
 
 ```
-=== Chatterbox TTS Setup ===
+=== TTS Sidecar Setup ===
 
 [PASS] Chatterbox TTS: 0.3.x
 [PASS] Audio library: ... — N dispositivo(s)
@@ -156,7 +156,7 @@ tts-sidecar doctor --json
 **Qué esperar** (entorno sano):
 
 ```
-=== Chatterbox TTS Doctor ===
+=== TTS Sidecar Doctor ===
 
 Python: 3.13.x ...
 Plataforma: Windows 11 / Linux 6.x / Darwin 24.x
@@ -273,7 +273,7 @@ stderr: el T3 topa la generación en 500 tokens, así que un texto muy largo
 puede truncarse en el audio resultante — se recomienda fragmentar el texto en
 varias llamadas a `speak`.
 
-No hay opción de modelo: `tts-sidecar` está especializado en español
+No hay opción de modelo: TTS Sidecar está especializado en español
 latinoamericano y usa siempre el modelo `es-mx-latam` provisionado por `setup`.
 Tú solo gestionas las voces.
 
@@ -759,10 +759,10 @@ real. Esta capacidad exige diligencia por parte de quien la usa:
   identifique la salida como generada por IA.
 - **Canal de reporte**: si detectas un uso indebido de este proyecto o de
   material producido con él, abre un
-  [Issue](https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar/issues)
+  [Issue](https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/issues)
   describiendo la situación.
 
-`tts-sidecar` es software libre y no impone barreras técnicas al uso (serían
+TTS Sidecar es software libre y no impone barreras técnicas al uso (serían
 triviales de sortear); establece, en cambio, la diligencia debida esperada en la
 comunidad de IA de código abierto. La responsabilidad del uso legítimo recae en
 la persona que ejecuta la herramienta.

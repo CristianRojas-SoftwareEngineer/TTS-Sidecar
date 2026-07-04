@@ -60,7 +60,7 @@ def test_info_after_ofrece_codigo_fuente_gplv3():
 
     text = info_after_text()
     assert "GPLv3" in text or "GPL-3.0" in text
-    assert "github.com/CristianRojas-SoftwareEngineer/tts-sidecar" in text
+    assert "github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar" in text
     # Debe seguir explicando la provisión del modelo (compatibilidad con W-03).
     assert "tts-sidecar setup" in text
     # N-08: el instalador NO incluye el código fuente junto al programa; la

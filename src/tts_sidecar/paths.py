@@ -39,7 +39,7 @@ def data_root() -> str:
     Desde fuente: la carpeta `src/` del repositorio.
     """
     if not is_frozen():
-        # src/chatterbox_tts/paths.py -> src/
+        # src/tts_sidecar/paths.py -> src/
         return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     if sys.platform == "win32":
@@ -65,7 +65,7 @@ def bundled_root() -> str:
     if is_frozen():
         return getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 
-    # src/chatterbox_tts/paths.py -> src/ -> raíz del repo
+    # src/tts_sidecar/paths.py -> src/ -> raíz del repo
     src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return os.path.dirname(src_dir)
 

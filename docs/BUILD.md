@@ -70,11 +70,11 @@ primer arranque del AppImage en cualquier distro.
 Antes de compilar, verificar que el código Python no tenga errores:
 
 ```bash
-python -m py_compile src/chatterbox_tts/engine.py
-python -m py_compile src/chatterbox_tts/cli.py
-python -m py_compile src/chatterbox_tts/audio.py
-python -m py_compile src/chatterbox_tts/timing.py
-python -m py_compile src/chatterbox_tts/daemon/*.py
+python -m py_compile src/tts_sidecar/engine.py
+python -m py_compile src/tts_sidecar/cli.py
+python -m py_compile src/tts_sidecar/audio.py
+python -m py_compile src/tts_sidecar/timing.py
+python -m py_compile src/tts_sidecar/daemon/*.py
 ```
 
 ### Scripts de build

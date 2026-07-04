@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 import pytest
 
-from chatterbox_tts.audio import (
+from tts_sidecar.audio import (
     SoundDevicePlayer,
     get_audio_devices,
     get_audio_devices_with_status,

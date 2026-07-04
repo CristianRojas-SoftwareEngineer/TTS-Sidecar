@@ -32,7 +32,7 @@ def test_sin_version_lanza_runtime_error(tmp_path):
 
 
 def test_default_lee_la_version_real_del_repo():
-    from chatterbox_tts import __version__
+    from tts_sidecar import __version__
     assert get_version() == __version__
 
 

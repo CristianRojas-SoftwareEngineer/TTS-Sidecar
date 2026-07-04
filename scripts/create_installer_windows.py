@@ -186,10 +186,10 @@ def info_after_text() -> str:
         "que podrás invocar 'tts-sidecar' por nombre en una terminal nueva.\r\n\r\n"
         "Código fuente (GPLv3)\r\n"
         "======================\r\n\r\n"
-        "tts-sidecar se distribuye bajo la GNU General Public License v3 o\r\n"
+        "TTS Sidecar se distribuye bajo la GNU General Public License v3 o\r\n"
         "posterior. El código fuente completo está disponible públicamente bajo\r\n"
         "GPLv3 en el repositorio:\r\n\r\n"
-        "    https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar\r\n\r\n"
+        "    https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar\r\n\r\n"
         "Si necesitas el código fuente por separado, descárgalo del repositorio o\r\n"
         "solicítalo al autor; el código está disponible públicamente bajo GPLv3.\r\n"
     )

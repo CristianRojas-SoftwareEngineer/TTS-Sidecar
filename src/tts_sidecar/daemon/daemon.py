@@ -62,7 +62,7 @@ class DaemonManager:
         else:
             cmd = [
                 sys.executable,
-                "-m", "chatterbox_tts.daemon.run",
+                "-m", "tts_sidecar.daemon.run",
             ]
 
         if auto_restart:
@@ -73,9 +73,9 @@ class DaemonManager:
         if background:
             env = os.environ.copy()
             # Modo fuente: fijar PYTHONPATH para que el subproceso encuentre
-            # chatterbox_tts. En modo congelado el ejecutable ya es autocontenido.
+            # tts_sidecar. En modo congelado el ejecutable ya es autocontenido.
             if not paths.is_frozen():
-                # __file__ es src/chatterbox_tts/daemon/daemon.py → 3 dirname = src/
+                # __file__ es src/tts_sidecar/daemon/daemon.py → 3 dirname = src/
                 src_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                 if os.path.exists(src_path):
                     env["PYTHONPATH"] = src_path
@@ -232,7 +232,7 @@ class DaemonManager:
             cmdline = " ".join(proc.cmdline())
         except Exception:
             return False
-        markers = ("chatterbox_tts.daemon", "tts-sidecar", "daemon serve")
+        markers = ("tts_sidecar.daemon", "tts-sidecar", "daemon serve")
         return any(marker in cmdline for marker in markers)
 
     def _kill_pid(self, pid: int):

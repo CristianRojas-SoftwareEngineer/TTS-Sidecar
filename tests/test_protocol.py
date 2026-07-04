@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from chatterbox_tts.daemon.protocol import (
+from tts_sidecar.daemon.protocol import (
     MAX_TEXT_LENGTH,
     MAX_AUDIO_PATH_LENGTH,
     SynthesizeRequest,

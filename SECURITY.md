@@ -2,7 +2,7 @@
 
 ## Versiones soportadas
 
-`tts-sidecar` está en desarrollo activo pre-1.0. Solo la última versión publicada
+TTS Sidecar está en desarrollo activo pre-1.0. Solo la última versión publicada
 recibe correcciones de seguridad.
 
 | Versión | Soportada |
@@ -15,7 +15,7 @@ recibe correcciones de seguridad.
 **No** reportes vulnerabilidades de seguridad en Issues públicos.
 
 Usa el canal privado de
-[**GitHub Security Advisories**](https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar/security/advisories/new)
+[**GitHub Security Advisories**](https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/security/advisories/new)
 para reportarlas de forma confidencial. Incluye:
 
 - Una descripción de la vulnerabilidad y su impacto.
@@ -27,7 +27,7 @@ públicamente el problema hasta que exista una corrección disponible.
 
 ## Modelo de amenaza
 
-`tts-sidecar` es una herramienta **local y offline**. Su superficie de ataque es
+TTS Sidecar es una herramienta **local y offline**. Su superficie de ataque es
 limitada, pero conviene explicitar sus supuestos:
 
 ### Daemon local (modo daemon)
@@ -61,7 +61,7 @@ Los binarios distribuidos **no están firmados ni notarizados**: Gatekeeper (mac
 SmartScreen (Windows) advierten en el primer arranque. Sin firma de código, la
 única verificación de integridad disponible es cotejar el SHA-256 del artefacto
 descargado contra el archivo `SHA256SUMS.txt` publicado junto a cada
-[Release](https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar/releases)
+[Release](https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/releases)
 — esos hashes, a su vez, deben coincidir con los emitidos en el log del
 pipeline de CI que construyó el artefacto. Ver el flujo completo de
 publicación y verificación en [docs/RELEASING.md](docs/RELEASING.md).

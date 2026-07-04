@@ -1,6 +1,6 @@
 # Arquitectura de TTS Sidecar
 
-> **Licencia**: el código de `tts-sidecar` se distribuye bajo GPL-3.0-or-later. El modelo
+> **Licencia**: el código de TTS Sidecar se distribuye bajo GPL-3.0-or-later. El modelo
 > Chatterbox y las dependencias empaquetadas conservan sus licencias permisivas
 > (MIT/BSD/Apache); las menciones «Licencia: MIT» de este documento se refieren al **modelo**.
 > Ver [THIRD-PARTY-LICENSES.md](../THIRD-PARTY-LICENSES.md).
@@ -48,14 +48,14 @@ El archivo `bin/tts-sidecar` es el **punto de entrada único** de la aplicación
 - **Shebang en vez de extensión**: la primera línea es `#!/usr/bin/env python3`. En Linux/macOS, con el bit de ejecución activo (`chmod +x`), el sistema operativo lee esa línea para saber con qué intérprete ejecutarlo; la extensión `.py` solo orienta a editores y humanos, el SO nunca la necesita. Por eso `./tts-sidecar speak ...` funciona sin nombrar a Python.
 - **Invocación en desarrollo bajo Windows**: Windows ignora el shebang, así que en desarrollo el entry point se invoca explícitamente a través del intérprete: `python bin/tts-sidecar speak --text "Hola"`.
 
-El archivo no contiene lógica de negocio: prepara el entorno (silencia warnings, ajusta `sys.path`, parchea `pkg_resources` para Python 3.13+) y delega en `chatterbox_tts.cli.main`. Además es la **semilla de compilación** que reciben los scripts de `scripts/build_*.py`: PyInstaller lo toma como entrada y produce el bundle final. Véase `docs/BUILD.md`.
+El archivo no contiene lógica de negocio: prepara el entorno (silencia warnings, ajusta `sys.path`, parchea `pkg_resources` para Python 3.13+) y delega en `tts_sidecar.cli.main`. Además es la **semilla de compilación** que reciben los scripts de `scripts/build_*.py`: PyInstaller lo toma como entrada y produce el bundle final. Véase `docs/BUILD.md`.
 
 ### Estructura del Proyecto
 
 ```
-tts-sidecar/
+TTS-Sidecar/
 ├── src/
-│   └── chatterbox_tts/        # Paquete Python
+│   └── tts_sidecar/        # Paquete Python
 │       ├── __init__.py         # Imports perezosos (lazy)
 │       ├── engine.py           # Wrapper de ChatterboxTTS
 │       ├── audio.py           # Reproducción de audio multiplataforma
@@ -92,7 +92,7 @@ tts-sidecar/
 | `es-mx-latam` | Español latinoamericano (RECOMENDADO) | MIT |
 
 > El modelo `multilingual` es el modelo base de Chatterbox y forma parte del
-> language pack. No está expuesto como opción del CLI: `tts-sidecar` está
+> language pack. No está expuesto como opción del CLI: TTS Sidecar está
 > especializado en español latinoamericano y usa siempre este modelo.
 
 ## Flujo de Síntesis
@@ -133,6 +133,6 @@ Chatterbox permite clonar cualquier voz a partir de ~10 segundos de audio. Cada 
 
 Para añadir un nuevo motor TTS:
 
-1. Crear nuevo módulo en `src/chatterbox_tts/`
+1. Crear nuevo módulo en `src/tts_sidecar/`
 2. Mantener la misma interfaz en `cli.py`
 3. Re-empaquetar con PyInstaller para cada plataforma

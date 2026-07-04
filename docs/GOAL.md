@@ -30,9 +30,9 @@ Implementar y validar la síntesis en español latinoamericano con voz propia de
 ## Estructura del proyecto migrado
 
 ```
-tts-sidecar/
+TTS-Sidecar/
 ├── src/
-│   └── chatterbox_tts/       # Paquete Python
+│   └── tts_sidecar/       # Paquete Python
 │       ├── __init__.py
 │       ├── engine.py         # Wrapper de Chatterbox
 │       ├── audio.py          # Reproducción de audio nativa

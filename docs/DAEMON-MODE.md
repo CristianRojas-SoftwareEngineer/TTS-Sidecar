@@ -60,7 +60,7 @@ El daemon es un servidor HTTP persistente que mantiene el modelo cargado:
 ### Estructura de Archivos
 
 ```
-src/chatterbox_tts/
+src/tts_sidecar/
 ├── cli.py              # CLI con fallback a daemon
 ├── engine.py           # ChatterboxEngine
 ├── audio.py            # AudioPlayer
@@ -71,7 +71,7 @@ src/chatterbox_tts/
     ├── daemon.py       # Gestor del ciclo de vida (start/stop/restart)
     ├── ipc.py          # Cliente HTTP para CLI → daemon
     ├── protocol.py     # Modelos Pydantic de request/response
-    └── run.py          # Entry point: python -m chatterbox_tts.daemon.run
+    └── run.py          # Entry point: python -m tts_sidecar.daemon.run
 ```
 
 ### Protocolo de Comunicación
@@ -148,7 +148,7 @@ tts-sidecar speak --text "Hola" --no-daemon
 El endpoint `/synthesize` **no acepta rutas de audio arbitrarias del sistema
 de archivos**: `voice_audio`/`speech_audio` deben resolver (tras seguir
 symlinks) dentro de un directorio de voces conocido (fábrica o usuario, ver
-`voices.allowed_audio_dirs()` en `src/chatterbox_tts/voices.py`). Cualquier
+`voices.allowed_audio_dirs()` en `src/tts_sidecar/voices.py`). Cualquier
 otra ruta se rechaza con `400`.
 
 Esta restricción evita que un proceso local cualquiera use el daemon como
