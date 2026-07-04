@@ -47,13 +47,24 @@ primer arranque del AppImage en cualquier distro.
 
 | Plataforma | Comando | Artefacto |
 |------------|---------|-----------|
-| Windows x64 | `python scripts/build_windows.py` | `dist/tts-sidecar-0.1.0-x86_64-setup.exe` (instalador) |
+| Windows x64 | `python scripts/build_windows.py --arch x86_64` | `dist/tts-sidecar-0.1.0-x86_64-setup.exe` (instalador) |
 | Linux x64 | `python scripts/build_linux.py --arch x86_64` | `dist/tts-sidecar-0.1.0-x86_64.AppImage` |
 | Linux ARM64 | `python scripts/build_linux.py --arch arm64` | `dist/tts-sidecar-0.1.0-aarch64.AppImage` |
 | macOS arm64 (Apple Silicon) | `python scripts/build_macos.py --arch arm64` | `dist/tts-sidecar-0.1.0-arm64.dmg` |
 
-> Mac Intel (x86_64) **no está soportado**: torch≥2.3 no publica wheels macOS
-> x86_64, por lo que no es posible construir un binario Intel con el toolchain actual.
+> **Por qué Linux publica 2 arquitecturas y Windows/macOS solo 1.** Cada
+> plataforma publica las arquitecturas que cumplen **a la vez** dos condiciones:
+> (a) población real de usuarios y (b) wheels disponibles en el toolchain (torch,
+> onnxruntime). Bajo ese criterio:
+>
+> - **Windows → 1 (x86_64)** por **decisión**: Windows-on-ARM es marginal en la
+>   población de usuarios objetivo; el flag `--arch` solo acepta `x86_64`.
+> - **macOS → 1 (arm64)** por **imposibilidad técnica**: torch≥2.3 no publica
+>   wheels macOS x86_64, por lo que no es posible construir un binario Intel con
+>   el toolchain actual. El artefacto se nombra por su arquitectura real (arm64).
+> - **Linux → 2 (x86_64 + aarch64)** porque **ambas** arquitecturas cumplen las
+>   dos condiciones (usuarios reales y wheels disponibles).
+>
 > Los campos `os`/`cpu` de `package.json` no expresan la matriz por SO (el esquema
 > no lo permite): `x64` aplica a Windows/Linux y `arm64` a Linux/macOS.
 
@@ -81,7 +92,7 @@ python -m py_compile src/tts_sidecar/daemon/*.py
 
 ```bash
 # Windows (requiere Inno Setup instalado)
-python scripts/build_windows.py
+python scripts/build_windows.py --arch x86_64
 
 # Linux (descarga appimagetool + runtime estático, pineados por SHA-256)
 python scripts/build_linux.py --arch x86_64
@@ -180,7 +191,36 @@ como **triple puerta simétrica**: cada build depende de los tres
 los tres SO nativos antes de compilar. Así, un bug específico de plataforma —Windows
 (pycaw/COM, winsound, generación del `.iss`) o macOS (afplay/sounddevice, rutas y señales
 POSIX)— se detecta en el gate en lugar de llegar al usuario. La cobertura es equivalente
-para los tres SO: el mismo `pytest tests/` corre en cada uno.
+para los tres SO **por familia de SO**: el mismo `pytest tests/` corre en cada uno. La
+suite se ejercita en **una** arquitectura por SO (Linux en x86_64), no en las dos que
+Linux publica; el porqué de esa asimetría se detalla en la subsección siguiente.
+
+### Simetría: 3 puertas de test vs. 4 targets de build
+
+Los tests (3) y los builds (4) no están desalineados: responden a **ejes distintos**.
+
+- **Por qué 3 puertas de test y 4 builds.** Los tests son **por familia de SO**:
+  validan la lógica Python (independiente de la arquitectura) más el código específico
+  de cada SO (Windows: pycaw/COM, winsound, generación del `.iss`; macOS:
+  afplay/sounddevice, rutas y señales POSIX; Linux: ALSA). Los builds son **por target
+  de distribución**, y Linux publica **dos** arquitecturas (x86_64 + aarch64). No es
+  una asimetría arbitraria: son dos ejes ortogonales (SO × build-target).
+
+- **Por qué el runner de `test-linux` es x86_64.** Es el executor Docker más barato,
+  rápido y disponible. Como la suite es arch-independiente y **mockea el engine**
+  (torch/onnxruntime no se ejercitan en los tests), correrla en la arquitectura más
+  barata basta: un `test-linux-arm64` no aportaría señal adicional.
+
+- **Hueco de cobertura de ARM64 (divergencia aceptada).** `build-linux-arm64` está
+  *gated* por tests que solo corrieron en x86_64 → no hay una puerta `pytest` nativa en
+  ARM. El riesgo arch-específico real (wheel `aarch64` faltante, segfault de una
+  extensión nativa) lo cubre el **smoke test** del propio build (`tts-sidecar version`,
+  que importa el stack nativo en ARM y exige exit 0), no la suite. Se documenta como
+  **decisión consciente**: un `test-linux-arm64` re-correría la suite mockeada (señal
+  marginal) a un coste recurrente en cada push (VM `machine`), sin cerrar el riesgo que
+  el smoke test ya cubre. Reconsiderar solo ante un bug arch-específico; el *fast-follow*
+  de mayor ROI sería un test de integración que cargue el modelo y sintetice en ARM, no
+  re-correr la suite.
 
 ### Arquitectura del Pipeline
 
@@ -194,7 +234,7 @@ para los tres SO: el mismo `pytest tests/` corre en cada uno.
         ▼               ▼               ▼               ▼
 ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌──────────────────┐
 │build-windows│ │build-linux- │ │build-linux- │ │ build-darwin-    │
-│  + Inno     │ │    x64      │ │   arm64     │ │     arm64        │
+│ -x64+ Inno  │ │    x64      │ │   arm64     │ │     arm64        │
 │  Setup      │ │ + AppImage  │ │ + AppImage  │ │  + create-dmg    │
 └─────────────┘ └─────────────┘ └─────────────┘ └──────────────────┘
      (cada build corre además un smoke test `version` del binario congelado)
@@ -207,7 +247,7 @@ para los tres SO: el mismo `pytest tests/` corre en cada uno.
 | `test-linux` | Linux x64 | docker `cimg/python:3.13` | `pytest tests/` en Linux (puerta previa) |
 | `test-windows` | Windows x64 | `win/server-2022` | `pytest tests/` en Windows nativo (puerta previa) |
 | `test-macos` | macOS arm64 (Apple Silicon) | macos `m4pro.medium` (Xcode 26.4.0) | `pytest tests/` en macOS nativo (puerta previa) |
-| `build-windows` | Windows x64 | `win/server-2022` | PyInstaller onedir + Inno Setup |
+| `build-windows-x64` | Windows x64 | `win/server-2022` | PyInstaller onedir + Inno Setup |
 | `build-linux-x64` | Linux x64 | docker `cimg/python:3.13` | PyInstaller onedir + AppImage |
 | `build-linux-arm64` | Linux ARM64 | machine `arm.medium` | PyInstaller onedir + AppImage |
 | `build-darwin-arm64` | macOS arm64 (Apple Silicon) | macos `m4pro.medium` (Xcode 26.4.0) | PyInstaller onedir + .app + .dmg |

@@ -5,6 +5,10 @@ orbs:
 
 jobs:
   test-linux:
+    # El executor es x86_64 (Docker, el más barato/rápido disponible): la suite
+    # es arch-independiente y mockea el engine (torch/onnxruntime no se ejercitan),
+    # así que no hay señal adicional en re-correrla en ARM64. Justificación
+    # completa (simetría 3 tests / 4 builds) en docs/BUILD.md §4.
     docker:
       - image: cimg/python:3.13
     steps:
@@ -41,7 +45,7 @@ jobs:
     steps:
       - checkout
       - run:
-          # Pin de Chocolatey (espejo de build-windows): un release nuevo no debe
+          # Pin de Chocolatey (espejo de build-windows-x64): un release nuevo no debe
           # romper el job sin cambios en el repo.
           name: Install Python 3.13
           command: choco install python313 -y --version=3.13.14
@@ -87,7 +91,7 @@ jobs:
           name: Run tests
           command: python -m pytest tests/ -v
 
-  build-windows:
+  build-windows-x64:
     executor: win/server-2022
     steps:
       - checkout
@@ -107,7 +111,7 @@ jobs:
             choco install innosetup -y --version=6.3.3
       - run:
           name: Build Windows
-          command: python scripts/build_windows.py
+          command: python scripts/build_windows.py --arch x86_64
       - run:
           # Ejecuta el binario congelado recién construido para detectar
           # empaquetados rotos (metadata faltante, --collect-all incompleto)
@@ -125,15 +129,15 @@ jobs:
           name: Stage installer artifact
           command: |
             $ErrorActionPreference = 'Stop'
-            if (-not (Test-Path dist/tts-sidecar-*-setup.exe)) { throw "Instalador no encontrado en dist/" }
-            Copy-Item dist/tts-sidecar-*-setup.exe dist/tts-sidecar-setup.exe
+            if (-not (Test-Path dist/tts-sidecar-*-x86_64-setup.exe)) { throw "Instalador no encontrado en dist/" }
+            Copy-Item dist/tts-sidecar-*-x86_64-setup.exe dist/tts-sidecar-x86_64-setup.exe
       - run:
           # N-04: SHA-256 del artefacto en el log del CI, única verificación de
           # integridad posible sin firma de código (R-38).
           name: Emit artifact SHA-256
-          command: Get-FileHash dist/tts-sidecar-setup.exe -Algorithm SHA256
+          command: Get-FileHash dist/tts-sidecar-x86_64-setup.exe -Algorithm SHA256
       - store_artifacts:
-          path: dist/tts-sidecar-setup.exe
+          path: dist/tts-sidecar-x86_64-setup.exe
           destination: tts-sidecar-win32-x86_64-setup.exe
       - store_artifacts:
           path: dist/tts-sidecar
@@ -216,6 +220,10 @@ jobs:
       - run:
           # Ejecuta el binario congelado onedir para detectar empaquetados rotos
           # antes de publicar. `version` no carga el modelo; exit 0 obligatorio.
+          # Gate de facto de ARM64: no hay un `test-linux-arm64` (la suite mockea
+          # el engine, ver test-linux), así que este smoke test es la única puerta
+          # que ejercita el stack nativo aarch64 (wheels, extensiones). Decisión
+          # documentada en docs/BUILD.md §4.
           name: Smoke test frozen binary
           command: dist/tts-sidecar/tts-sidecar version
       - run:
@@ -297,7 +305,7 @@ workflows:
       - test-linux
       - test-windows
       - test-macos
-      - build-windows:
+      - build-windows-x64:
           requires:
             - test-linux
             - test-windows

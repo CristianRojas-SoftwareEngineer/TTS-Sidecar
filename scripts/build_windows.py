@@ -28,7 +28,7 @@ def check_dependencies():
     check_pyinstaller()
 
 
-def build_windows():
+def build_windows(target_arch="x86_64"):
     """Compila tts-sidecar para Windows x64 con PyInstaller --onedir."""
     with BuildTimer():
         with StageTimer("Setup", "Preparando entorno de build"):
@@ -92,5 +92,13 @@ def build_windows():
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Build Windows executable")
+    parser.add_argument(
+        "--arch", default="x86_64",
+        choices=["x86_64"],
+        help="Target architecture (default: x86_64; Windows-on-ARM no está soportado)",
+    )
+    args = parser.parse_args()
     check_dependencies()
-    build_windows()
+    build_windows(args.arch)
