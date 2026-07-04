@@ -35,33 +35,33 @@ def _set_ref_main(model_dir, revision):
 
 
 class TestResolveCachedSnapshot:
-    def test_sin_directorio_devuelve_none(self, tmp_path):
+    def test_without_directory_returns_none(self, tmp_path):
         assert _resolve_cached_snapshot(tmp_path / "inexistente") is None
 
-    def test_snapshots_vacio_devuelve_none(self, tmp_path):
+    def test_empty_snapshots_returns_none(self, tmp_path):
         (tmp_path / "snapshots").mkdir()
         assert _resolve_cached_snapshot(tmp_path) is None
 
-    def test_refs_main_gana_sobre_mtime(self, tmp_path):
+    def test_refs_main_wins_over_mtime(self, tmp_path):
         now = time.time()
         _make_snapshot(tmp_path, "aaa", mtime=now)  # el más reciente
         target = _make_snapshot(tmp_path, "bbb", mtime=now - 1000)
         _set_ref_main(tmp_path, "bbb")
         assert _resolve_cached_snapshot(tmp_path) == target
 
-    def test_sin_refs_elige_mtime_mas_reciente(self, tmp_path):
+    def test_without_refs_picks_most_recent_mtime(self, tmp_path):
         now = time.time()
         _make_snapshot(tmp_path, "vieja", mtime=now - 1000)
         newest = _make_snapshot(tmp_path, "nueva", mtime=now)
         assert _resolve_cached_snapshot(tmp_path) == newest
 
-    def test_ref_a_snapshot_ausente_cae_a_mtime(self, tmp_path):
+    def test_ref_to_absent_snapshot_falls_back_to_mtime(self, tmp_path):
         only = _make_snapshot(tmp_path, "aaa")
         _set_ref_main(tmp_path, "borrada")
         assert _resolve_cached_snapshot(tmp_path) == only
 
 
-class TestConditionalsCorruptos:
+class TestCorruptConditionals:
     def _engine_sin_modelo(self):
         """Instancia de ChatterboxEngine sin cargar el modelo real."""
         from tts_sidecar.engine import ChatterboxEngine
@@ -70,13 +70,13 @@ class TestConditionalsCorruptos:
         eng.compute_backend = "cpu"
         return eng
 
-    def test_load_devuelve_false_con_archivo_corrupto(self, tmp_path):
+    def test_load_returns_false_with_corrupt_file(self, tmp_path):
         eng = self._engine_sin_modelo()
         eng._tts = object()
         (tmp_path / "conditionals.pt").write_bytes(b"no es un checkpoint")
         assert eng.load_precomputed_conditionals(str(tmp_path)) is False
 
-    def test_speak_recomputa_con_conditionals_corruptos(self, tmp_path, monkeypatch):
+    def test_speak_recomputes_with_corrupt_conditionals(self, tmp_path, monkeypatch):
         from tts_sidecar.engine import ChatterboxEngine
 
         eng = self._engine_sin_modelo()
@@ -102,7 +102,7 @@ class TestConditionalsCorruptos:
         assert recomputos, "speak debe recomputar los conditionals cuando el .pt es corrupto"
 
 
-class TestParametrosUnificados:
+class TestUnifiedParameters:
     def _engine_stub(self, tmp_path):
         from tts_sidecar.engine import ChatterboxEngine
 
@@ -120,7 +120,7 @@ class TestParametrosUnificados:
         eng._tts = FakeTTS()
         return eng
 
-    def test_get_instance_incluye_models_dir_en_la_clave(self, monkeypatch):
+    def test_get_instance_includes_models_dir_in_key(self, monkeypatch):
         from tts_sidecar.engine import ChatterboxEngine
 
         monkeypatch.setattr(ChatterboxEngine, "_cache", {})
@@ -132,7 +132,7 @@ class TestParametrosUnificados:
         assert a is not b
         assert ChatterboxEngine.get_instance(models_dir="/ruta/a") is a
 
-    def test_modo_directo_usa_exaggeration_unificada(self, tmp_path, monkeypatch):
+    def test_direct_mode_uses_unified_exaggeration(self, tmp_path, monkeypatch):
         from tts_sidecar.engine import ChatterboxEngine
 
         eng = self._engine_stub(tmp_path)
@@ -145,7 +145,7 @@ class TestParametrosUnificados:
 
         assert eng._tts.last_generate_kwargs["exaggeration"] == ChatterboxEngine.EXAGGERATION
 
-    def test_memoizacion_de_conditionals_por_mtime(self, tmp_path, monkeypatch):
+    def test_conditionals_memoization_by_mtime(self, tmp_path, monkeypatch):
         import os
         from tts_sidecar.engine import ChatterboxEngine
 
@@ -208,17 +208,17 @@ def _hf_env(**env):
 
 
 class TestHubCachePath:
-    def test_hf_hub_cache_tiene_precedencia(self, tmp_path):
+    def test_hf_hub_cache_takes_precedence(self, tmp_path):
         custom = tmp_path / "hub-custom"
         with _hf_env(HF_HUB_CACHE=str(custom), HF_HOME=str(tmp_path / "hf-home")):
             assert hub_cache_path() == custom
 
-    def test_hf_home_define_la_raiz(self, tmp_path):
+    def test_hf_home_defines_root(self, tmp_path):
         home = tmp_path / "hf-home"
         with _hf_env(HF_HOME=str(home)):
             assert hub_cache_path() == home / "hub"
 
-    def test_fallback_al_default(self):
+    def test_fallback_to_default(self):
         with _hf_env():
             assert hub_cache_path() == Path("~/.cache/huggingface/hub").expanduser()
 
@@ -232,11 +232,11 @@ class TestIsModelCached:
         monkeypatch.setattr(constants, "HF_HUB_CACHE", str(hub))
         return hub
 
-    def test_sin_cache_devuelve_false(self, tmp_path, monkeypatch):
+    def test_without_cache_returns_false(self, tmp_path, monkeypatch):
         self._fake_hub(tmp_path, monkeypatch)
         assert is_model_cached("es-mx-latam") is False
 
-    def test_snapshot_con_checkpoint_y_ve_devuelve_true(self, tmp_path, monkeypatch):
+    def test_snapshot_with_checkpoint_and_ve_returns_true(self, tmp_path, monkeypatch):
         hub = self._fake_hub(tmp_path, monkeypatch)
         model_dir = hub / ES_MX_FOLDER
         snap = _make_snapshot(model_dir, "abc123")
@@ -249,7 +249,7 @@ class TestIsModelCached:
         (snap / "ve.safetensors").write_bytes(b"\x00")
         assert is_model_cached("es-mx-latam") is True
 
-    def test_t3_presente_sin_ve_devuelve_false(self, tmp_path, monkeypatch):
+    def test_t3_present_without_ve_returns_false(self, tmp_path, monkeypatch):
         """El Voice Encoder es obligatorio: sin ve.safetensors resoluble, el
         primer speak dispararía una descarga (fuga de la promesa offline)."""
         hub = self._fake_hub(tmp_path, monkeypatch)
@@ -260,7 +260,7 @@ class TestIsModelCached:
         (snap / "t3_es_mx_latam.safetensors").write_bytes(t3)
         assert is_model_cached("es-mx-latam") is False
 
-    def test_ve_en_el_modelo_base_tambien_cuenta(self, tmp_path, monkeypatch):
+    def test_ve_in_base_model_also_counts(self, tmp_path, monkeypatch):
         """ve.safetensors puede residir en la caché del modelo base."""
         hub = self._fake_hub(tmp_path, monkeypatch)
         model_dir = hub / ES_MX_FOLDER
@@ -275,7 +275,7 @@ class TestIsModelCached:
         (base_snap / "ve.safetensors").write_bytes(b"\x00")
         assert is_model_cached("es-mx-latam") is True
 
-    def test_valida_el_snapshot_de_refs_main_no_otro(self, tmp_path, monkeypatch):
+    def test_validates_refs_main_snapshot_not_other(self, tmp_path, monkeypatch):
         """Con dos snapshots, el checkpoint debe estar en el que apunta refs/main."""
         hub = self._fake_hub(tmp_path, monkeypatch)
         model_dir = hub / ES_MX_FOLDER
@@ -287,7 +287,7 @@ class TestIsModelCached:
         _set_ref_main(model_dir, "actual")
         assert is_model_cached("es-mx-latam") is False
 
-    def test_header_safetensors_truncado_devuelve_false(self, tmp_path, monkeypatch):
+    def test_safetensors_header_truncated_returns_false(self, tmp_path, monkeypatch):
         """R-04: un t3_es_mx_latam.safetensors truncado (header-length inválido)
         debe tratarse como caché corrupta: 'doctor' lo marcará FAIL y remitirá
         a 'setup' para una re-descarga limpia."""
@@ -306,7 +306,7 @@ class TestIsModelCached:
         # válido (un header JSON de tamaño 0 no codifica metadatos del tensor).
         assert _safetensors_header_ok(snap / "t3_es_mx_latam.safetensors") is False
 
-    def test_header_safetensors_valido_devuelve_true(self, tmp_path, monkeypatch):
+    def test_safetensors_header_valid_returns_true(self, tmp_path, monkeypatch):
         """Un .safetensors con header-length plausible (en el rango (0, size))
         pasa la validación ligera; se mantiene el resto del flujo de is_ve_cached."""
         from tts_sidecar.model_cache import _safetensors_header_ok
@@ -323,7 +323,7 @@ class TestIsModelCached:
         assert _safetensors_header_ok(snap / "t3_es_mx_latam.safetensors") is True
         assert is_model_cached("es-mx-latam") is True
 
-    def test_header_safetensors_mayor_que_archivo_devuelve_false(self, tmp_path):
+    def test_safetensors_header_larger_than_file_returns_false(self, tmp_path):
         """Un header-length que excede el tamaño del archivo es signo claro de
         truncamiento: el helper debe rechazarlo sin necesidad de parsear JSON."""
         from tts_sidecar.model_cache import _safetensors_header_ok

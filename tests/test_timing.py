@@ -18,21 +18,21 @@ from tts_sidecar.timing import (
 
 
 class TestFormatProgressEvent:
-    def test_t3_con_tokens(self):
+    def test_t3_with_tokens(self):
         assert format_progress_event(
             {"event": "progress", "stage": "t3", "tokens": 210}
         ) == "Generando voz · 210 tokens"
 
-    def test_t3_sin_tokens(self):
+    def test_t3_without_tokens(self):
         assert format_progress_event({"event": "progress", "stage": "t3"}) == "Generando voz…"
 
-    def test_etapas_conocidas(self):
+    def test_known_stages(self):
         assert format_progress_event({"stage": "conditionals"}) == "Preparando la voz…"
         assert format_progress_event({"stage": "s3gen"}).startswith("Sintetizando audio")
         assert format_progress_event({"stage": "encoding"}) == "Codificando audio…"
         assert format_progress_event({"stage": "saving"}) == "Guardando…"
 
-    def test_etapa_desconocida_cae_al_default(self):
+    def test_unknown_stage_falls_back_to_default(self):
         assert format_progress_event({"stage": "otra"}) == "Sintetizando…"
         assert format_progress_event({}) == "Sintetizando…"
 
@@ -79,8 +79,8 @@ class TestTimedCommand:
 
         result = dummy_cmd(Args())
         captured = capsys.readouterr()
-        assert "Starting dummy_cmd..." in captured.err
-        assert "Finished in" in captured.err
+        assert "Iniciando dummy_cmd..." in captured.err
+        assert "Finalizado en" in captured.err
         # Los datos del comando siguen yendo a stdout
         assert "inside command" in captured.out
         assert result == 42
@@ -96,7 +96,7 @@ class TestTimedCommand:
         with pytest.raises(ValueError):
             failing_cmd(Args())
         captured = capsys.readouterr()
-        assert "Failed after" in captured.err
+        assert "Falló tras" in captured.err
         assert "test error" in captured.err
         assert captured.out == ""
 

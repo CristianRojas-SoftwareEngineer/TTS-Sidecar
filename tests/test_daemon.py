@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 class TestServerConcurrency:
-    def test_health_responde_durante_sintesis(self, tmp_path):
+    def test_health_responds_during_synthesis(self, tmp_path):
         """Una síntesis bloqueada no debe congelar /health (WARNING-03)."""
         import threading
         from fastapi.testclient import TestClient
@@ -54,8 +54,8 @@ class TestServerConcurrency:
             server.set_engine(old_engine)
 
 
-class TestSynthesizeRutasPermitidas:
-    def test_rechaza_ruta_fuera_de_directorios_permitidos(self, tmp_path, monkeypatch):
+class TestSynthesizeAllowedPaths:
+    def test_rejects_path_outside_allowed_dirs(self, tmp_path, monkeypatch):
         """WARNING-02: una ruta .wav fuera de voices_root()/tempdir se rechaza con 400."""
         from fastapi.testclient import TestClient
         from tts_sidecar.daemon import server
@@ -81,7 +81,7 @@ class TestSynthesizeRutasPermitidas:
         finally:
             server.set_engine(old_engine)
 
-    def test_acepta_ruta_dentro_de_voices_root(self, tmp_path, monkeypatch):
+    def test_accepts_path_within_voices_root(self, tmp_path, monkeypatch):
         """Una ruta dentro de voices_root() sigue siendo aceptada tras WARNING-02."""
         from fastapi.testclient import TestClient
         from tts_sidecar.daemon import server
@@ -110,8 +110,8 @@ class TestSynthesizeRutasPermitidas:
             server.set_engine(old_engine)
 
 
-class TestSynthesizeValidacionHeaderYRutaCanonica:
-    def test_rechaza_extension_wav_con_header_no_wav(self, tmp_path, monkeypatch):
+class TestSynthesizeHeaderValidationAndCanonicalPath:
+    def test_rejects_wav_extension_with_non_wav_header(self, tmp_path, monkeypatch):
         """Extensión .wav pero contenido no-RIFF/WAVE: rechazado con 400."""
         from fastapi.testclient import TestClient
         from tts_sidecar.daemon import server
@@ -135,7 +135,7 @@ class TestSynthesizeValidacionHeaderYRutaCanonica:
         finally:
             server.set_engine(old_engine)
 
-    def test_pasa_ruta_canonica_al_motor(self, tmp_path, monkeypatch):
+    def test_passes_canonical_path_to_engine(self, tmp_path, monkeypatch):
         """El motor recibe os.path.realpath(path), resuelto una sola vez en la validación."""
         import os
         from fastapi.testclient import TestClient
@@ -167,7 +167,7 @@ class TestSynthesizeValidacionHeaderYRutaCanonica:
             server.set_engine(old_engine)
 
 
-class TestKillPidVerificado:
+class TestKillPidVerified:
     def _fake_psutil(self, cmdline):
         proc = MagicMock()
         proc.cmdline.return_value = cmdline
@@ -175,7 +175,7 @@ class TestKillPidVerificado:
         psutil_mock.Process.return_value = proc
         return psutil_mock, proc
 
-    def test_no_termina_procesos_ajenos(self, capsys):
+    def test_does_not_kill_foreign_processes(self, capsys):
         """WARNING-04: si otro servicio ocupa el puerto, no se le hace terminate()."""
         from tts_sidecar.daemon.daemon import DaemonManager
 
@@ -186,7 +186,7 @@ class TestKillPidVerificado:
         proc.terminate.assert_not_called()
         assert "no parece ser el daemon" in capsys.readouterr().err
 
-    def test_termina_el_daemon_propio(self):
+    def test_kills_own_daemon(self):
         from tts_sidecar.daemon.daemon import DaemonManager
 
         psutil_mock, proc = self._fake_psutil(
@@ -303,7 +303,7 @@ class TestDaemonManager:
             client.synthesize(text="hola")
 
     @patch("requests.post")
-    def test_synthesize_http_error_inmediato(self, mock_post):
+    def test_synthesize_http_error_immediate(self, mock_post):
         """Un 400/503 de validación (respuesta inmediata, no stream) → DaemonIPCError."""
         from tts_sidecar.daemon import DaemonIPCClient, DaemonIPCError
 
@@ -317,7 +317,7 @@ class TestDaemonManager:
             client.synthesize(text="hola")
 
     @patch("requests.post")
-    def test_synthesize_sin_frame_result_falla(self, mock_post):
+    def test_synthesize_without_result_frame_fails(self, mock_post):
         """Un stream que termina sin `result` ni `error` rompe el contrato → error."""
         import json
         from tts_sidecar.daemon import DaemonIPCClient, DaemonIPCError
@@ -346,7 +346,7 @@ class TestSynthesizeStreaming:
         monkeypatch.setattr(voices, "allowed_audio_dirs", lambda: [str(allowed_root)])
         return wav
 
-    def test_orden_progress_luego_result(self, tmp_path, monkeypatch):
+    def test_order_progress_then_result(self, tmp_path, monkeypatch):
         import base64
         import json
         from fastapi.testclient import TestClient
@@ -382,7 +382,7 @@ class TestSynthesizeStreaming:
         finally:
             server.set_engine(old_engine)
 
-    def test_error_de_sintesis_emite_frame_error(self, tmp_path, monkeypatch):
+    def test_synthesis_error_emits_error_frame(self, tmp_path, monkeypatch):
         import json
         from fastapi.testclient import TestClient
         from tts_sidecar.daemon import server

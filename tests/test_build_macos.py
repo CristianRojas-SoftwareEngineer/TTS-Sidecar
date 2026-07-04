@@ -18,7 +18,7 @@ from build_macos import (
 )
 
 
-def test_info_plist_version_y_lsminimum():
+def test_info_plist_version_and_lsminimum():
     """Info.plist debe llevar la versión y el LSMinimumSystemVersion derivado del toolchain (N-07)."""
     plist = _info_plist_content("9.9.9", icon_name="tts-sidecar")
     assert "<key>CFBundleShortVersionString</key>" in plist
@@ -28,7 +28,7 @@ def test_info_plist_version_y_lsminimum():
     assert "GPL-3.0-or-later" in plist
 
 
-def test_minimum_system_version_usa_deployment_target(monkeypatch):
+def test_minimum_system_version_uses_deployment_target(monkeypatch):
     """N-07: prioriza MACOSX_DEPLOYMENT_TARGET; cae a mac_ver() si falta."""
     import build_macos
 
@@ -47,7 +47,7 @@ def test_minimum_system_version_usa_deployment_target(monkeypatch):
     assert build_macos._minimum_system_version() == "12.0"
 
 
-def test_install_script_shebang_set_e_sudo_symlink_y_oferta_setup():
+def test_install_script_shebang_set_e_sudo_symlink_and_setup_offer():
     """El .command de instalación: set -e, sudo ln -sf, y oferta de setup."""
     script = _path_install_script("tts-sidecar-arm64.app")
     assert script.startswith("#!/bin/bash\n")
@@ -61,7 +61,7 @@ def test_install_script_shebang_set_e_sudo_symlink_y_oferta_setup():
     assert "s/n" in script  # prompt interactivo
 
 
-def test_uninstall_script_rechaza_no_symlink():
+def test_uninstall_script_rejects_non_symlink():
     """Desinstalación: solo elimina si es symlink; rechaza archivo regular homónimo."""
     script = _path_uninstall_script()
     assert script.startswith("#!/bin/bash\n")

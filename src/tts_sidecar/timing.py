@@ -80,15 +80,15 @@ def timed_command(func):
     @wraps(func)
     def wrapper(args):
         start_time = time.time()
-        print(f"Starting {func.__name__.replace('cmd_', '')}...", file=sys.stderr)
+        print(f"Iniciando {func.__name__.replace('cmd_', '')}...", file=sys.stderr)
         try:
             result = func(args)
             elapsed = time.time() - start_time
-            print(f"Finished in {elapsed:.1f}s", file=sys.stderr)
+            print(f"Finalizado en {elapsed:.1f}s", file=sys.stderr)
             return result
         except Exception as e:
             elapsed = time.time() - start_time
-            print(f"Failed after {elapsed:.1f}s: {e}", file=sys.stderr)
+            print(f"Falló tras {elapsed:.1f}s: {e}", file=sys.stderr)
             raise
     return wrapper
 

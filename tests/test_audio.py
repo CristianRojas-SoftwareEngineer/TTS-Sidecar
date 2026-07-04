@@ -31,21 +31,21 @@ def _wav_bytes(n_channels: int, n_frames: int = 480, sample_rate: int = 24000) -
 
 
 class TestSoundDevicePlayer:
-    def test_mono_se_reproduce_plano(self):
+    def test_mono_plays_flat(self):
         sd = MagicMock()
         SoundDevicePlayer(sd).play(_wav_bytes(n_channels=1))
         (audio_np,), kwargs = sd.play.call_args
         assert audio_np.ndim == 1
         assert kwargs["samplerate"] == 24000
 
-    def test_estereo_se_reproduce_con_dos_canales(self):
+    def test_stereo_plays_with_two_channels(self):
         """Sin el reshape, un WAV estéreo sonaría como mono al doble de velocidad."""
         sd = MagicMock()
         SoundDevicePlayer(sd).play(_wav_bytes(n_channels=2, n_frames=480))
         (audio_np,), _ = sd.play.call_args
         assert audio_np.shape == (480, 2)
 
-    def test_rechaza_ancho_de_muestra_distinto_de_16_bits(self):
+    def test_rejects_sample_width_other_than_16_bits(self):
         buffer = io.BytesIO()
         with wave.open(buffer, "wb") as wf:
             wf.setnchannels(1)
@@ -58,7 +58,7 @@ class TestSoundDevicePlayer:
 
 class TestGetAudioDevicesWindows:
     @patch("platform.system", return_value="Windows")
-    def test_fallo_de_pycaw_degrada_al_fallback(self, _system):
+    def test_pycaw_failure_degrades_to_fallback(self, _system):
         """Un fallo COM (RDP, host sin audio) no debe crashear 'devices'."""
         pycaw_mock = MagicMock()
         pycaw_mock.pycaw.AudioUtilities.GetDeviceEnumerator.side_effect = OSError("COM error")
@@ -69,7 +69,7 @@ class TestGetAudioDevicesWindows:
 
 class TestGetAudioDevicesLinuxMacOS:
     @patch("platform.system", return_value="Linux")
-    def test_fallo_no_import_error_degrada_al_fallback(self, _system):
+    def test_non_import_error_failure_degrades_to_fallback(self, _system):
         """Un PortAudioError en tiempo de enumeración no debe crashear 'devices'."""
         sd_mock = MagicMock()
         sd_mock.query_devices.side_effect = OSError("PortAudio error")

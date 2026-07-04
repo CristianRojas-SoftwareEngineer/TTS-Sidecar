@@ -96,13 +96,13 @@ def _emit_audio(audio_bytes, output):
             os.makedirs(parent, exist_ok=True)
         with open(output, 'wb') as f:
             f.write(audio_bytes)
-        log(f"[I/O] Audio guardado: {output}")
+        log(f"[Archivo] Audio guardado: {output}")
     else:
-        log("[Playback] Reproduciendo audio...")
+        log("[Reproducción] Reproduciendo audio...")
         from .audio import AudioPlayer
         player = AudioPlayer()
         player.play(audio_bytes)
-        log("[Playback] Reproducción finalizada")
+        log("[Reproducción] Reproducción finalizada")
 
 
 def _paths_allowed_by_daemon(voice_audio, speech_audio) -> bool:
@@ -156,7 +156,7 @@ def _synthesize_via_daemon(args, voice_audio, speech_audio):
     from .daemon import DaemonIPCClient
 
     synth_start = time.time()
-    log("[Daemon] Enviando solicitud de síntesis...")
+    log("[Servidor] Enviando solicitud de síntesis...")
     client = DaemonIPCClient()
     # El daemon transmite su progreso real por el stream NDJSON; on_progress
     # actualiza la etiqueta del spinner en vivo (etapa y tokens del T3). En
@@ -169,7 +169,7 @@ def _synthesize_via_daemon(args, voice_audio, speech_audio):
             on_progress=lambda ev: sp.update(format_progress_event(ev)),
         )
     elapsed = time.time() - synth_start
-    log(f"[Daemon] Síntesis completada ({elapsed:.1f}s)")
+    log(f"[Servidor] Síntesis completada ({elapsed:.1f}s)")
 
     _emit_audio(audio_bytes, args.output)
 
@@ -254,12 +254,12 @@ def cmd_speak(args):
                     _synthesize_via_daemon(args, voice_audio, speech_audio)
                     return
                 print(
-                    "[Daemon] La ruta de audio está fuera de los directorios permitidos "
+                    "[Servidor] La ruta de audio está fuera de los directorios permitidos "
                     "por el daemon; usando modo directo",
                     file=sys.stderr,
                 )
             else:
-                log("[Daemon] Daemon no disponible; usando modo directo")
+                log("[Servidor] No disponible; usando modo directo")
 
         # Modo directo: los imports solo se cargan cuando no se usa el daemon.
         from .engine import ChatterboxEngine
@@ -282,7 +282,7 @@ def cmd_speak(args):
 
         if args.output:
             # engine.speak ya escribió el archivo vía output_path
-            log(f"[I/O] Audio guardado: {args.output}")
+            log(f"[Archivo] Audio guardado: {args.output}")
         else:
             _emit_audio(audio_bytes, None)
 
@@ -424,7 +424,7 @@ def cmd_devices(args):
 
     print("Dispositivos de salida de audio:")
     for dev in devices:
-        print(f"  [{dev['id']}] {dev['name']} (latency: {dev['latency']*1000:.1f}ms)")
+        print(f"  [{dev['id']}] {dev['name']} (latencia: {dev['latency']*1000:.1f}ms)")
 
 
 def cmd_version(args):

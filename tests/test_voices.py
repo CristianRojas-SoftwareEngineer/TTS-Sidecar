@@ -54,7 +54,7 @@ class TestRegisterVoiceFiles:
             __import__("sys").modules, "librosa", types.SimpleNamespace(load=fake_load)
         )
 
-    def test_registra_sin_motor(self, voice_roots, tmp_path, monkeypatch):
+    def test_registers_without_engine(self, voice_roots, tmp_path, monkeypatch):
         user_root, _ = voice_roots
         ref, speech = self._audios(tmp_path)
         self._mock_librosa(monkeypatch)
@@ -66,7 +66,7 @@ class TestRegisterVoiceFiles:
         assert ref_path.endswith("reference.wav")
         assert speech_path.endswith("speech.wav")
 
-    def test_audio_ilegible_no_deja_voz_rota(self, voice_roots, tmp_path, monkeypatch):
+    def test_unreadable_audio_leaves_no_broken_voice(self, voice_roots, tmp_path, monkeypatch):
         user_root, _ = voice_roots
         ref, speech = self._audios(tmp_path)
         self._mock_librosa(monkeypatch, fail_on="habla.wav")
@@ -76,7 +76,7 @@ class TestRegisterVoiceFiles:
 
         assert not (user_root / "rota").exists()
 
-    def test_colision_sin_force_se_rechaza(self, voice_roots, tmp_path, monkeypatch):
+    def test_collision_without_force_is_rejected(self, voice_roots, tmp_path, monkeypatch):
         user_root, _ = voice_roots
         _make_voice(user_root, "existente")
         ref, speech = self._audios(tmp_path)
@@ -85,7 +85,7 @@ class TestRegisterVoiceFiles:
         with pytest.raises(ValueError, match="ya existe"):
             voices.register_voice_files("existente", str(ref), str(speech))
 
-    def test_force_sobrescribe(self, voice_roots, tmp_path, monkeypatch):
+    def test_force_overwrites(self, voice_roots, tmp_path, monkeypatch):
         user_root, _ = voice_roots
         _make_voice(user_root, "existente")
         ref, speech = self._audios(tmp_path)
@@ -97,28 +97,28 @@ class TestRegisterVoiceFiles:
 
 
 class TestResolveVoiceDir:
-    def test_voz_completa_se_resuelve(self, voice_roots):
+    def test_complete_voice_resolves(self, voice_roots):
         user_root, _ = voice_roots
         expected = _make_voice(user_root, "mia")
         assert voices._resolve_voice_dir("mia") == str(expected)
 
-    def test_voz_solo_reference_no_se_resuelve(self, voice_roots):
+    def test_reference_only_voice_does_not_resolve(self, voice_roots):
         user_root, _ = voice_roots
         _make_voice(user_root, "mia", speech=False)
         assert voices._resolve_voice_dir("mia") is None
 
-    def test_voz_solo_speech_no_se_resuelve(self, voice_roots):
+    def test_speech_only_voice_does_not_resolve(self, voice_roots):
         user_root, _ = voice_roots
         _make_voice(user_root, "mia", reference=False)
         assert voices._resolve_voice_dir("mia") is None
 
-    def test_precedencia_usuario_sobre_fabrica(self, voice_roots):
+    def test_user_precedence_over_factory(self, voice_roots):
         user_root, factory_root = voice_roots
         _make_voice(factory_root, "default")
         expected = _make_voice(user_root, "default")
         assert voices._resolve_voice_dir("default") == str(expected)
 
-    def test_usuario_incompleta_cae_a_fabrica(self, voice_roots):
+    def test_incomplete_user_falls_back_to_factory(self, voice_roots):
         user_root, factory_root = voice_roots
         _make_voice(user_root, "default", speech=False)
         expected = _make_voice(factory_root, "default")
@@ -126,37 +126,37 @@ class TestResolveVoiceDir:
 
 
 class TestListVoices:
-    def test_lista_solo_voces_completas(self, voice_roots):
+    def test_lists_only_complete_voices(self, voice_roots):
         user_root, factory_root = voice_roots
         _make_voice(user_root, "completa")
         _make_voice(user_root, "sin_speech", speech=False)
         _make_voice(factory_root, "default")
         assert voices.list_voices() == ["completa", "default"]
 
-    def test_sin_duplicados_entre_niveles(self, voice_roots):
+    def test_no_duplicates_between_levels(self, voice_roots):
         user_root, factory_root = voice_roots
         _make_voice(user_root, "default")
         _make_voice(factory_root, "default")
         assert voices.list_voices() == ["default"]
 
 
-class TestSanitizacionDeNombres:
+class TestNameSanitization:
     @pytest.mark.parametrize("name", ["..", "../x", "a/b", "a\\b", "C:\\abs", "/abs", "", "."])
-    def test_voice_dir_rechaza_nombres_maliciosos(self, voice_roots, name):
+    def test_voice_dir_rejects_malicious_names(self, voice_roots, name):
         with pytest.raises(ValueError):
             voices.voice_dir(name)
 
     @pytest.mark.parametrize("name", ["..", "../x", "a/b", "a\\b", "C:\\abs"])
-    def test_remove_voice_rechaza_nombres_maliciosos(self, voice_roots, name):
+    def test_remove_voice_rejects_malicious_names(self, voice_roots, name):
         with pytest.raises(ValueError):
             voices.remove_voice(name)
 
     @pytest.mark.parametrize("name", ["..", "../x", "a/b"])
-    def test_voice_paths_rechaza_nombres_maliciosos(self, voice_roots, name):
+    def test_voice_paths_rejects_malicious_names(self, voice_roots, name):
         with pytest.raises(ValueError):
             voices.voice_paths(name)
 
-    def test_remove_voice_no_borra_directorios_que_no_son_voces(self, voice_roots):
+    def test_remove_voice_does_not_delete_non_voice_dirs(self, voice_roots):
         user_root, _ = voice_roots
         intruso = user_root / "no_es_voz"
         intruso.mkdir()
@@ -164,21 +164,21 @@ class TestSanitizacionDeNombres:
         assert voices.remove_voice("no_es_voz") is False
         assert intruso.exists()
 
-    def test_remove_voice_borra_voz_valida(self, voice_roots):
+    def test_remove_voice_deletes_valid_voice(self, voice_roots):
         user_root, _ = voice_roots
         _make_voice(user_root, "mia")
         assert voices.remove_voice("mia") is True
         assert not (user_root / "mia").exists()
 
 
-class TestCmdVoiceRemoveErroresDeIO:
+class TestCmdVoiceRemoveIOErrors:
     """WARNING-01: cmd_voice_remove distingue un archivo en uso de un error genérico."""
 
     def _args(self, name):
         import argparse
         return argparse.Namespace(name=name)
 
-    def test_permission_error_da_mensaje_distinto_y_sale_1(self, voice_roots, monkeypatch, capsys):
+    def test_permission_error_gives_different_message_and_exits_1(self, voice_roots, monkeypatch, capsys):
         import shutil as shutil_module
         from tts_sidecar import cli
 
@@ -198,7 +198,7 @@ class TestCmdVoiceRemoveErroresDeIO:
         assert "en uso" in err
         assert "no encontrada" not in err
 
-    def test_voz_inexistente_da_mensaje_distinto(self, voice_roots, capsys):
+    def test_nonexistent_voice_gives_different_message(self, voice_roots, capsys):
         from tts_sidecar import cli
 
         with pytest.raises(SystemExit) as exc_info:
@@ -212,7 +212,7 @@ class TestCmdVoiceRemoveErroresDeIO:
         assert "en uso" not in err
 
 
-class TestColisionPorCapitalizacion:
+class TestCapitalizationCollision:
     """SUGGESTION-06: `_validate_voice_name` no normaliza mayúsculas/minúsculas.
 
     Este test confirma o descarta, sin modificar `voices.py`, si dos nombres
@@ -221,7 +221,7 @@ class TestColisionPorCapitalizacion:
     normalización a minúsculas en una iteración posterior.
     """
 
-    def test_nombres_que_difieren_solo_en_mayusculas(self, voice_roots):
+    def test_names_differing_only_in_case(self, voice_roots):
         user_root, _ = voice_roots
         dir_a = _make_voice(user_root, "MiVoz")
 
@@ -245,7 +245,7 @@ class TestColisionPorCapitalizacion:
         assert set(voices.list_voices()) == {"MiVoz", "mivoz"}
 
 
-def test_voice_paths_de_voz_listada_nunca_falla(voice_roots):
+def test_voice_paths_of_listed_voice_never_fails(voice_roots):
     """La invariante que motivó el cambio: toda voz listada es resoluble."""
     user_root, _ = voice_roots
     _make_voice(user_root, "completa")

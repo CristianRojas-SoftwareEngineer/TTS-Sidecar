@@ -9,8 +9,8 @@ verificación de integridad para el usuario final.
 
 ## Prerequisitos
 
-- El gate de la auditoría vigente (`docs/PROJECT-REVIEW.md`) está cerrado: sin
-  hallazgos Bloqueantes ni Mayores abiertos.
+- No hay hallazgos Bloqueantes ni Mayores abiertos de la auditoría de
+  preparación para distribución.
 - `CHANGELOG.md` tiene la sección de la versión a publicar cortada (no
   "No publicado"), con las entradas reales de esa versión. **El job de release
   falla si no encuentra la sección `[X.Y.Z]`** (X.Y.Z = tag sin la `v`), así que

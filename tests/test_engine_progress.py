@@ -32,7 +32,7 @@ def _engine_stub(tmp_path):
 
 
 class TestSpeakProgressCallback:
-    def test_emite_eventos_de_etapa(self, tmp_path, monkeypatch):
+    def test_emits_stage_events(self, tmp_path, monkeypatch):
         from tts_sidecar.engine import ChatterboxEngine
 
         eng = _engine_stub(tmp_path)
@@ -55,7 +55,7 @@ class TestSpeakProgressCallback:
         assert stages == ["conditionals", "tts", "encoding"]
         assert all(ev["event"] == "progress" for ev in events)
 
-    def test_emite_saving_con_output_path(self, tmp_path, monkeypatch):
+    def test_emits_saving_with_output_path(self, tmp_path, monkeypatch):
         from tts_sidecar.engine import ChatterboxEngine
 
         eng = _engine_stub(tmp_path)
@@ -78,7 +78,7 @@ class TestSpeakProgressCallback:
             "conditionals", "tts", "encoding", "saving",
         ]
 
-    def test_callback_se_limpia_en_finally(self, tmp_path, monkeypatch):
+    def test_callback_is_cleared_in_finally(self, tmp_path, monkeypatch):
         from tts_sidecar.engine import ChatterboxEngine
 
         eng = _engine_stub(tmp_path)
@@ -90,7 +90,7 @@ class TestSpeakProgressCallback:
         eng.speak("hola", speech_audio=str(speech), progress_callback=lambda ev: None)
         assert eng._active_progress_cb is None
 
-    def test_excepcion_del_callback_no_rompe_sintesis(self, tmp_path, monkeypatch):
+    def test_callback_exception_does_not_break_synthesis(self, tmp_path, monkeypatch):
         from tts_sidecar.engine import ChatterboxEngine
 
         eng = _engine_stub(tmp_path)
@@ -106,7 +106,7 @@ class TestSpeakProgressCallback:
 
 
 class TestTokenCountingIter:
-    def test_reporta_iteraciones_con_throttle(self):
+    def test_reports_iterations_with_throttle(self):
         from tts_sidecar.engine import ChatterboxEngine
 
         eventos = []
@@ -125,7 +125,7 @@ class TestTokenCountingIter:
         counts = [ev["tokens"] for ev in eventos]
         assert counts == sorted(counts)
 
-    def test_iterable_vacio_no_emite(self):
+    def test_empty_iterable_emits_nothing(self):
         from tts_sidecar.engine import ChatterboxEngine
 
         eventos = []
@@ -137,7 +137,7 @@ class TestTokenCountingIter:
 
 
 class TestTokenShimInstall:
-    def test_shim_envuelve_tqdm_de_sampling(self, monkeypatch):
+    def test_shim_wraps_sampling_tqdm(self, monkeypatch):
         """Instalado el shim, un tqdm(desc='Sampling') con callback activo cuenta
         tokens; sin callback delega en el tqdm real."""
         from tts_sidecar.engine import ChatterboxEngine

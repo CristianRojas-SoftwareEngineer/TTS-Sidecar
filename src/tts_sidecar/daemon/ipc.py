@@ -117,8 +117,8 @@ class DaemonIPCClient:
                     t3_time = ev.get("t3_time")
                     s3gen_time = ev.get("s3gen_time")
                     if t3_time is not None and s3gen_time is not None:
-                        log(f"   [Stage 2a] T3 autoregresivo: {float(t3_time):.1f}s")
-                        log(f"   [Stage 2b] S3Gen vocoder:   {float(s3gen_time):.1f}s")
+                        log(f"   [Etapa 2a] T3 autoregresivo: {float(t3_time):.1f}s")
+                        log(f"   [Etapa 2b] S3Gen vocoder:   {float(s3gen_time):.1f}s")
                 elif kind == "error":
                     raise DaemonIPCError(
                         f"Error del daemon: {ev.get('detail', 'Error desconocido')}"

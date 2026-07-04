@@ -36,23 +36,23 @@ class TestSynthesizeRequest:
         with pytest.raises(ValueError):
             SynthesizeRequest()
 
-    def test_texto_vacio_rechazado(self):
+    def test_empty_text_rejected(self):
         with pytest.raises(ValueError):
             SynthesizeRequest(text="")
 
-    def test_texto_excesivo_rechazado(self):
+    def test_excessive_text_rejected(self):
         with pytest.raises(ValueError):
             SynthesizeRequest(text="a" * (MAX_TEXT_LENGTH + 1))
 
-    def test_texto_en_el_limite_aceptado(self):
+    def test_text_at_limit_accepted(self):
         assert len(SynthesizeRequest(text="a" * MAX_TEXT_LENGTH).text) == MAX_TEXT_LENGTH
 
-    def test_protocolo_sin_model_ni_compute_backend(self):
+    def test_protocol_without_model_or_compute_backend(self):
         campos = SynthesizeRequest.model_fields
         assert "model" not in campos
         assert "compute_backend" not in campos
 
-    def test_ruta_audio_excesiva_rechazada(self):
+    def test_excessive_audio_path_rejected(self):
         """SUGGESTION-01: voice_audio/speech_audio tienen tope de longitud."""
         ruta_excesiva = "a" * (MAX_AUDIO_PATH_LENGTH + 1)
         with pytest.raises(ValueError):
@@ -60,7 +60,7 @@ class TestSynthesizeRequest:
         with pytest.raises(ValueError):
             SynthesizeRequest(text="hola", speech_audio=ruta_excesiva)
 
-    def test_ruta_audio_en_el_limite_aceptada(self):
+    def test_audio_path_at_limit_accepted(self):
         ruta = "a" * MAX_AUDIO_PATH_LENGTH
         req = SynthesizeRequest(text="hola", voice_audio=ruta)
         assert len(req.voice_audio) == MAX_AUDIO_PATH_LENGTH
@@ -97,13 +97,13 @@ class TestStreamEvents:
         assert ev.event == "progress"
         assert ev.stage is None and ev.tokens is None and ev.elapsed is None
 
-    def test_progress_event_con_tokens(self):
+    def test_progress_event_with_tokens(self):
         ev = ProgressEvent(stage="t3", tokens=210)
         assert ev.event == "progress"
         assert ev.stage == "t3"
         assert ev.tokens == 210
 
-    def test_progress_event_literal_fijo(self):
+    def test_progress_event_fixed_literal(self):
         """El discriminador `event` es un literal: no admite otros valores."""
         with pytest.raises(ValueError):
             ProgressEvent(event="result")
@@ -115,11 +115,11 @@ class TestStreamEvents:
         assert ev.t3_time == 9.7
         assert ev.s3gen_time == 7.0
 
-    def test_result_event_tiempos_por_defecto(self):
+    def test_result_event_default_times(self):
         ev = ResultEvent(audio_b64="QUJD")
         assert ev.t3_time == 0.0 and ev.s3gen_time == 0.0
 
-    def test_result_event_requiere_audio(self):
+    def test_result_event_requires_audio(self):
         with pytest.raises(ValueError):
             ResultEvent()
 
@@ -128,11 +128,11 @@ class TestStreamEvents:
         assert ev.event == "error"
         assert ev.detail == "Error interno de síntesis"
 
-    def test_error_event_requiere_detail(self):
+    def test_error_event_requires_detail(self):
         with pytest.raises(ValueError):
             ErrorEvent()
 
-    def test_serializacion_json_incluye_event(self):
+    def test_json_serialization_includes_event(self):
         """Cada línea NDJSON lleva el discriminador `event` para el parseo del cliente."""
         import json
 

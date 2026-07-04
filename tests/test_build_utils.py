@@ -12,26 +12,26 @@ from build_utils import (
 )
 
 
-def test_lee_version_de_init_sintetico(tmp_path):
+def test_reads_version_from_synthetic_init(tmp_path):
     init = tmp_path / "__init__.py"
     init.write_text('__version__ = "1.2.3"\n', encoding="utf-8")
     assert get_version(init) == "1.2.3"
 
 
-def test_acepta_comillas_simples(tmp_path):
+def test_accepts_single_quotes(tmp_path):
     init = tmp_path / "__init__.py"
     init.write_text("__version__ = '4.5.6'\n", encoding="utf-8")
     assert get_version(init) == "4.5.6"
 
 
-def test_sin_version_lanza_runtime_error(tmp_path):
+def test_without_version_raises_runtime_error(tmp_path):
     init = tmp_path / "__init__.py"
     init.write_text('"""Módulo sin versión."""\n', encoding="utf-8")
     with pytest.raises(RuntimeError):
         get_version(init)
 
 
-def test_default_lee_la_version_real_del_repo():
+def test_default_reads_real_repo_version():
     from tts_sidecar import __version__
     assert get_version() == __version__
 
@@ -40,7 +40,7 @@ class TestEnsureBuildDependency:
     """Política interactiva única de dependencias de build (verificar → avisar →
     preguntar solo con TTY → instalar pineado o degradar/abortar por criticidad)."""
 
-    def test_presente_no_pregunta_ni_instala(self, monkeypatch):
+    def test_present_does_not_prompt_or_install(self, monkeypatch):
         preguntas = []
         monkeypatch.setattr("builtins.input", lambda *a: preguntas.append(a) or "s")
         instalaciones = []
@@ -50,7 +50,7 @@ class TestEnsureBuildDependency:
         assert preguntas == []
         assert instalaciones == []
 
-    def test_ausente_con_confirmacion_instala_y_reverifica(self, monkeypatch):
+    def test_absent_with_confirmation_installs_and_reverifies(self, monkeypatch):
         monkeypatch.setattr(build_utils.sys.stdin, "isatty", lambda: True)
         monkeypatch.setattr("builtins.input", lambda *a: "s")
         instalaciones = []
@@ -67,7 +67,7 @@ class TestEnsureBuildDependency:
         assert resultado is True
         assert instalaciones == [["pip", "install", "x==1.0"]]
 
-    def test_ausente_con_rechazo_required_aborta(self, monkeypatch):
+    def test_absent_with_required_rejection_aborts(self, monkeypatch):
         monkeypatch.setattr(build_utils.sys.stdin, "isatty", lambda: True)
         monkeypatch.setattr("builtins.input", lambda *a: "n")
         instalaciones = []
@@ -79,7 +79,7 @@ class TestEnsureBuildDependency:
             )
         assert instalaciones == []
 
-    def test_ausente_con_rechazo_opcional_retorna_false(self, monkeypatch):
+    def test_absent_with_optional_rejection_returns_false(self, monkeypatch):
         monkeypatch.setattr(build_utils.sys.stdin, "isatty", lambda: True)
         monkeypatch.setattr("builtins.input", lambda *a: "n")
         instalaciones = []
@@ -91,7 +91,7 @@ class TestEnsureBuildDependency:
         assert resultado is False
         assert instalaciones == []
 
-    def test_ausente_sin_tty_no_pregunta_y_resuelve_por_criticidad(self, monkeypatch, capsys):
+    def test_absent_without_tty_does_not_prompt_and_resolves_by_criticality(self, monkeypatch, capsys):
         monkeypatch.setattr(build_utils.sys.stdin, "isatty", lambda: False)
 
         def _input_prohibido(*a):
@@ -128,7 +128,7 @@ class TestFetchPinnedAsset:
         src.write_bytes(self.CONTENIDO)
         return src.resolve().as_uri()
 
-    def test_descarga_y_verifica_checksum(self, tmp_path):
+    def test_downloads_and_verifies_checksum(self, tmp_path):
         url = self._servir(tmp_path)
         dest = tmp_path / "cache" / "asset.bin"
 
@@ -137,7 +137,7 @@ class TestFetchPinnedAsset:
         assert resultado == dest
         assert dest.read_bytes() == self.CONTENIDO
 
-    def test_checksum_incorrecto_aborta_y_elimina_el_archivo(self, tmp_path):
+    def test_incorrect_checksum_aborts_and_removes_file(self, tmp_path):
         url = self._servir(tmp_path)
         dest = tmp_path / "cache" / "asset.bin"
 
@@ -145,7 +145,7 @@ class TestFetchPinnedAsset:
             fetch_pinned_asset(url, "0" * 64, dest)
         assert not dest.exists()
 
-    def test_cache_con_checksum_valido_no_descarga(self, tmp_path, monkeypatch):
+    def test_cache_with_valid_checksum_does_not_download(self, tmp_path, monkeypatch):
         dest = tmp_path / "cache" / "asset.bin"
         dest.parent.mkdir(parents=True)
         dest.write_bytes(self.CONTENIDO)
@@ -161,7 +161,7 @@ class TestFetchPinnedAsset:
         assert resultado == dest
 
 
-def test_bundle_size_mb_suma_archivos_anidados(tmp_path):
+def test_bundle_size_mb_sums_nested_files(tmp_path):
     (tmp_path / "a.bin").write_bytes(b"x" * 1024)
     subdir = tmp_path / "sub"
     subdir.mkdir()
@@ -171,7 +171,7 @@ def test_bundle_size_mb_suma_archivos_anidados(tmp_path):
     assert bundle_size_mb(tmp_path) == pytest.approx(esperado_mb)
 
 
-def test_lock_cpu_linux_no_contiene_paquetes_nvidia():
+def test_linux_cpu_lock_contains_no_nvidia_packages():
     """N-05: el AppImage x86_64 debe quedar libre del stack CUDA."""
     repo_root = Path(__file__).resolve().parent.parent
     lock_path = repo_root / "requirements-lock-linux-cpu.txt"

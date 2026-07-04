@@ -82,9 +82,9 @@ CLI → cmd_speak
               ↓ (daemon o directo)
        ChatterboxEngine.speak()
               ↓
-       T3 autoregresivo [Stage 2a] (~10-15s)
+       T3 autoregresivo [Etapa 2a] (~10-15s)
               ↓
-       S3Gen vocoder [Stage 2b] (~5-8s)
+       S3Gen vocoder [Etapa 2b] (~5-8s)
               ↓ (bypass watermark)
        _audio_to_wav() → WAV PCM 24kHz mono
               ↓

@@ -18,6 +18,13 @@ y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
 ### Cambiado
 
+- **Salidas de usuario consistentes en español**: los mensajes de progreso e
+  instrumentación que el CLI emite a stderr (banners de `timed_command`, etapas
+  del motor y marcadores de sub-etapa) pasaron de inglés a español; p. ej.
+  `Starting speak…`/`Finished in…` → `Iniciando speak…`/`Finalizado en…`,
+  `Stage 2/4: Generating audio` → `Etapa 2/4: Generando audio`, `[Stage 2a]` →
+  `[Etapa 2a]`. La implementación (identificadores, nombres propios de
+  arquitectura como T3/S3Gen/conditionals) permanece en inglés.
 - **Protocolo de `/synthesize` (daemon→cliente)**: la respuesta pasó de un cuerpo
   binario WAV (con headers `X-T3-Time`/`X-S3Gen-Time`) a un **stream NDJSON**: N
   líneas `progress` (etapa + tokens) seguidas de una línea `result` con el WAV en

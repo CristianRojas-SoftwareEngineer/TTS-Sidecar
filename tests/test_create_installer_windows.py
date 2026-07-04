@@ -21,13 +21,13 @@ def iss(tmp_path):
     return generate_iss(source_dir, output_dir, "9.9.9", info_after)
 
 
-def test_nombre_del_instalador_incluye_version_y_sufijo(iss):
+def test_installer_name_includes_version_and_suffix(iss):
     # A-03: vocabulario de arquitectura unificado al estilo `uname -m` (x86_64),
     # en paridad con los AppImage de Linux.
     assert "OutputBaseFilename=tts-sidecar-9.9.9-x86_64-setup" in iss
 
 
-def test_setup_postinstalacion_persiste_la_consola(iss):
+def test_setup_postinstall_persists_console(iss):
     # W-03: el setup post-instalación se lanza vía `cmd /k` para que la consola
     # quede abierta mostrando el resultado (éxito o fallo) hasta que el usuario
     # la cierre — paridad con la Terminal persistente del .command de macOS.
@@ -35,25 +35,25 @@ def test_setup_postinstalacion_persiste_la_consola(iss):
     assert "postinstall skipifsilent runasoriginaluser nowait" in iss
 
 
-def test_agrega_path_condicionado_por_needsaddpath(iss):
+def test_adds_path_conditioned_on_needsaddpath(iss):
     assert "function NeedsAddPath(Param: string): boolean;" in iss
     assert "Check: NeedsAddPath(ExpandConstant('{app}'))" in iss
 
 
-def test_desinstalacion_recorta_la_entrada_de_path(iss):
+def test_uninstall_trims_path_entry(iss):
     # W-01: el desinstalador debe revertir la entrada {app} del PATH de HKLM.
     assert "procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);" in iss
     assert "usUninstall" in iss
     assert "RegWriteExpandStringValue(HKLM," in iss
 
 
-def test_sin_clave_uninstall_manual(iss):
+def test_without_key_manual_uninstall(iss):
     # W-02: Inno Setup genera su propia entrada ({AppId}_is1); la clave manual
     # duplicaría el programa en «Aplicaciones y características».
     assert "CurrentVersion\\Uninstall\\tts-sidecar" not in iss
 
 
-def test_info_after_ofrece_codigo_fuente_gplv3():
+def test_info_after_offers_gplv3_source_code():
     """R-34: la página InfoAfter del instalador debe ofrecer el código fuente
     bajo GPLv3 y enlazar al repositorio (GPLv3 §6)."""
     from create_installer_windows import info_after_text
@@ -70,7 +70,7 @@ def test_info_after_ofrece_codigo_fuente_gplv3():
     assert "disponible públicamente" in text
 
 
-def test_main_compila_el_instalador_con_iscc_mockeado(tmp_path, monkeypatch):
+def test_main_builds_installer_with_mocked_iscc(tmp_path, monkeypatch):
     """N-01: main() debe llegar a invocar ISCC con un .iss válido. La regresión
     de 8a18fad dejó el bloque de compilación inalcanzable dentro de
     info_after_text(): main() retornaba tras mkdir sin compilar nada, y ningún

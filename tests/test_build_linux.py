@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 from build_linux import _apprun_script, _desktop_entry
 
 
-def test_apprun_shebang_y_delegacion():
+def test_apprun_shebang_and_delegation():
     """El script AppRun debe tener shebang POSIX y delegar en el ejecutable
     del bundle pasando todos los argumentos ("$@")."""
     script = _apprun_script()
@@ -22,7 +22,7 @@ def test_apprun_shebang_y_delegacion():
     assert 'exec "$HERE/usr/bin/tts-sidecar" "$@"' in script
 
 
-def test_desktop_entry_tipo_aplicacion_y_terminal():
+def test_desktop_entry_application_type_and_terminal():
     """El .desktop debe ser Type=Application y Terminal=true (salida CLI visible)."""
     desktop = _desktop_entry()
     assert "Type=Application" in desktop

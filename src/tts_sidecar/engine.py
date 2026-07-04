@@ -290,7 +290,7 @@ class ChatterboxEngine:
             t0 = time_mod.time()
             result = _orig_t3(*args, **kwargs)
             self._synthesis_timing['t3'] = time_mod.time() - t0
-            log(f"   [Stage 2a] T3 autoregresivo: {self._synthesis_timing['t3']:.1f}s")
+            log(f"   [Etapa 2a] T3 autoregresivo: {self._synthesis_timing['t3']:.1f}s")
             return result
 
         tts.t3.inference = timed_t3
@@ -305,7 +305,7 @@ class ChatterboxEngine:
             t0 = time_mod.time()
             result = _orig_s3gen(*args, **kwargs)
             self._synthesis_timing['s3gen'] = time_mod.time() - t0
-            log(f"   [Stage 2b] S3Gen vocoder:   {self._synthesis_timing['s3gen']:.1f}s")
+            log(f"   [Etapa 2b] S3Gen vocoder:   {self._synthesis_timing['s3gen']:.1f}s")
             return result
 
         tts.s3gen.inference = timed_s3gen
@@ -395,14 +395,14 @@ class ChatterboxEngine:
             # Verifica que existan los archivos de es-mx-latam
             if model_name == "es-mx-latam" or "es-mx-latam" in model_name:
                 if (cached / "t3_es_mx_latam.safetensors").exists():
-                    log(f"Using cached model: {model_name} ({cached})")
+                    log(f"Usando modelo en caché: {model_name} ({cached})")
                     return cached
             else:
-                log(f"Using cached model: {model_name} ({cached})")
+                log(f"Usando modelo en caché: {model_name} ({cached})")
                 return cached
 
         # Descarga desde HuggingFace
-        log(f"Downloading {model_name} from HuggingFace")
+        log(f"Descargando {model_name} desde HuggingFace")
 
         cached_path = Path(
             snapshot_download(
@@ -411,7 +411,7 @@ class ChatterboxEngine:
                 token=os.getenv("HF_TOKEN"),
             )
         )
-        log(f"Model downloaded to: {cached_path}")
+        log(f"Modelo descargado en: {cached_path}")
         return cached_path
 
     def _load_model(self, cache_dir: Path, model_name: str, compute_backend: str):
@@ -456,7 +456,7 @@ class ChatterboxEngine:
             # Red de seguridad: 'setup' provisiona ve.safetensors explícitamente,
             # así que llegar aquí indica una caché podada tras la provisión.
             log(
-                "[VE] ve.safetensors no está en la caché local; descargándolo ahora. "
+                "[Codificador de voz] ve.safetensors no está en la caché local; descargándolo ahora. "
                 "Ejecuta 'tts-sidecar setup' para reprovisionar la caché completa"
             )
             from huggingface_hub import hf_hub_download
@@ -505,7 +505,7 @@ class ChatterboxEngine:
         # Si no hay conds incorporados, exige audio_prompt_path en generate()
         tts._require_voice_prompt = conds is None
 
-        log(f"Model loaded: es-MX-Latam (vocab=2454, compute_backend={compute_backend}, builtin_voice={'yes' if conds else 'no'})")
+        log(f"Modelo cargado: es-MX-Latam (vocab=2454, compute_backend={compute_backend}, builtin_voice={'sí' if conds else 'no'})")
         return tts
 
     def _load_multilingual(self, cache_dir: Path, compute_backend: str):
@@ -573,7 +573,7 @@ class ChatterboxEngine:
         """Cuerpo de la síntesis (con el callback de progreso ya fijado)."""
         # Stage 1: Carga de conditionals
         self._emit_progress(stage="conditionals")
-        with StageTimer("1-Speak", "Stage 1/4: Loading conditionals"):
+        with StageTimer("1-Speak", "Etapa 1/4: Cargando conditionals"):
             voice_dir = None
             if speech_audio:
                 voice_dir = os.path.dirname(speech_audio)
@@ -585,10 +585,10 @@ class ChatterboxEngine:
                         and getattr(self._tts, "conds", None) is not None
                     ):
                         # Misma voz consecutiva: los conds ya están en memoria
-                        log("   -> Precomputed conditionals (memoized, no disk read)")
+                        log("   -> Conditionals precomputados (en memoria, sin lectura de disco)")
                     elif self.load_precomputed_conditionals(voice_dir):
                         self._conds_cache_key = conds_key
-                        log("   -> Precomputed conditionals loaded")
+                        log("   -> Conditionals precomputados cargados")
                     else:
                         # conditionals.pt ilegible: degradar al cómputo on-the-fly
                         # en vez de sintetizar en silencio con los conds previos.
@@ -599,7 +599,7 @@ class ChatterboxEngine:
                             speech_audio_path=speech_audio,
                         )
                 else:
-                    log("   -> Computing conditionals on-the-fly...")
+                    log("   -> Calculando conditionals on-the-fly...")
                     self._conds_cache_key = None
                     self._prepare_conditionals_multi(
                         voice_audio_path=voice_audio,
@@ -618,20 +618,20 @@ class ChatterboxEngine:
         # sub-etapas t3/s3gen (y el conteo de tokens) las emiten los wrappers
         # timed_t3/timed_s3gen y el shim de tqdm desde dentro de generate().
         self._emit_progress(stage="tts")
-        with StageTimer("2-Speak", "Stage 2/4: Generating audio (TTS)"):
+        with StageTimer("2-Speak", "Etapa 2/4: Generando audio (TTS)"):
             wav = self._tts.generate(text, language_id="es", exaggeration=self.EXAGGERATION)
 
         # Stage 3: Conversión a WAV
         self._emit_progress(stage="encoding")
-        with StageTimer("3-Speak", "Stage 3/4: Converting to WAV"):
+        with StageTimer("3-Speak", "Etapa 3/4: Convirtiendo a WAV"):
             wav_bytes = self._audio_to_wav(wav)
 
         # Stage 4: Guardado a archivo (opcional)
         if output_path:
             self._emit_progress(stage="saving")
-            with StageTimer("4-Speak", "Stage 4/4: Saving to file"):
+            with StageTimer("4-Speak", "Etapa 4/4: Guardando en archivo"):
                 self._save_wav(wav_bytes, output_path)
-                log("   -> File saved")
+                log("   -> Archivo guardado")
 
         return wav_bytes
 
