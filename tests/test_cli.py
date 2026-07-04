@@ -1000,7 +1000,8 @@ class TestSchemaVersionJSON:
         from tts_sidecar.cli import cmd_doctor, SCHEMA_VERSION
 
         with patch("tts_sidecar.model_cache.is_model_cached", return_value=True):
-            cmd_doctor(MockArgs(json=True))
+            with patch("tts_sidecar.audio.get_audio_devices_with_status", return_value=([], False)):
+                cmd_doctor(MockArgs(json=True))
         payload = json.loads(capsys.readouterr().out)
         assert payload["schema_version"] == SCHEMA_VERSION
 
@@ -1071,24 +1072,24 @@ class TestComputeBackendIgnoredViaDaemon:
     @patch("tts_sidecar.model_cache.is_model_cached", return_value=True)
     @patch("tts_sidecar.daemon.DaemonIPCClient")
     def test_backend_non_auto_with_explicit_daemon_warns(
-        self, mock_client_cls, _cached, _allowed, capsys
+        self, mock_client_cls, _cached, _allowed, capsys, tmp_path
     ):
         from tts_sidecar.cli import cmd_speak
 
         mock_client_cls.return_value.synthesize.return_value = b"RIFF...."
-        cmd_speak(MockArgs(daemon=True, compute_backend="cuda", output=None))
+        cmd_speak(MockArgs(daemon=True, compute_backend="cuda", output=str(tmp_path / "out.wav")))
         assert "--compute-backend" in capsys.readouterr().err
 
     @patch("tts_sidecar.cli._paths_allowed_by_daemon", return_value=True)
     @patch("tts_sidecar.model_cache.is_model_cached", return_value=True)
     @patch("tts_sidecar.daemon.DaemonIPCClient")
     def test_backend_auto_with_daemon_does_not_warn(
-        self, mock_client_cls, _cached, _allowed, capsys
+        self, mock_client_cls, _cached, _allowed, capsys, tmp_path
     ):
         from tts_sidecar.cli import cmd_speak
 
         mock_client_cls.return_value.synthesize.return_value = b"RIFF...."
-        cmd_speak(MockArgs(daemon=True, compute_backend="auto", output=None))
+        cmd_speak(MockArgs(daemon=True, compute_backend="auto", output=str(tmp_path / "out.wav")))
         assert "--compute-backend" not in capsys.readouterr().err
 
 

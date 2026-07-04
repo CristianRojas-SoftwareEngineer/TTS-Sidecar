@@ -5,6 +5,8 @@ speech.wav (conditioning). Cubre _resolve_voice_dir y list_voices con la
 precedencia usuario→fábrica sobre directorios temporales.
 """
 
+import os
+
 import pytest
 
 from tts_sidecar import voices
@@ -225,21 +227,23 @@ class TestCapitalizationCollision:
         user_root, _ = voice_roots
         dir_a = _make_voice(user_root, "MiVoz")
 
-        try:
-            dir_b = _make_voice(user_root, "mivoz")
-        except FileExistsError:
-            # Filesystem case-insensitive (Windows/macOS por defecto): el
-            # segundo mkdir() colisiona con el directorio ya creado para
-            # "MiVoz". Además, voice_dir("mivoz") rechaza el nombre porque su
-            # defensa anti-escape (realpath) resuelve al nombre ya presente
-            # en disco ("MiVoz"), no al nombre pedido ("mivoz") — confirma la
-            # colisión también a nivel de voices.py, no solo del filesystem.
+        # Verificar explícitamente si hay colisión (filesystem case-insensitive)
+        # o si ambos nombres pueden coexistir (filesystem case-sensitive).
+        # mkdir() no falla siempre en ciertos runners con configuraciones
+        # inesperadas, así que verificamos si el directorio real es el mismo.
+        dir_b = user_root / "mivoz"
+        if os.path.realpath(dir_b) == os.path.realpath(dir_a):
+            # Colisión detectada: el segundo nombre resuelve al mismo directorio.
+            # voice_dir("mivoz") rechaza el nombre porque su defensa anti-escape
+            # (realpath) resuelve al nombre ya presente en disco ("MiVoz").
             with pytest.raises(ValueError, match="escapa del registro de voces"):
                 voices.voice_dir("mivoz")
             return
 
         # Filesystem case-sensitive (Linux por defecto): ambas voces coexisten
         # como directorios distintos.
+        dir_b.mkdir()
+        _make_voice(user_root, "mivoz", reference=False, speech=False)
         assert dir_a != dir_b
         assert voices.voice_dir("MiVoz") != voices.voice_dir("mivoz")
         assert set(voices.list_voices()) == {"MiVoz", "mivoz"}
