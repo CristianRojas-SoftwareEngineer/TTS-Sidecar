@@ -136,6 +136,21 @@ jobs:
           # integridad posible sin firma de código (R-38).
           name: Emit artifact SHA-256
           command: Get-FileHash dist/tts-sidecar-x86_64-setup.exe -Algorithm SHA256
+      - run:
+          # Persiste el instalador VERSIONADO (nombre de release, con arch) al
+          # workspace para que `publish-release` lo recolecte sin token de API de
+          # CircleCI. Mismo fail-fast que el staging (N-01): Copy-Item con wildcard
+          # sin match no aborta en PowerShell por defecto.
+          name: Persist installer to workspace
+          command: |
+            $ErrorActionPreference = 'Stop'
+            New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+            if (-not (Test-Path dist/tts-sidecar-*-x86_64-setup.exe)) { throw "Instalador versionado no encontrado en dist/" }
+            Copy-Item dist/tts-sidecar-*-x86_64-setup.exe artifacts/
+      - persist_to_workspace:
+          root: artifacts
+          paths:
+            - tts-sidecar-*-x86_64-setup.exe
       - store_artifacts:
           path: dist/tts-sidecar-x86_64-setup.exe
           destination: tts-sidecar-win32-x86_64-setup.exe
@@ -184,6 +199,18 @@ jobs:
           # integridad posible sin firma de código (R-38).
           name: Emit artifact SHA-256
           command: sha256sum dist/tts-sidecar-x86_64.AppImage
+      - run:
+          # Persiste el AppImage VERSIONADO (nombre de release, con arch) al
+          # workspace para `publish-release`. Fail-fast: sin match, el glob se
+          # pasa literal a cp → error → el step aborta (bash -eo pipefail).
+          name: Persist AppImage to workspace
+          command: |
+            mkdir -p artifacts
+            cp dist/tts-sidecar-*-x86_64.AppImage artifacts/
+      - persist_to_workspace:
+          root: artifacts
+          paths:
+            - tts-sidecar-*-x86_64.AppImage
       - store_artifacts:
           path: dist/tts-sidecar-x86_64.AppImage
           destination: tts-sidecar-linux-x86_64.AppImage
@@ -236,6 +263,18 @@ jobs:
           # integridad posible sin firma de código (R-38).
           name: Emit artifact SHA-256
           command: sha256sum dist/tts-sidecar-aarch64.AppImage
+      - run:
+          # Persiste el AppImage VERSIONADO (nombre de release, con arch) al
+          # workspace para `publish-release`. Fail-fast: sin match, el glob se
+          # pasa literal a cp → error → el step aborta (bash -eo pipefail).
+          name: Persist AppImage to workspace
+          command: |
+            mkdir -p artifacts
+            cp dist/tts-sidecar-*-aarch64.AppImage artifacts/
+      - persist_to_workspace:
+          root: artifacts
+          paths:
+            - tts-sidecar-*-aarch64.AppImage
       - store_artifacts:
           path: dist/tts-sidecar-aarch64.AppImage
           destination: tts-sidecar-linux-aarch64.AppImage
@@ -292,6 +331,18 @@ jobs:
           # integridad posible sin firma de código (R-38).
           name: Emit artifact SHA-256
           command: shasum -a 256 dist/tts-sidecar-arm64.dmg
+      - run:
+          # Persiste el .dmg VERSIONADO (nombre de release, con arch) al
+          # workspace para `publish-release`. Fail-fast: sin match, el glob se
+          # pasa literal a cp → error → el step aborta (bash -eo pipefail).
+          name: Persist DMG to workspace
+          command: |
+            mkdir -p artifacts
+            cp dist/tts-sidecar-*-arm64.dmg artifacts/
+      - persist_to_workspace:
+          root: artifacts
+          paths:
+            - tts-sidecar-*-arm64.dmg
       - store_artifacts:
           path: dist/tts-sidecar-arm64.dmg
           destination: tts-sidecar-darwin-arm64.dmg
@@ -299,29 +350,141 @@ jobs:
           path: dist/tts-sidecar-arm64.app
           destination: tts-sidecar-darwin-arm64.app/
 
+  publish-release:
+    # CD estrategia 1 (GitHub Releases). Solo corre en tags `v*` (ver el
+    # workflow). Recolecta los 4 artefactos VERSIONADOS por workspace (no
+    # `gh run download`: determinista, sin token de API de CircleCI), genera
+    # SHA256SUMS.txt y crea un GitHub Release en BORRADOR con notas del
+    # CHANGELOG. El humano revisa el draft y pulsa «publish». Requiere el
+    # context `github-release` con GH_TOKEN (fine-grained PAT, contents:write).
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout                       # para CHANGELOG.md y el cotejo de notas
+      - attach_workspace:
+          at: artifacts
+      - run:
+          # gh CLI desde el repo apt oficial de GitHub (pineado por su propia
+          # firma GPG); no viene preinstalado en cimg/base.
+          name: Install gh CLI
+          command: |
+            set -euo pipefail
+            sudo mkdir -p -m 755 /etc/apt/keyrings
+            wget -nv -O- https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+              | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+            sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+              | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt-get update
+            sudo apt-get install -y gh
+      - run:
+          # Los 4 artefactos ya llegan con su nombre de release (versionado, con
+          # arch); solo falta el manifiesto de checksums. Fail-fast: sin los 4
+          # artefactos en el workspace, sha256sum falla y el step aborta.
+          name: Generate SHA256SUMS.txt
+          command: |
+            set -euo pipefail
+            cd artifacts
+            sha256sum tts-sidecar-* > SHA256SUMS.txt
+            cat SHA256SUMS.txt
+      - run:
+          # Extrae la sección `## [X.Y.Z]` del CHANGELOG (X.Y.Z = tag sin la `v`)
+          # hasta el siguiente `## [`. Fail-fast si la sección no existe: evita
+          # publicar un Release con notas vacías.
+          name: Extract release notes
+          command: |
+            set -euo pipefail
+            VERSION="${CIRCLE_TAG#v}"
+            # Corta en el siguiente `## [` (próxima versión) o en el bloque de
+            # referencias de enlaces del pie (`[label]: url`), que sigue a la
+            # última sección y no debe filtrarse a las notas.
+            awk -v ver="## [$VERSION]" '
+              index($0, ver) == 1 { grab=1; print; next }
+              grab && /^## \[/ { exit }
+              grab && /^\[[^][]*\]:/ { exit }
+              grab { print }
+            ' CHANGELOG.md > notes.md
+            if [ ! -s notes.md ]; then
+              echo "ERROR: no se encontró la sección [$VERSION] en CHANGELOG.md" >&2
+              exit 1
+            fi
+            cat notes.md
+      - run:
+          # Crea el Release en BORRADOR con los 5 assets (4 artefactos +
+          # SHA256SUMS.txt). Si el tag ya tiene Release, `gh release create`
+          # falla ruidosamente (correcto: no re-publica en silencio).
+          name: Create draft GitHub Release
+          command: |
+            set -euo pipefail
+            gh release create "$CIRCLE_TAG" \
+              artifacts/tts-sidecar-* artifacts/SHA256SUMS.txt \
+              --draft \
+              --title "$CIRCLE_TAG" \
+              --notes-file notes.md
+
 workflows:
   build-all:
+    # CircleCI NO ejecuta un job en un tag salvo que el job Y todas sus
+    # dependencias declaren `filters.tags`; por eso el filtro `tags: only /^v.*/`
+    # se propaga por toda la cadena (tests → builds → publish-release). Como no
+    # se toca el default de `branches`, tests y builds siguen corriendo en cada
+    # push de rama igual que hoy, y ADEMÁS en tags `v*`. `publish-release` es el
+    # único con `branches: ignore /.*/`: solo corre en tags.
     jobs:
-      - test-linux
-      - test-windows
-      - test-macos
+      - test-linux:
+          filters:
+            tags:
+              only: /^v.*/
+      - test-windows:
+          filters:
+            tags:
+              only: /^v.*/
+      - test-macos:
+          filters:
+            tags:
+              only: /^v.*/
       - build-windows-x64:
+          filters:
+            tags:
+              only: /^v.*/
           requires:
             - test-linux
             - test-windows
             - test-macos
       - build-linux-x64:
+          filters:
+            tags:
+              only: /^v.*/
           requires:
             - test-linux
             - test-windows
             - test-macos
       - build-linux-arm64:
+          filters:
+            tags:
+              only: /^v.*/
           requires:
             - test-linux
             - test-windows
             - test-macos
       - build-darwin-arm64:
+          filters:
+            tags:
+              only: /^v.*/
           requires:
             - test-linux
             - test-windows
             - test-macos
+      - publish-release:
+          context:
+            - github-release
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+          requires:
+            - build-windows-x64
+            - build-linux-x64
+            - build-linux-arm64
+            - build-darwin-arm64

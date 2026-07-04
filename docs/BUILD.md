@@ -251,8 +251,25 @@ Los tests (3) y los builds (4) no están desalineados: responden a **ejes distin
 | `build-linux-x64` | Linux x64 | docker `cimg/python:3.13` | PyInstaller onedir + AppImage |
 | `build-linux-arm64` | Linux ARM64 | machine `arm.medium` | PyInstaller onedir + AppImage |
 | `build-darwin-arm64` | macOS arm64 (Apple Silicon) | macos `m4pro.medium` (Xcode 26.4.0) | PyInstaller onedir + .app + .dmg |
+| `publish-release` | — (CD) | docker `cimg/base:current` | Solo en tags `v*`: recolecta los 4 artefactos por workspace, genera `SHA256SUMS.txt` y crea un GitHub Release en **borrador** |
 
 El archivo de configuración completo está en `.circleci/config.yml`.
+
+### CD: publicación del GitHub Release (`publish-release`)
+
+Al pushear un tag `v*`, además de tests + builds corre `publish-release`
+(estrategia 1, GitHub Releases). Recolecta los 4 artefactos **versionados** por
+`persist_to_workspace`/`attach_workspace` (no `gh run download`: se queda dentro
+del pipeline, es determinista y no requiere token de API de CircleCI), genera
+`SHA256SUMS.txt`, extrae las notas de la sección `[X.Y.Z]` de `CHANGELOG.md`
+(fail-fast si no existe) y crea el Release en **borrador**. El humano revisa el
+draft y pulsa «publish». El detalle del runbook está en `docs/RELEASING.md`.
+
+Requisito operativo: el context `github-release` en CircleCI con `GH_TOKEN`
+(fine-grained PAT, permiso `contents: write` sobre el repo), aislado al job de
+release. Para que CircleCI ejecute jobs en un tag, el job **y todas sus
+dependencias** deben declarar `filters.tags`; por eso el filtro `v*` se propaga
+por tests → builds → `publish-release`.
 
 ---
 

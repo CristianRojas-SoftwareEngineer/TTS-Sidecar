@@ -1,19 +1,26 @@
 # Publicación de una versión (RELEASING.md)
 
-`tts-sidecar` no tiene publicación automática: sin firma de código (R-38), el
-runbook manual y el cotejo de checksums SHA-256 contra el log del pipeline son
-la única cadena de verificación de integridad disponible para el usuario final.
-Este documento es el flujo que ejecuta el propietario del repositorio para
-cortar y publicar una versión.
+`tts-sidecar` publica sus releases de forma **semi-automática**: al pushear un
+tag `v*`, CircleCI corre los tests, los 4 builds y el job `publish-release`, que
+recolecta los artefactos, genera `SHA256SUMS.txt` y crea un **GitHub Release en
+borrador (draft)**. El propietario solo revisa el draft y pulsa «publish». Sin
+firma de código (R-38), el cotejo de checksums SHA-256 sigue siendo la cadena de
+verificación de integridad para el usuario final.
 
 ## Prerequisitos
 
 - El gate de la auditoría vigente (`docs/PROJECT-REVIEW.md`) está cerrado: sin
   hallazgos Bloqueantes ni Mayores abiertos.
 - `CHANGELOG.md` tiene la sección de la versión a publicar cortada (no
-  "No publicado"), con las entradas reales de esa versión.
+  "No publicado"), con las entradas reales de esa versión. **El job de release
+  falla si no encuentra la sección `[X.Y.Z]`** (X.Y.Z = tag sin la `v`), así que
+  este corte es obligatorio antes de taggear.
 - La suite pasa en los tres SO (`test-linux`, `test-windows`, `test-macos` en
   verde en CircleCI para el commit a taggear).
+- **Prerequisito operativo (una sola vez):** existe el context `github-release`
+  en CircleCI (Organization Settings → Contexts) con la variable `GH_TOKEN` = un
+  fine-grained PAT con permiso `contents: write` sobre el repo. Está aislado al
+  job `publish-release`; ningún otro job lo ve.
 
 ## 1. Corte: crear y publicar el tag
 
@@ -22,63 +29,50 @@ git tag -a vX.Y.Z -m "vX.Y.Z"
 git push origin vX.Y.Z
 ```
 
-El push del tag dispara el workflow `build-all` en CircleCI sobre ese commit
-(mismo pipeline que corre en cada push: triple puerta de tests + 4 builds).
+El push del tag dispara el workflow `build-all` en CircleCI sobre ese commit:
+triple puerta de tests + 4 builds **y además** el job `publish-release` (que solo
+corre en tags `v*`, nunca en ramas).
 
-## 2. Build: esperar el pipeline verde
+## 2. Automático: lo que hace el CI
 
-Espera a que los 4 jobs de build (`build-windows`, `build-linux-x64`,
-`build-linux-arm64`, `build-darwin-arm64`) terminen en verde. Cada uno emite en
-su step **"Emit artifact SHA-256"** el hash del artefacto que acaba de generar
-— anota estos 4 valores del log del pipeline; son la referencia contra la que
-se cotejan los artefactos descargados en el paso 4.
+Una vez pushado el tag, el pipeline ejecuta sin intervención:
 
-## 3. Recolección: descargar los 4 artefactos
+1. **Tests + builds**: la triple puerta de tests y los 4 builds nativos
+   (`build-windows-x64`, `build-linux-x64`, `build-linux-arm64`,
+   `build-darwin-arm64`). Cada build emite el SHA-256 de su artefacto en el log
+   (step "Emit artifact SHA-256") y **persiste el artefacto versionado** al
+   workspace compartido.
+2. **`publish-release`** (tras los 4 builds):
+   - Recolecta los 4 artefactos del workspace (`attach_workspace`) — ya con su
+     nombre de release: `tts-sidecar-X.Y.Z-x86_64-setup.exe`,
+     `tts-sidecar-X.Y.Z-x86_64.AppImage`, `tts-sidecar-X.Y.Z-aarch64.AppImage`,
+     `tts-sidecar-X.Y.Z-arm64.dmg`.
+   - Genera `SHA256SUMS.txt` con los checksums de los 4.
+   - Extrae las notas de la sección `[X.Y.Z]` de `CHANGELOG.md`.
+   - Crea el GitHub Release en **borrador** sobre el tag `vX.Y.Z`, con los 5
+     assets (4 artefactos + `SHA256SUMS.txt`) y las notas.
 
-Desde la pestaña **Artifacts** de cada job en CircleCI, descarga:
+Ya no hay descarga ni cotejo manual de artefactos: la recolección por workspace
+es determinista (el mismo binario que pasó el smoke test es el que se adjunta).
 
-| Job | Artefacto |
-|-----|-----------|
-| `build-windows` | `tts-sidecar-win32-x86_64-setup.exe` |
-| `build-linux-x64` | `tts-sidecar-linux-x86_64.AppImage` |
-| `build-linux-arm64` | `tts-sidecar-linux-aarch64.AppImage` |
-| `build-darwin-arm64` | `tts-sidecar-darwin-arm64.dmg` |
+## 3. Manual: revisar y publicar el draft
 
-Renómbralos localmente a su nombre de release (`tts-sidecar-X.Y.Z-x86_64-setup.exe`,
-`tts-sidecar-X.Y.Z-x86_64.AppImage`, `tts-sidecar-X.Y.Z-aarch64.AppImage`,
-`tts-sidecar-X.Y.Z-arm64.dmg`).
+En la pestaña **Releases** del repo aparece el borrador `vX.Y.Z`. Revisa:
 
-## 4. Checksums: generar y cotejar `SHA256SUMS.txt`
+- Los **5 assets** están presentes (4 artefactos + `SHA256SUMS.txt`).
+- Las **notas** corresponden a la sección `[X.Y.Z]` del `CHANGELOG.md`.
+- Opcional: coteja los hashes de `SHA256SUMS.txt` contra los emitidos por cada
+  build en el log del pipeline (step "Emit artifact SHA-256").
 
-```bash
-sha256sum tts-sidecar-X.Y.Z-* > SHA256SUMS.txt
-cat SHA256SUMS.txt
-```
+Si todo está bien, pulsa **«Publish release»**. Si algo falla (el job no corrió,
+faltan assets, notas vacías), corrige e itera: borra el draft, arregla la causa
+(p. ej. la sección del CHANGELOG) y **re-crea el tag** sobre el commit corregido.
 
-Cada línea debe coincidir exactamente con el hash emitido por el job
-correspondiente en el paso 2. Si algún hash no coincide, **no publiques**: el
-artefacto se corrompió en la descarga o el build no es el que se probó — repite
-la descarga o investiga antes de continuar.
+> Si el tag ya tuviera un Release, `gh release create` falla ruidosamente en el
+> CI (no re-publica en silencio): borra el Release/draft anterior antes de
+> re-taggear.
 
-## 5. Publicación: GitHub Release
-
-Crea el Release sobre el tag `vX.Y.Z`:
-
-```bash
-gh release create vX.Y.Z \
-  tts-sidecar-X.Y.Z-x86_64-setup.exe \
-  tts-sidecar-X.Y.Z-x86_64.AppImage \
-  tts-sidecar-X.Y.Z-aarch64.AppImage \
-  tts-sidecar-X.Y.Z-arm64.dmg \
-  SHA256SUMS.txt \
-  --title "vX.Y.Z" \
-  --notes-from-tag
-```
-
-Las notas del Release deben incluir (o enlazar) la sección correspondiente de
-`CHANGELOG.md`.
-
-## 6. Verificación del usuario final
+## 4. Verificación del usuario final
 
 El usuario final puede verificar la integridad de su descarga contra
 `SHA256SUMS.txt` publicado en el Release:
