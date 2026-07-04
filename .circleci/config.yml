@@ -176,7 +176,7 @@ jobs:
           # están marcados platform_machine == 'x86_64', por lo que arm64 ya
           # instala sin CUDA desde el lock universal.
           name: Install runtime dependencies (locked, CPU-only)
-          command: pip install -r requirements-lock-linux-cpu.txt --require-hashes
+          command: pip install -r requirements-lock-linux-cpu.txt --require-hashes --extra-index-url https://download.pytorch.org/whl/cpu
       - run:
           name: Install PyInstaller
           command: |
