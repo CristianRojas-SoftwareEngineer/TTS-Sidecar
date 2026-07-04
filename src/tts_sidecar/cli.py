@@ -28,7 +28,7 @@ import os
 import platform
 from pathlib import Path
 
-from .timing import timed_command, StageTimer, log
+from .timing import timed_command, StageTimer, Spinner, log
 
 # Mapa de códigos de salida del CLI — CONTRATO PÚBLICO CONGELADO (ver USAGE.md).
 # Un orquestador distingue causas sin parsear texto: no cambiar los valores.
@@ -158,11 +158,15 @@ def _synthesize_via_daemon(args, voice_audio, speech_audio):
     synth_start = time.time()
     log("[Daemon] Enviando solicitud de síntesis...")
     client = DaemonIPCClient()
-    audio_bytes = client.synthesize(
-        text=args.text,
-        voice_audio=voice_audio,
-        speech_audio=speech_audio,
-    )
+    # El POST bloquea mientras el daemon sintetiza (su progreso vive en el stderr
+    # del daemon, invisible aquí); el spinner de liveness prueba que no está
+    # colgado. En no-TTY es un no-op y la salida es idéntica a antes.
+    with Spinner("Sintetizando vía daemon…"):
+        audio_bytes = client.synthesize(
+            text=args.text,
+            voice_audio=voice_audio,
+            speech_audio=speech_audio,
+        )
     elapsed = time.time() - synth_start
     log(f"[Daemon] Síntesis completada ({elapsed:.1f}s)")
 
@@ -259,14 +263,18 @@ def cmd_speak(args):
         # Modo directo: los imports solo se cargan cuando no se usa el daemon.
         from .engine import ChatterboxEngine
 
-        engine = ChatterboxEngine.get_instance(compute_backend=args.compute_backend)
-
-        audio_bytes = engine.speak(
-            text=args.text,
-            output_path=args.output,
-            voice_audio=voice_audio,
-            speech_audio=speech_audio,
-        )
+        # Spinner de liveness durante los dos tramos largos y opacos: la carga del
+        # modelo (primer speak) y la síntesis. Las líneas [Stage N/4] que emite el
+        # engine vía log() se intercalan de forma coordinada (timing._active_spinner).
+        with Spinner("Cargando modelo…") as _sp:
+            engine = ChatterboxEngine.get_instance(compute_backend=args.compute_backend)
+            _sp.update("Sintetizando voz…")
+            audio_bytes = engine.speak(
+                text=args.text,
+                output_path=args.output,
+                voice_audio=voice_audio,
+                speech_audio=speech_audio,
+            )
 
         if args.output:
             # engine.speak ya escribió el archivo vía output_path

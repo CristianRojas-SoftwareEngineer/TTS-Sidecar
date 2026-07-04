@@ -143,6 +143,17 @@ tts-sidecar speak --text "Hola" --no-daemon
 > lance `daemon start` en background debe esperar su confirmación (o sondear
 > `/health`) antes de asumir que el daemon está listo.
 
+> **Indicador de progreso durante `speak`**: como la síntesis ocurre en el
+> proceso del daemon, su instrumentación de progreso vive en el stderr del
+> daemon, no en la terminal que ejecutó `speak`. Para que el cliente no parezca
+> colgado durante la espera, `speak` muestra un **spinner de liveness** (símbolo
+> girando + tiempo transcurrido) sobre **stderr** mientras dura la síntesis —
+> tanto en modo daemon (esperando la respuesta) como en modo directo (carga del
+> modelo + síntesis). Es un indicador de actividad, **no un porcentaje**. Solo
+> aparece en terminales interactivas (TTY): si la salida está redirigida a un
+> archivo o pipe, o corre en CI, el spinner se desactiva por completo y stdout
+> queda intacto (contrato del CLI: stdout = datos, stderr = progreso).
+
 ## Seguridad: directorios de audio permitidos
 
 El endpoint `/synthesize` **no acepta rutas de audio arbitrarias del sistema

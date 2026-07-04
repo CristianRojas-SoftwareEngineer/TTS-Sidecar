@@ -8,10 +8,17 @@ de salida del CLI.
 """
 
 import sys
+import threading
 import time
 from datetime import datetime
 from functools import wraps
 from typing import Optional
+
+
+# Spinner activo (a lo sumo uno por proceso). log() lo consulta para no
+# entremezclar sus líneas con el redibujado del spinner; ver clase Spinner.
+_active_spinner: Optional["Spinner"] = None
+_spinner_lock = threading.Lock()
 
 
 def log(msg: str, duration: Optional[float] = None):
@@ -19,12 +26,22 @@ def log(msg: str, duration: Optional[float] = None):
 
     Sin duration: [HH:MM:SS] Mensaje...
     Con duration: [HH:MM:SS] Mensaje -> Done (Xs)
+
+    Si hay un Spinner activo, la línea se emite de forma coordinada: el spinner
+    limpia su renglón antes de imprimir y lo redibuja después, para que ambos no
+    colisionen en el mismo stderr.
     """
     now = datetime.now().strftime("%H:%M:%S")
     if duration is not None:
-        print(f"[{now}] {msg} -> Done ({duration:.1f}s)", file=sys.stderr)
+        line = f"[{now}] {msg} -> Done ({duration:.1f}s)"
     else:
-        print(f"[{now}] {msg}...", file=sys.stderr)
+        line = f"[{now}] {msg}..."
+
+    spinner = _active_spinner
+    if spinner is not None:
+        spinner.write_line(line)
+    else:
+        print(line, file=sys.stderr)
 
 
 def timed_command(func):
@@ -76,17 +93,145 @@ class StageTimer:
             # código a temporizar
     """
 
-    def __init__(self, name: str, description: str = None):
+    def __init__(self, name: str, description: str = None, spinner: bool = False):
         self.name = name
         self.description = description or name
         self.start = None
+        # Si spinner=True, muestra un Spinner de liveness (solo en TTY) mientras
+        # dura el bloque; las líneas de log() internas se coordinan con él.
+        self._spinner = Spinner(self.description) if spinner else None
 
     def __enter__(self):
         self.start = time.time()
         log(f"[{self.name}] {self.description}...")
+        if self._spinner is not None:
+            self._spinner.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._spinner is not None:
+            self._spinner.__exit__(exc_type, exc_val, exc_tb)
         duration = time.time() - self.start
         log(f"[{self.name}]", duration)
         return False
+
+
+class Spinner:
+    """Indicador de liveness (spinner + tiempo transcurrido) sobre stderr.
+
+    Un hilo de fondo redibuja en el sitio (con `\\r`) una línea del tipo
+    `⠋ Sintetizando voz… (12.3s)` mientras dura el bloque `with`. Su único
+    propósito es demostrar que el proceso no está colgado durante operaciones
+    largas y opacas (carga del modelo, síntesis, espera del daemon).
+
+    Diseño:
+    - **Solo TTY**: si stderr no es una terminal interactiva (piped, daemon, CI,
+      tests) es un no-op total; no escribe nada y preserva el contrato del CLI
+      (stdout = datos; stderr = progreso legible por humanos).
+    - **stderr únicamente**: nunca toca stdout.
+    - **Coordinado con log()**: mientras está activo se registra en el global
+      `_active_spinner`; log() usa write_line() para intercalar sus líneas sin
+      pisar el renglón del spinner.
+    - **API para Fase 2**: update(text) permite cambiar la etiqueta en caliente
+      (p. ej. progreso real de tokens transmitido por el daemon) sin refactor.
+    """
+
+    # Frames braille (suaves) y su alternativa ASCII para consolas sin UTF-8.
+    _FRAMES_UNICODE = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    _FRAMES_ASCII = "|/-\\"
+    _INTERVAL = 0.1  # segundos entre frames
+
+    def __init__(self, label: str, stream=None):
+        self._label = label
+        self._stream = stream if stream is not None else sys.stderr
+        self._enabled = self._stream_is_tty()
+        self._frames = self._pick_frames()
+        self._start = None
+        self._thread = None
+        self._stop = threading.Event()
+        self._lock = threading.Lock()
+
+    def _stream_is_tty(self) -> bool:
+        try:
+            return bool(self._stream.isatty())
+        except Exception:
+            return False
+
+    def _pick_frames(self) -> str:
+        """Braille si el encoding del stream soporta UTF-8; ASCII en su defecto."""
+        enc = (getattr(self._stream, "encoding", None) or "").lower()
+        if "utf" in enc:
+            try:
+                self._FRAMES_UNICODE.encode(self._stream.encoding)
+                return self._FRAMES_UNICODE
+            except (UnicodeEncodeError, LookupError, TypeError):
+                pass
+        return self._FRAMES_ASCII
+
+    def update(self, label: str) -> None:
+        """Cambia la etiqueta mostrada (thread-safe)."""
+        with self._lock:
+            self._label = label
+
+    def _render(self, frame: str) -> str:
+        with self._lock:
+            label = self._label
+        elapsed = time.time() - self._start if self._start else 0.0
+        return f"{frame} {label} ({elapsed:.1f}s)"
+
+    def _run(self) -> None:
+        i = 0
+        while not self._stop.is_set():
+            frame = self._frames[i % len(self._frames)]
+            line = self._render(frame)
+            with _spinner_lock:
+                # \r al inicio + \x1b[K borra hasta el fin de línea, evitando
+                # residuos si la etiqueta se acorta entre frames.
+                self._stream.write("\r\x1b[K" + line)
+                self._stream.flush()
+            i += 1
+            self._stop.wait(self._INTERVAL)
+
+    def _clear_line(self) -> None:
+        try:
+            self._stream.write("\r\x1b[K")
+            self._stream.flush()
+        except Exception:
+            pass
+
+    def write_line(self, text: str) -> None:
+        """Emite una línea de log coordinada con el spinner.
+
+        Limpia el renglón del spinner, imprime `text` con salto de línea y deja
+        que el hilo lo redibuje en el siguiente frame. Si el spinner está
+        desactivado (no TTY), simplemente imprime a stderr como haría log().
+        """
+        if not self._enabled:
+            print(text, file=self._stream)
+            return
+        with _spinner_lock:
+            self._stream.write("\r\x1b[K" + text + "\n")
+            self._stream.flush()
+
+    def __enter__(self):
+        global _active_spinner
+        if not self._enabled:
+            return self
+        self._start = time.time()
+        self._stop.clear()
+        _active_spinner = self
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        global _active_spinner
+        if not self._enabled:
+            return False
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
+        with _spinner_lock:
+            self._clear_line()
+        _active_spinner = None
+        return False  # nunca traga excepciones

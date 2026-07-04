@@ -18,6 +18,14 @@ Optimizaciones multiplataforma para Windows, Linux y Mac.
 """
 
 import os
+
+# Desactiva las barras tqdm internas de Chatterbox (T3 "Sampling", flow matching
+# del S3Gen) ANTES de importar chatterbox: tts-sidecar muestra su propio indicador
+# de liveness (timing.Spinner) en el proceso cliente, y dos indicadores sobre el
+# mismo stderr colisionarían. En el proceso daemon el tqdm ya era invisible (corre
+# detached), así que no se pierde nada. setdefault respeta un valor externo previo.
+os.environ.setdefault("TQDM_DISABLE", "1")
+
 import platform
 import threading
 import wave

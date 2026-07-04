@@ -6,11 +6,28 @@ timed_command) se emite a stderr; stdout queda reservado para datos.
 
 import pytest
 import sys
+import time
 from pathlib import Path
 from io import StringIO
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from tts_sidecar.timing import log, timed_command, timed, StageTimer
+from tts_sidecar import timing
+from tts_sidecar.timing import log, timed_command, timed, StageTimer, Spinner
+
+
+class FakeTTY(StringIO):
+    """Stream de texto en memoria que se hace pasar por terminal interactiva."""
+
+    def __init__(self, encoding="utf-8"):
+        super().__init__()
+        self._encoding = encoding
+
+    def isatty(self):
+        return True
+
+    @property
+    def encoding(self):
+        return self._encoding
 
 
 class TestLog:
@@ -94,3 +111,66 @@ class TestStageTimer:
                 raise RuntimeError("boom")
         # Debe registrar el fin de la etapa incluso cuando hay excepción
         assert "[Fail]" in capsys.readouterr().err
+
+
+class TestSpinner:
+    def test_noop_when_not_tty(self, capsys):
+        # stderr bajo capsys no es TTY: el spinner debe ser un no-op total.
+        with Spinner("trabajando") as sp:
+            assert sp._enabled is False
+            time.sleep(0.05)
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        # No deja el global activo ni caracteres de control tras de sí.
+        assert timing._active_spinner is None
+
+    def test_update_headless_does_not_fail(self):
+        with Spinner("a") as sp:
+            sp.update("b")  # no debe lanzar aunque esté deshabilitado
+        assert True
+
+    def test_active_writes_only_to_its_stream(self):
+        stream = FakeTTY()
+        with Spinner("sintetizando", stream=stream) as sp:
+            assert sp._enabled is True
+            assert timing._active_spinner is sp
+            time.sleep(0.25)  # al menos un par de frames
+        # Escribió frames a su stream; nunca a stdout real.
+        out = stream.getvalue()
+        assert "sintetizando" in out
+        assert "\r" in out  # redibujado en el sitio
+        # Tras salir, el global queda limpio.
+        assert timing._active_spinner is None
+
+    def test_ascii_fallback_for_non_utf8(self):
+        stream = FakeTTY(encoding="cp1252")
+        sp = Spinner("x", stream=stream)
+        # Sin UTF-8 usa frames ASCII, no braille.
+        assert sp._frames == Spinner._FRAMES_ASCII
+
+    def test_utf8_uses_braille(self):
+        sp = Spinner("x", stream=FakeTTY(encoding="utf-8"))
+        assert sp._frames == Spinner._FRAMES_UNICODE
+
+    def test_log_coordinates_with_active_spinner(self):
+        stream = FakeTTY()
+        with Spinner("trabajo", stream=stream):
+            log("evento intermedio")
+        out = stream.getvalue()
+        # La línea de log se intercaló en el mismo stream del spinner.
+        assert "evento intermedio" in out
+
+    def test_render_reflects_update(self):
+        sp = Spinner("inicial", stream=FakeTTY())
+        sp._start = time.time()
+        assert "inicial" in sp._render(sp._frames[0])
+        sp.update("nuevo")
+        assert "nuevo" in sp._render(sp._frames[0])
+
+    def test_exception_cleans_up_global(self, capsys):
+        stream = FakeTTY()
+        with pytest.raises(RuntimeError):
+            with Spinner("x", stream=stream):
+                raise RuntimeError("boom")
+        # No debe tragar la excepción ni dejar el spinner registrado.
+        assert timing._active_spinner is None
