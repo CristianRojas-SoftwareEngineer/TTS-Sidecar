@@ -198,6 +198,81 @@ class TestKillPidVerified:
         proc.terminate.assert_called_once()
 
 
+class TestStopDuringStartupWindow:
+    """R-05: 'daemon stop' durante la ventana de arranque (puerto cerrado)
+    detecta el proceso por cmdline, avisa y devuelve False, sin matarlo."""
+
+    def _manager_offline(self):
+        """DaemonManager con health check negativo y puerto sin ocupar."""
+        from tts_sidecar.daemon.daemon import DaemonManager
+
+        manager = DaemonManager()
+        manager.is_running = lambda: False
+        manager._get_pid_from_port = lambda: None
+        return manager
+
+    def _psutil_with_processes(self, procs):
+        psutil_mock = MagicMock()
+        psutil_mock.process_iter.return_value = iter(procs)
+        return psutil_mock
+
+    def _proc(self, pid, cmdline):
+        proc = MagicMock()
+        proc.pid = pid
+        proc.cmdline.return_value = cmdline
+        return proc
+
+    def test_starting_daemon_detected_returns_false_with_notice(self, capsys):
+        manager = self._manager_offline()
+        starting = self._proc(4321, ["python", "-m", "tts_sidecar.daemon.run"])
+        psutil_mock = self._psutil_with_processes([starting])
+
+        with patch.dict(sys.modules, {"psutil": psutil_mock}):
+            assert manager.stop() is False
+
+        err = capsys.readouterr().err
+        assert "arrancando" in err
+        assert "4321" in err
+        starting.terminate.assert_not_called()
+        starting.kill.assert_not_called()
+
+    def test_without_starting_daemon_keeps_current_behavior(self, capsys):
+        manager = self._manager_offline()
+        foreign = self._proc(777, ["node", "otro-servidor.js"])
+        psutil_mock = self._psutil_with_processes([foreign])
+
+        with patch.dict(sys.modules, {"psutil": psutil_mock}):
+            assert manager.stop() is True
+
+        assert "no está corriendo" in capsys.readouterr().err
+
+    def test_own_process_is_excluded_from_scan(self, capsys):
+        """El marker podría aparecer en el cmdline del propio CLI: el escaneo
+        excluye os.getpid() para no detectarse a sí mismo."""
+        import os
+
+        manager = self._manager_offline()
+        own = self._proc(os.getpid(), ["python", "-m", "tts_sidecar.daemon.run"])
+        psutil_mock = self._psutil_with_processes([own])
+
+        with patch.dict(sys.modules, {"psutil": psutil_mock}):
+            assert manager.stop() is True
+
+        assert "no está corriendo" in capsys.readouterr().err
+
+    def test_generic_cli_cmdline_is_not_a_daemon_marker(self, capsys):
+        """Otro comando del CLI ('tts-sidecar speak') no debe confundirse con
+        el daemon en arranque: solo cuentan los markers específicos."""
+        manager = self._manager_offline()
+        cli_proc = self._proc(555, ["tts-sidecar", "speak", "--text", "hola"])
+        psutil_mock = self._psutil_with_processes([cli_proc])
+
+        with patch.dict(sys.modules, {"psutil": psutil_mock}):
+            assert manager.stop() is True
+
+        assert "no está corriendo" in capsys.readouterr().err
+
+
 class TestDaemonManager:
     @patch("requests.get")
     def test_is_running_true(self, mock_get):

@@ -220,9 +220,11 @@ El **modelo de voz** Chatterbox Multilingual V3 se distribuye bajo licencia
 en HuggingFace), al igual que el modelo base
 [`ResembleAI/chatterbox`](https://huggingface.co/ResembleAI/chatterbox). Las **dependencias**
 empaquetadas conservan sus propias licencias, en su mayoría permisivas (MIT/BSD/Apache 2.0),
-con algunas de copyleft compatible con GPLv3 (MPL-2.0, LGPL-2.1+, GPLv3+) y los runtimes
-propietarios redistribuibles de NVIDIA CUDA en el build de Linux. El detalle completo y
-verificado está en [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
+con algunas de copyleft compatible con GPLv3 (MPL-2.0, LGPL-2.1+, GPLv3+). Los runtimes
+propietarios de NVIDIA CUDA que lista el lockfile universal **no se incluyen en ningún
+artefacto distribuido** (todos los builds son CPU-only); solo aplican a instalaciones
+desde código fuente con ese lock. El detalle completo y verificado está en
+[THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
 
 ## Documentación
 

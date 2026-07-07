@@ -7,120 +7,158 @@ y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
 ## [No publicado]
 
-## [0.1.0] — 2026-07-03
-
-Primer release del gate de preparación para producción. Motor TTS offline con
-clonación de voz en español latinoamericano (Chatterbox Multilingual, alias
-`es-mx-latam`), CLI multiplataforma y modo daemon.
+Ciclo perfectivo que corrige los 12 hallazgos Menores y el residuo `WARNING-01`
+identificados durante la revisión final del release `0.1.0`. Todos los cambios
+de contrato son aditivos: los códigos de salida existentes no cambian y
+`schema_version` permanece en `"1"`.
 
 ### Añadido
 
-- **Progreso real en vivo durante `speak`**: el motor expone un `progress_callback`
-  en `speak()` que emite eventos de etapa (conditionals → T3 → S3Gen → encoding →
-  guardado) y el conteo de tokens del T3 en vivo (shim best-effort del `tqdm`
-  interno de Chatterbox, con degradación a solo etapas si el layout cambia). El CLI
-  alimenta con esos eventos un indicador de progreso sobre stderr que muestra la
-  etapa y el avance (p. ej. «Generando voz · 210 tokens»), en modo directo y daemon.
-- Motor de síntesis offline con voz por defecto empaquetada y clonación de voz
-  vía `voice add` (modelo dual-audio: `reference.wav` + `speech.wav`).
-- CLI con los comandos `speak`, `voice`, `daemon`, `devices`, `doctor`, `setup`,
-  `cleanup` y `version`.
-- **`cleanup`**: desaprovisionamiento quirúrgico del modelo y las voces de usuario
-  (`--model`, `--voices`, `--all`, `--dry-run`).
-- **`cleanup --yes`** y captura de `EOFError` como cancelación limpia (N-03):
-  permite invocación programática vía `subprocess` con stdin cerrado.
-- **Modo daemon**: servidor HTTP persistente en loopback que mantiene el modelo en
-  memoria entre invocaciones.
-- **UX `--voice-audio`/`--speech-audio` vía daemon** (N-02): degradación
-  automática a modo directo con aviso en stderr (sondeo automático) o error
-  accionable con exit 4 (`--daemon` explícito); sandbox de rutas intacta.
-- **Mapa de códigos de salida** del CLI como contrato público: `0` éxito, `1` error
-  genérico, `2` modelo no provisionado, `3` voz/audio no encontrado, `4` entrada
-  inválida, `5` daemon inalcanzable, `130` interrupción (SIGINT).
-- **Lockfile universal con hashes** (`requirements-lock.txt`) para builds
-  reproducibles e íntegros; CI instala con `--require-hashes`.
-- **Lock CPU-only de Linux** (`requirements-lock-linux-cpu.txt`, N-05): instala
-  `torch`/`torchaudio` `+cpu` desde el índice oficial de PyTorch sin el stack
-  `nvidia-*-cu12` (~41 paquetes), reduciendo el AppImage x86_64 a cientos de MB.
-- **Smoke test** del binario congelado en los 4 jobs de build de CI.
-- **Triple puerta de tests** en CI (`test-linux`, `test-windows`, `test-macos`):
-  la suite `pytest` corre en los tres SO nativos y bloquea los builds, con
-  cobertura equivalente entre plataformas.
-- **Instalador Windows restaurado** (N-01): `scripts/create_installer_windows.py`
-  compila el `.exe` con Inno Setup; CI aborta si el artefacto falta; InfoAfter
-  corrige la oferta GPLv3 §6d (código en el repo, no `LICENSE.txt`).
-- **Runbook de release** `docs/RELEASING.md` y **SHA-256 en CI** (N-04): cada job
-  de build emite el hash del artefacto para verificación cruzada en el Release.
-- **Límite unificado de texto** en `speak` (N-11): `MAX_TEXT_LENGTH = 5000`
-  validado en el cliente antes de cualquier despacho; exit 4 (`INVALID_INPUT`) en
-  ambas rutas (directa y daemon).
-- **Warning `--compute-backend` ignorado vía daemon** (N-10): aviso por stderr
-  cuando el flag explícito no es `auto` y la síntesis va por daemon.
-- **`_emit_audio` crea directorios padres** (N-12): simetría con
-  `engine._save_wav` para `--output` en modo daemon.
-- **Flag muerta `voice add --compute-backend` eliminada** (N-15): error ruidoso
-  de argparse (flag desconocida) en lugar de ignoración silenciosa.
-- **Provisión ligera en `setup` vía `snapshot_download`** (N-17): descarga el
-  modelo sin instanciar `ChatterboxEngine` (pico de RAM ~2 GB evitado); la carga
-  real queda para `doctor`/primer `speak`.
-- Sección de **uso ético y responsable** en README y USAGE (consentimiento, no
-  suplantación, divulgación del watermark desactivado, canal de reporte).
-- Documentos de gobernanza: `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`.
+- **`--json` en los cuatro comandos de escritura** (R-03): `voice add`
+  (`{name, reference, speech}`), `voice remove` (`{name, removed}`), `setup`
+  (`{model, already_cached, downloaded, cache_dir}`, con variante para
+  `--remove-path`) y `cleanup` (`{removed, dry_run}`). El contrato programático
+  queda simétrico: ningún comando obliga a parsear texto. `cleanup --json`
+  exige `--yes` o `--dry-run` (exit 4 sin ellos) y envía sus listados
+  informativos a stderr.
+- **Referencia de esquemas `--json` en `USAGE.md`** (R-04): las claves de los
+  nueve payloads (tipo y significado) declaradas por escrito como parte del
+  contrato, sin necesidad de ingeniería inversa.
+- **Revisión fijada del modelo por release** (R-15): `setup` descarga ambos
+  repos de HuggingFace con `revision=` (commit hash auditado, constantes
+  `MODEL_REVISIONS`/`BASE_MODEL_REVISION` en `model_cache.py`) y la detección
+  de caché valida el snapshot de esa revisión en ambos repos (ciclo posterior
+  cerró el residuo `WARNING-01` del repo base); el bump del pin es un paso del
+  runbook de release (`docs/RELEASING.md`) y su alcance está descrito en
+  `SECURITY.md`.
+- **Plantillas de Issue/PR en `.github/`** (R-12): formularios de bug (versión,
+  SO, comando reproducible, salida) y de propuesta, `blank_issues_enabled:
+  false` con la vía de seguridad señalizada, y checklist de PR alineado a
+  `CONTRIBUTING.md`.
 
 ### Cambiado
 
-- **Salidas de usuario consistentes en español**: los mensajes de progreso e
-  instrumentación que el CLI emite a stderr (banners de `timed_command`, etapas
-  del motor y marcadores de sub-etapa) pasaron de inglés a español; p. ej.
-  `Starting speak…`/`Finished in…` → `Iniciando speak…`/`Finalizado en…`,
-  `Stage 2/4: Generating audio` → `Etapa 2/4: Generando audio`, `[Stage 2a]` →
-  `[Etapa 2a]`. La implementación (identificadores, nombres propios de
-  arquitectura como T3/S3Gen/conditionals) permanece en inglés.
-- **Protocolo de `/synthesize` (daemon→cliente)**: la respuesta pasó de un cuerpo
-  binario WAV (con headers `X-T3-Time`/`X-S3Gen-Time`) a un **stream NDJSON**: N
-  líneas `progress` (etapa + tokens) seguidas de una línea `result` con el WAV en
-  base64 y los tiempos por sub-etapa, o una línea `error`. El servidor sintetiza en
-  un hilo worker y drena los eventos por una cola; el cliente los consume con
-  `iter_lines()`. Cambio interno del transporte (no del contrato del CLI): daemon y
-  cliente viajan siempre en la misma versión. Modelos `ProgressEvent`/`ResultEvent`/
-  `ErrorEvent` en `daemon/protocol.py` como fuente única del esquema.
-- **Puerto del daemon fijo en 8765** (loopback): se eliminó el flag `--port` por
-  completo. **Breaking**: ya no es posible configurar el puerto ni correr dos
-  daemons simultáneos.
-- Diagnósticos e instrumentación de progreso redirigidos a **stderr**; stdout
-  queda reservado para datos (salidas `--json`, rutas de resultado). Incluye
-  mensajes de progreso de `DaemonManager` (N-09).
-- `voice add` ya no instancia el motor de inferencia: valida y copia los audios en
-  menos de un segundo; la precomputación se difiere al primer `speak` con la voz.
-- `model_cache` respeta `HF_HOME`/`HF_HUB_CACHE` al resolver la caché del modelo.
-- **Build de macOS**: `LSMinimumSystemVersion` dinámica (N-07) derivada de
-  `sysconfig.get_config_var("MACOSX_DEPLOYMENT_TARGET")` con fallback a
-  `platform.mac_ver()`; ya no hay literal `12.0` que se desincronice del toolchain.
-- **Requisito de glibc ≥ 2.35 documentado** (N-06) en README y USAGE (Ubuntu
-  22.04+, Debian 12+, Fedora 36+); entrada de troubleshooting para
-  `GLIBC_2.35 not found`.
-- **Ventana de arranque del daemon (30–90 s) documentada** (N-13) en
-  `docs/DAEMON-MODE.md`: `status`/`stop` no ven el proceso hasta que el puerto
-  abre; orquestadores deben esperar confirmación de `daemon start` o sondear
-  `/health`.
-- **Sección "Actualizar de versión" en USAGE.md** (N-16): tres caminos por SO
-  (Windows: instalar nuevo `.exe`; Linux: nuevo AppImage + `setup` para
-  re-apuntar symlink; macOS: re-arrastrar `.app` + re-ejecutar `.command`).
-- Dependencia `chatterbox-tts` corregida a `>=0.1.7` (la versión declarada
-  `>=0.3.0` era insatisfacible en PyPI).
-- `THIRD-PARTY-LICENSES.md` regenerado desde el lockfile: licencias de modelo
-  verificadas (MIT), declaración de libsndfile (LGPL-2.1+), `soxr` (LGPL),
-  `pykakasi` (GPLv3+) y los runtimes NVIDIA CUDA; se retiraron `simpleaudio` y
-  `pyalsaaudio` (no usados).
-- Conteo de tests actualizado a **233** en `docs/GOAL.md` y `CLAUDE.md`.
+- **`daemon stop` honesto durante la ventana de arranque** (R-05): detecta el
+  daemon en arranque por cmdline (sin PID file), avisa «arrancando; aún no
+  acepta conexiones» y termina con exit 5 en vez de reportar un éxito falso;
+  no mata el proceso. Documentado en `docs/DAEMON-MODE.md`.
+- **CI con imágenes fijadas por digest y pip pineado** (R-14): las tres
+  referencias `cimg/python:3.13` usan `@sha256:<digest>` (manifest list
+  multi-arch) y los siete `pip install --upgrade pip` pasaron a versión exacta.
+  Excepciones documentadas: `brew upgrade pyenv` (necesario para el parche
+  3.13.14; no altera el artefacto) y `create-dmg` (Homebrew no pinea).
+  Implicaciones y procedimiento de bump en `docs/BUILD.md` §Reproducibilidad.
+- **Exactitud documental** (R-11, R-13): stack de reproducción real
+  (winsound/sounddevice/afplay) en `docs/DESIGN.md` y `docs/ARCHITECTURE.md`
+  (antes describían pycaw-WASAPI/pyalsaaudio/AVFoundation); árboles de
+  estructura con `voices.py`, `paths.py` y `model_cache.py`; CI descrito como
+  Linux/Windows/macOS en `CONTRIBUTING.md`; conteo de tests actualizado a
+  **261** en `docs/GOAL.md`; inventario de licencias consistente (dependencias
+  copyleft-compatibles mencionadas en `USAGE.md`/`CLAUDE.md`; los runtimes
+  NVIDIA no van en ningún artefacto distribuido — `README.md` y
+  `THIRD-PARTY-LICENSES.md`).
 
 ### Corregido
 
-- Cierre limpio ante `Ctrl+C`: mensaje breve en stderr y código 130, sin traceback.
-- `setup` provisiona explícitamente `ve.safetensors`; `doctor`/`is_model_cached`
-  verifican su presencia (cierra la fuga de red en el primer `speak`).
-- Onboarding del README: enlace de Releases al repositorio real y nombres de
-  artefactos por SO corregidos.
+- **`voice list` ante un directorio de voces ilegible** (R-01): el mensaje
+  apunta al directorio de voces de usuario implicado en vez de remitir a
+  `tts-sidecar setup` (que no resuelve un problema de filesystem); conserva
+  exit 3.
+- **`speak --daemon --no-daemon`** (R-02): los flags contradictorios producen
+  un error claro en stderr y exit 4 antes de cualquier trabajo, en vez de que
+  `--daemon` gane en silencio.
+- **Validación de integridad de los tres checkpoints** (R-07): `is_model_cached`
+  valida el header safetensors también de `s3gen_v3.safetensors` y
+  `ve.safetensors` (antes solo del T3): una descarga truncada de cualquiera se
+  reporta como «no cacheado» y `doctor` remite a `setup`, en vez de reventar
+  con un error críptico en el primer `speak`.
+- **Fixture `mock_daemon_client` alineada con el cliente real** (R-10): la
+  firma de `synthesize` coincide con `DaemonIPCClient.synthesize`
+  (`on_progress` en vez de los inexistentes `model`/`compute_backend`).
+- **Detección del Voice Encoder honra la revisión fijada del repo base**
+  (`WARNING-01`, residuo de R-06): `is_ve_cached` resuelve el snapshot del
+  repo `ResembleAI/chatterbox` exclusivamente contra `BASE_MODEL_REVISION` (un
+  VE de otra revisión ya no cuenta como caché válida), simétrico con la
+  descarga de `setup` y con la rama del language pack. Cobertura nueva: caso
+  positivo bajo `BASE_MODEL_REVISION` y caso negativo (revisión distinta) en
+  `tests/test_engine_cache.py`. Párrafo de `USAGE.md` sobre actualización
+  anclado al mecanismo real (revisión fijada por release + deduplicación por
+  blob de la caché de HF).
+- **Decisión de validación E2E documentada** (criterios 1-3, 9 de
+  `docs/GOAL.md`): la validación end-to-end de los instaladores por SO es
+  externa al pipeline por diseño (consume demasiada cuota de runner al cargar
+  el modelo y los ~2 GB de pesos en cada build). El pipeline mantiene el smoke
+  test automatizado del binario congelado. Fuera del pipeline: Windows la
+  realiza el propietario sobre su equipo local; Linux y macOS dependen de
+  feedback de usuarios reales. La decisión completa está en `docs/GOAL.md`
+  §"Decisión de validación E2E" y `docs/BUILD.md` §"Verificación post-build".
+
+## [0.1.0] — 2026-07-03
+
+Release inaugural. Al ser la primera versión publicada, no hay base previa
+respecto de la cual registrar cambios o correcciones: esta sección describe el
+estado con el que nace el producto.
+
+### Añadido
+
+- **Motor de síntesis offline** con Chatterbox Multilingual (alias
+  `es-mx-latam`, español latinoamericano): voz por defecto empaquetada
+  (`default`, de fábrica) y clonación de voz vía `voice add` con modelo
+  dual-audio (`reference.wav` para timbre + `speech.wav` para conditioning).
+  El audio generado no lleva marca de agua (watermark de PerthNet desactivado
+  por diseño; ver «Uso ético y responsable»).
+- **CLI multiplataforma** (Windows/Linux/macOS, idéntica en los tres SO) con
+  los comandos `speak`, `voice` (`add`/`list`/`remove`), `daemon`
+  (`start`/`stop`/`restart`/`status`/`serve`), `devices`, `doctor`, `setup`,
+  `cleanup` y `version`; salidas de usuario en español.
+- **Contrato programático para orquestadores** (consumo vía `subprocess`):
+  stdout reservado para datos y diagnóstico/progreso por stderr (UTF-8 forzado);
+  mapa de códigos de salida congelado — `0` éxito, `1` error genérico, `2`
+  modelo no provisionado, `3` voz/audio no encontrado, `4` entrada inválida,
+  `5` daemon inalcanzable, `130` interrupción (Ctrl+C, sin traceback) —;
+  `--json` con `schema_version` en los comandos de lectura (`version`,
+  `doctor`, `devices`, `voice list`, `daemon status`).
+- **Progreso real en vivo durante `speak`**: eventos de etapa (conditionals →
+  T3 → S3Gen → encoding → guardado) y conteo de tokens del T3 alimentan un
+  indicador sobre stderr (solo en TTY), en modo directo y daemon.
+- **Modo daemon**: servidor HTTP persistente en loopback (puerto fijo 8765,
+  sin autenticación — control de acceso delegado al SO) que mantiene el modelo
+  en memoria entre invocaciones; `/synthesize` responde un stream NDJSON
+  (`progress` → `result`/`error`, modelos Pydantic en `daemon/protocol.py`);
+  sandbox de rutas de audio (solo directorios de voces) con degradación
+  automática a modo directo o error accionable según el despacho; auto-reinicio
+  opcional (`--autorestart`, `--max-retries`).
+- **Validación de entrada en `speak`**: `--text` acotado a 5000 caracteres
+  (exit 4 en ambas rutas, directa y daemon) con advertencia no bloqueante por
+  encima de 2000; `--compute-backend` (`auto`/`cpu`/`cuda`/`mps`) con aviso
+  cuando el daemon lo ignora; `--output` crea los directorios padres.
+- **Ciclo de vida de provisión completo**: `setup` idempotente (chequeos de
+  entorno + descarga ligera vía `snapshot_download`, sin cargar el modelo en
+  RAM; incluye `ve.safetensors` para que ningún `speak` posterior necesite
+  red), pre-chequeo de espacio en disco, `--force-update` para re-descarga
+  limpia, e integración de PATH en Linux/AppImage (`--remove-path` la
+  revierte); `speak`/`daemon start` fallan rápido remitiendo a `setup` sin
+  descargas silenciosas; `cleanup` desaprovisiona quirúrgicamente
+  (`--model`/`--voices`/`--all`/`--dry-run`, confirmación interactiva, `--yes`
+  y EOF tratado como cancelación limpia para uso programático).
+- **Distribución por SO**: instalador de Windows (Inno Setup, PATH + casilla de
+  `setup`), AppImages de Linux x86_64/aarch64 (runtime estático, sin `libfuse2`;
+  requiere glibc ≥ 2.35, documentado con troubleshooting) y `.dmg` de macOS
+  arm64 con scripts de instalación/desinstalación y `LSMinimumSystemVersion`
+  derivada dinámicamente del toolchain.
+- **Cadena de suministro y CI**: lockfile universal con hashes
+  (`requirements-lock.txt`, instalado con `--require-hashes`) y lock CPU-only
+  de Linux x86_64 (sin el stack `nvidia-*-cu12`, AppImage de cientos de MB en
+  vez de GB); triple puerta de tests en CI (Linux/Windows/macOS nativos) que
+  bloquea los 4 builds; smoke test del binario congelado en cada build; SHA-256
+  de cada artefacto emitido en el log y `SHA256SUMS.txt` en el Release; runbook
+  de publicación en `docs/RELEASING.md`.
+- **Documentación y gobernanza**: `USAGE.md` (guía por caso de uso),
+  `docs/DESIGN.md`, `docs/ARCHITECTURE.md`, `docs/DAEMON-MODE.md`,
+  `docs/BUILD.md`, `docs/RELEASING.md`, sección de uso ético y responsable
+  (README/USAGE), `CONTRIBUTING.md`, `SECURITY.md`, este `CHANGELOG.md` y
+  `THIRD-PARTY-LICENSES.md` (inventario de licencias generado del lockfile).
+  Código propio bajo GPL-3.0-or-later; modelo MIT.
 
 [No publicado]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/releases/tag/v0.1.0

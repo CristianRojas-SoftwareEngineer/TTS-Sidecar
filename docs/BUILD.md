@@ -348,6 +348,48 @@ conjunto manualmente, incrementar el prefijo versionado (`v1-` → `v2-`) en
 `HOMEBREW_NO_AUTO_UPDATE=1` para suprimir el `brew update` implícito (minutos
 de wall-time que no aportan: create-dmg no se pinea).
 
+### Reproducibilidad: pines por digest y sus implicaciones (R-14)
+
+Recompilar el mismo tag semanas después debe producir los mismos artefactos.
+Para cerrar las fuentes de deriva controlables, el CI fija:
+
+- **Imágenes Docker por digest**: las tres referencias `cimg/python:3.13` de
+  los jobs Docker (`test-linux`, `build-linux-x64`, `build-linux-arm64`) llevan
+  la forma `cimg/python:3.13@sha256:<digest>`. El digest es el del **manifest
+  list** del tag (multi-arch), así que el mismo pin sirve para amd64 y arm64.
+- **pip con versión exacta**: los siete `pip install pip==<versión>` de los
+  jobs reemplazan al antiguo `--upgrade pip` sin versión, que instalaba «lo
+  último» en cada corrida.
+
+**Excepciones conscientes** (documentadas en el propio config):
+
+- `brew update && brew upgrade pyenv` (jobs macOS): Homebrew no soporta fijar
+  una versión de pyenv, y el upgrade es funcionalmente necesario para que
+  `python-build` conozca la definición del parche fijado (3.13.14). No afecta
+  la reproducibilidad del artefacto: el CPython resultante ya está pineado.
+- `create-dmg` (job macOS): Homebrew no soporta pinear versiones; se instala
+  con `HOMEBREW_NO_AUTO_UPDATE=1` para al menos suprimir la actualización
+  implícita del índice.
+
+**Costo de mantenimiento de la decisión** (asumido de forma explícita):
+
+- Los parches de la imagen `cimg/python` (seguridad del SO base, actualizaciones
+  del Python 3.13.x que trae) **dejan de llegar solos**: el digest congela la
+  imagen y las actualizaciones requieren un bump manual.
+- Lo mismo aplica al pin de pip: correcciones de pip llegan solo al subir el pin.
+
+**Procedimiento de actualización** (hacerlo de forma deliberada, p. ej. al
+preparar un release):
+
+1. Obtener el digest vigente del manifest list del tag:
+   `https://hub.docker.com/v2/repositories/cimg/python/tags/3.13`
+   (campo `digest`), o `docker buildx imagetools inspect cimg/python:3.13`.
+2. Reemplazar el digest en las **tres** referencias `image:` de
+   `.circleci/config.yml` (deben quedar idénticas).
+3. Para pip: consultar la versión vigente (`https://pypi.org/pypi/pip/json`) y
+   reemplazarla en los **siete** `pip install pip==…` (uniforme en todos los jobs).
+4. Validar con un pipeline en verde: los pines nuevos no deben romper ningún job.
+
 El archivo de configuración completo está en `.circleci/config.yml`.
 
 ### CD: publicación del GitHub Release (`publish-release`)

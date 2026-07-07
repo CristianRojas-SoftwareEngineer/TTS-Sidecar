@@ -26,9 +26,9 @@
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │           Reproducción de audio (APIs nativas)             │
-│   Windows: pycaw (WASAPI) / winsound                     │
-│   Linux: sounddevice (PortAudio) / pyalsaaudio          │
-│   macOS: afplay (nativo) / AVFoundation                 │
+│   Windows: winsound (integrado; pycaw enumera)           │
+│   Linux: sounddevice (PortAudio)                         │
+│   macOS: afplay (nativo; sounddevice enumera)            │
 └─────────────────────────────────────────────────────────────┘
 ```
 

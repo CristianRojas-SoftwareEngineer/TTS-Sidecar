@@ -118,6 +118,22 @@ class DaemonManager:
             pid = self._get_pid_from_port()
             if pid:
                 self._kill_pid(pid)
+                print("Daemon no está corriendo", file=sys.stderr)
+                return True
+            # R-05: durante la ventana de arranque (carga del modelo, 30-90 s)
+            # el puerto aún está cerrado y ni el health check ni el escaneo de
+            # puerto ven al daemon; reportar «no está corriendo» sería un éxito
+            # falso. Se detecta por cmdline, se avisa y se devuelve False
+            # (exit 5 en el CLI) sin matar el proceso.
+            starting = self._find_starting_daemon()
+            if starting is not None:
+                print(
+                    f"El daemon está arrancando (PID {starting.pid}) y aún no "
+                    "acepta conexiones; no se detuvo. Reintenta 'daemon stop' "
+                    "cuando termine la carga del modelo (30-90 s).",
+                    file=sys.stderr,
+                )
+                return False
             print("Daemon no está corriendo", file=sys.stderr)
             return True
 
@@ -217,6 +233,33 @@ class DaemonManager:
                     and conn.pid
                 ):
                     return conn.pid
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _find_starting_daemon():
+        """Busca un proceso del daemon en arranque (puerto aún cerrado) por cmdline.
+
+        Escaneo sin estado (sin archivo PID): usa solo los markers específicos
+        del daemon ('tts_sidecar.daemon', 'daemon serve') — no el genérico
+        'tts-sidecar' de _is_own_daemon_process, que matchearía al propio
+        comando 'stop' — y excluye el PID propio. Devuelve el proceso o None.
+        """
+        try:
+            import psutil
+
+            own_pid = os.getpid()
+            markers = ("tts_sidecar.daemon", "daemon serve")
+            for proc in psutil.process_iter():
+                if proc.pid == own_pid:
+                    continue
+                try:
+                    cmdline = " ".join(proc.cmdline())
+                except Exception:
+                    continue
+                if any(marker in cmdline for marker in markers):
+                    return proc
         except Exception:
             pass
         return None

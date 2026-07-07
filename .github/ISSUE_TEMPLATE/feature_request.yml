@@ -1,0 +1,32 @@
+name: Propuesta de función
+description: Propón una mejora o capacidad nueva para tts-sidecar
+title: "[Propuesta]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por proponer. Describe primero la necesidad real (el problema
+        que hoy no puedes resolver) y después la solución que imaginas; la
+        necesidad es lo que permite evaluar alternativas.
+  - type: textarea
+    id: need
+    attributes:
+      label: Necesidad observada
+      description: Qué intentas lograr y qué te lo impide hoy. Incluye el contexto de uso (p. ej. integración vía subprocess, daemon, CI…).
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solución propuesta
+      description: Cómo imaginas que debería funcionar (comando, flag, comportamiento).
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas (opcional)
+      description: Otras formas de resolver la necesidad y por qué no bastan.
+    validations:
+      required: false

@@ -160,11 +160,14 @@ tts-sidecar speak --text "Hola" --no-daemon
 > según el hardware. `daemon start` bloquea internamente hasta confirmar
 > «Daemon listo» (o el timeout de 120 s) antes de devolver el control, así que
 > un script que lo invoca y espera esa confirmación no necesita hacer nada
-> especial. Pero si algo consulta `daemon status` o `daemon stop` **en paralelo**
-> durante esa ventana — antes de que `daemon start` confirme —, verá «no está
-> corriendo» aunque el proceso ya esté lanzado y cargando el modelo: no hay
-> PID file que distinga "arrancando" de "no arrancado". Un orquestador que
-> lance `daemon start` en background debe esperar su confirmación (o sondear
+> especial. Durante esa ventana, `daemon stop` **detecta el arranque en curso**
+> (escaneo de procesos por cmdline, sin PID file): avisa por stderr que «el
+> daemon está arrancando y aún no acepta conexiones», **no mata el proceso** y
+> termina con exit **5**, para que un orquestador distinga «arrancando» de
+> «detenido» sin parsear texto — reintenta `daemon stop` cuando la carga
+> termine. `daemon status`, en cambio, sigue reportando «no está corriendo»
+> durante la ventana (su fuente es el health check): un orquestador que lance
+> `daemon start` en background debe esperar su confirmación (o sondear
 > `/health`) antes de asumir que el daemon está listo.
 
 > **Indicador de progreso durante `speak`**: aunque la síntesis ocurre en el

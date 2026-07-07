@@ -38,7 +38,7 @@ pytest tests/ -v
 ```
 
 - Añade tests para todo comportamiento nuevo o corregido.
-- La suite se ejecuta en CI tanto en **Linux** como en **Windows** nativo; evita
+- La suite se ejecuta en CI en **Linux**, **Windows** y **macOS** nativos; evita
   supuestos específicos de un SO (rutas, permisos, señales) o márcalos con un
   `skip` justificado.
 - Verificación rápida de sintaxis: `python -m compileall src/`.

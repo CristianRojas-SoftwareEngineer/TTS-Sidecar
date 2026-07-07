@@ -17,6 +17,14 @@ verificación de integridad para el usuario final.
   este corte es obligatorio antes de taggear.
 - La suite pasa en los tres SO (`test-linux`, `test-windows`, `test-macos` en
   verde en CircleCI para el commit a taggear).
+- **Revisiones fijadas del modelo auditadas** (R-15): las constantes
+  `MODEL_REVISIONS` y `BASE_MODEL_REVISION` de `src/tts_sidecar/model_cache.py`
+  apuntan a los commit hashes de HuggingFace que este release distribuye. Si el
+  release debe incorporar una versión nueva del modelo: consultar el `sha`
+  vigente (`https://huggingface.co/api/models/<repo>`), auditar el diff de esa
+  revisión en HF, actualizar las constantes y verificar con
+  `setup --force-update` + `doctor`. Si no hay cambio de modelo, no hay nada
+  que hacer (el pin existente sigue vigente).
 - **Prerequisito operativo (una sola vez):** existe el context `github-release`
   en CircleCI (Organization Settings → Contexts) con la variable `GH_TOKEN` = un
   fine-grained PAT con permiso `contents: write` sobre el repo. Está aislado al

@@ -150,8 +150,9 @@ oferta de `setup`) y desinstalación.
 ## Licencia
 
 El código de `tts-sidecar` se distribuye bajo **GPL-3.0-or-later** (ver `LICENSE`). El
-modelo Chatterbox y todas las dependencias empaquetadas conservan sus licencias permisivas
-(MIT/BSD/Apache/ISC/PSF), compatibles con GPLv3; sus atribuciones están en
+modelo Chatterbox es MIT; las dependencias empaquetadas conservan sus propias licencias,
+en su mayoría permisivas (MIT/BSD/Apache/ISC/PSF) y algunas de copyleft compatible con
+GPLv3 (LGPL-2.1+, MPL-2.0, GPLv3+ de pykakasi); sus atribuciones están en
 `THIRD-PARTY-LICENSES.md`. Al editar documentación, no confundir la licencia del **proyecto**
 (GPLv3) con las menciones «MIT» que describen el **modelo** o las dependencias.
 <!-- </license> -->
@@ -216,7 +217,7 @@ assets/                  # Material fuente (audios de la voz default, logo)
 src/tts_sidecar/      # Código fuente Python
 └── daemon/              # Daemon mode
 
-tests/                   # Tests pytest (244 tests)
+tests/                   # Tests pytest (261 tests)
 ├── conftest.py
 ├── test_audio.py
 ├── test_build_linux.py

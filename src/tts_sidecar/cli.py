@@ -191,6 +191,14 @@ def cmd_speak(args):
     """Sintetiza texto; reproduce el audio, o lo guarda a un archivo si se da --output."""
 
     try:
+        # R-02: --daemon y --no-daemon son contradictorios; un consumidor
+        # programático espera un diagnóstico, no que uno gane en silencio.
+        # Validación manual (no add_mutually_exclusive_group): el exit 2 nativo
+        # de argparse colisionaría con EXIT_MODEL_MISSING del contrato congelado.
+        if getattr(args, "daemon", False) and getattr(args, "no_daemon", False):
+            print("Error: --daemon y --no-daemon son mutuamente excluyentes.", file=sys.stderr)
+            sys.exit(EXIT_INVALID_INPUT)
+
         if not args.text or not args.text.strip():
             print("Error: --text no puede estar vacío.", file=sys.stderr)
             sys.exit(EXIT_INVALID_INPUT)
@@ -325,6 +333,17 @@ def cmd_voice_add(args):
             speech_audio=args.speech,
             force=getattr(args, "force", False),
         )
+
+        if getattr(args, "json", False):
+            import json
+            print(json.dumps({
+                "schema_version": SCHEMA_VERSION,
+                "name": args.name,
+                "reference": str(ref_path),
+                "speech": str(speech_path),
+            }))
+            return
+
         print(f"Voz '{args.name}' registrada:")
         print(f"  timbre (reference): {ref_path}")
         print(f"  habla (conditioning): {speech_path}")
@@ -345,6 +364,14 @@ def cmd_voice_remove(args):
 
     try:
         if voices.remove_voice(args.name):
+            if getattr(args, "json", False):
+                import json
+                print(json.dumps({
+                    "schema_version": SCHEMA_VERSION,
+                    "name": args.name,
+                    "removed": True,
+                }))
+                return
             print(f"Voz '{args.name}' eliminada.")
         elif voices._resolve_voice_dir(args.name) is not None:
             # Existe pero no como voz de usuario: es una voz de fábrica
@@ -399,8 +426,14 @@ def cmd_voice_list(args):
             print("  tts-sidecar voice add --name mi_voz --reference timbre.wav --speech habla.wav")
 
     except FileNotFoundError as e:
+        # R-01: listar voces es una operación pura de filesystem; remitir a
+        # 'setup' (provisión del modelo) no resuelve un directorio de voces
+        # ilegible. Se orienta al directorio real implicado.
         print(f"Error: {e}", file=sys.stderr)
-        print("Ejecuta 'tts-sidecar setup' primero.", file=sys.stderr)
+        print(
+            f"Revisa el directorio de voces de usuario: {voices.voices_root()}",
+            file=sys.stderr,
+        )
         sys.exit(EXIT_NOT_FOUND)
     except Exception as e:
         print(f"Error al listar las voces: {e}", file=sys.stderr)
@@ -593,12 +626,17 @@ def _integrate_linux_path():
         print('    export PATH="$HOME/.local/bin:$PATH"', file=sys.stderr)
 
 
-def _remove_linux_path():
-    """Elimina el symlink de PATH creado por setup (rama --remove-path)."""
+def _remove_linux_path() -> bool:
+    """Elimina el symlink de PATH creado por setup (rama --remove-path).
+
+    Devuelve True si el symlink existía y se eliminó, False si no había nada
+    que quitar (el caso de error — un archivo regular homónimo — aborta).
+    """
     link = _linux_path_symlink()
     if link.is_symlink():
         link.unlink()
         print(f"Symlink eliminado: {link}", file=sys.stderr)
+        return True
     elif link.exists():
         print(
             f"Error: {link} existe pero no es un symlink; no se elimina.",
@@ -607,6 +645,7 @@ def _remove_linux_path():
         sys.exit(EXIT_ERROR)
     else:
         print(f"No hay nada que quitar: {link} no existe.", file=sys.stderr)
+        return False
 
 
 def cmd_setup(args):
@@ -623,7 +662,14 @@ def cmd_setup(args):
     conserva el FAIL de audio con salida 1.
     """
     if getattr(args, "remove_path", False):
-        _remove_linux_path()
+        removed = _remove_linux_path()
+        if getattr(args, "json", False):
+            import json
+            print(json.dumps({
+                "schema_version": SCHEMA_VERSION,
+                "remove_path": True,
+                "removed": removed,
+            }))
         return
 
     print("=== TTS Sidecar Setup ===\n", file=sys.stderr)
@@ -673,9 +719,22 @@ def cmd_setup(args):
     try:
         from .model_cache import is_model_cached
 
+        def _emit_setup_json(already_cached: bool, downloaded: bool):
+            """Payload --json de setup (los [PASS]/[FAIL] de progreso van a stderr)."""
+            if getattr(args, "json", False):
+                import json
+                print(json.dumps({
+                    "schema_version": SCHEMA_VERSION,
+                    "model": "es-mx-latam",
+                    "already_cached": already_cached,
+                    "downloaded": downloaded,
+                    "cache_dir": model_dir,
+                }))
+
         if is_model_cached("es-mx-latam"):
             print(f"\n[PASS] El modelo 'es-mx-latam' ya está en caché en: {model_dir}", file=sys.stderr)
             print("Provisión completa. No hay nada que descargar.", file=sys.stderr)
+            _emit_setup_json(already_cached=True, downloaded=False)
             return
 
         # Pre-chequeo de espacio en disco antes de descargar (R-14): el modelo
@@ -704,26 +763,34 @@ def cmd_setup(args):
         # N-17: snapshot_download es solo red/disco, sin cargar el modelo en RAM
         # (~2 GB) como hacía ChatterboxEngine.get_instance; la carga real queda
         # para doctor/el primer 'speak', que ya validan el header safetensors.
+        # revision= fijada (R-15): la descarga es determinista y un push
+        # posterior al repo del modelo no se propaga a los usuarios.
         from huggingface_hub import snapshot_download
-        from .model_cache import MODELS
-        snapshot_download(repo_id=MODELS["es-mx-latam"], token=os.getenv("HF_TOKEN"))
+        from .model_cache import MODELS, MODEL_REVISIONS
+        snapshot_download(
+            repo_id=MODELS["es-mx-latam"],
+            revision=MODEL_REVISIONS["es-mx-latam"],
+            token=os.getenv("HF_TOKEN"),
+        )
 
         # El language pack no incluye ve.safetensors (Voice Encoder): se comparte
         # con el modelo base. Se provisiona aquí explícitamente para que ningún
         # 'speak' posterior necesite red tras un setup exitoso.
-        from .model_cache import is_ve_cached, BASE_MODEL_REPO
+        from .model_cache import is_ve_cached, BASE_MODEL_REPO, BASE_MODEL_REVISION
         if not is_ve_cached():
             print("\nDescargando el Voice Encoder (ve.safetensors)...", file=sys.stderr)
             from huggingface_hub import hf_hub_download
             hf_hub_download(
                 repo_id=BASE_MODEL_REPO,
                 filename="ve.safetensors",
+                revision=BASE_MODEL_REVISION,
                 token=os.getenv("HF_TOKEN"),
             )
             print("[PASS] Voice Encoder descargado.", file=sys.stderr)
 
         print("\n[PASS] ¡Modelo descargado correctamente!", file=sys.stderr)
         print(f"  Ubicación: {model_dir}", file=sys.stderr)
+        _emit_setup_json(already_cached=False, downloaded=True)
 
     except Exception as e:
         print(f"[FAIL] La provisión falló: {e}", file=sys.stderr)
@@ -739,11 +806,38 @@ def cmd_cleanup(args):
     """
     import shutil
 
+    json_mode = getattr(args, "json", False)
+    # Con --json los listados informativos van a stderr: stdout queda reservado
+    # para el único objeto JSON final (contrato stdout-datos/stderr-diagnóstico).
+    info_out = sys.stderr if json_mode else sys.stdout
+
+    if json_mode and not (getattr(args, "yes", False) or getattr(args, "dry_run", False)):
+        print(
+            "Error: cleanup --json requiere --yes o --dry-run (la confirmación "
+            "interactiva contaminaría stdout).",
+            file=sys.stderr,
+        )
+        sys.exit(EXIT_INVALID_INPUT)
+
+    def _emit_cleanup_json(removed_paths):
+        if json_mode:
+            import json
+            print(json.dumps({
+                "schema_version": SCHEMA_VERSION,
+                "removed": [str(p) for p in removed_paths],
+                "dry_run": getattr(args, "dry_run", False),
+            }))
+
     do_model = getattr(args, "model", False) or getattr(args, "all", False)
     do_voices = getattr(args, "voices", False) or getattr(args, "all", False)
 
     if not do_model and not do_voices:
-        # Sin flags no se borra nada: se muestra la ayuda del comando.
+        # Sin flags no se borra nada: se muestra la ayuda del comando
+        # (a stderr en modo --json, para no contaminar stdout).
+        if json_mode:
+            args.cleanup_parser.print_usage(sys.stderr)
+            _emit_cleanup_json([])
+            return
         args.cleanup_parser.print_help()
         return
 
@@ -762,18 +856,21 @@ def cmd_cleanup(args):
     existing = [(p, kind) for p, kind in targets if p.exists()]
 
     if not existing:
-        print("No hay nada que limpiar: ninguna de las rutas del proyecto existe.")
+        print("No hay nada que limpiar: ninguna de las rutas del proyecto existe.", file=info_out)
+        _emit_cleanup_json([])
         return
 
-    print("Rutas a eliminar:")
+    print("Rutas a eliminar:", file=info_out)
     for p, kind in existing:
-        print(f"  [{kind}] {p}")
+        print(f"  [{kind}] {p}", file=info_out)
 
     if getattr(args, "dry_run", False):
-        print("\n(dry-run) No se borró nada.")
+        print("\n(dry-run) No se borró nada.", file=info_out)
+        _emit_cleanup_json([p for p, _kind in existing])
         return
 
     if not getattr(args, "yes", False):
+        # Inalcanzable en modo --json (el gate de arriba exige --yes o --dry-run).
         try:
             respuesta = input("\n¿Eliminar estas rutas? (s/n): ").strip().lower()
         except EOFError:
@@ -787,8 +884,12 @@ def cmd_cleanup(args):
 
     for p, _kind in existing:
         shutil.rmtree(p)
-        print(f"Eliminado: {p}")
-    print("Limpieza completa. 'tts-sidecar setup' reprovisiona el modelo cuando lo necesites.")
+        print(f"Eliminado: {p}", file=info_out)
+    print(
+        "Limpieza completa. 'tts-sidecar setup' reprovisiona el modelo cuando lo necesites.",
+        file=info_out,
+    )
+    _emit_cleanup_json([p for p, _kind in existing])
 
 
 def cmd_daemon(args):
@@ -884,9 +985,11 @@ def main():
                                    "Usa un segmento de habla limpia (10s+ recomendado).")
     speak_parser.add_argument("--daemon", action="store_true",
                               help="Usar el daemon sin sondeo previo; si falla, se reporta el error "
-                                   "(sin flags, se sondea el daemon y se usa solo si responde)")
+                                   "(sin flags, se sondea el daemon y se usa solo si responde). "
+                                   "Mutuamente excluyente con --no-daemon (exit 4 si se combinan)")
     speak_parser.add_argument("--no-daemon", action="store_true",
-                              help="Forzar modo directo, sin sondear el daemon")
+                              help="Forzar modo directo, sin sondear el daemon. "
+                                   "Mutuamente excluyente con --daemon (exit 4 si se combinan)")
     speak_parser.set_defaults(func=cmd_speak)
 
     # grupo de comandos voice (list / add / remove)
@@ -905,10 +1008,12 @@ def main():
                            help="Archivo de audio de habla para el conditioning del T3 (10+ segundos de habla limpia)")
     voice_add.add_argument("--force", "-f", action="store_true",
                            help="Sobrescribir la voz si ya existe (usuario o fábrica homónima)")
+    voice_add.add_argument("--json", action="store_true", help="Emitir JSON legible por máquina")
     voice_add.set_defaults(func=cmd_voice_add)
 
     voice_remove = voice_subparsers.add_parser("remove", help="Elimina una voz registrada")
     voice_remove.add_argument("--name", "-n", required=True, help="Nombre de la voz")
+    voice_remove.add_argument("--json", action="store_true", help="Emitir JSON legible por máquina")
     voice_remove.set_defaults(func=cmd_voice_remove)
 
     # comando devices
@@ -930,6 +1035,7 @@ def main():
     setup_parser.add_argument("--force-update", action="store_true",
                               help="Elimina el modelo en caché y lo vuelve a descargar (fuerza una "
                                    "re-descarga limpia, p. ej. para actualizarlo)")
+    setup_parser.add_argument("--json", action="store_true", help="Emitir JSON legible por máquina")
     setup_parser.set_defaults(func=cmd_setup)
 
     # comando cleanup
@@ -948,6 +1054,8 @@ def main():
                                 help="Lista lo que se borraría sin borrar nada")
     cleanup_parser.add_argument("--yes", "-y", action="store_true",
                                 help="Omite la confirmación interactiva")
+    cleanup_parser.add_argument("--json", action="store_true",
+                                help="Emitir JSON legible por máquina (requiere --yes o --dry-run)")
     cleanup_parser.set_defaults(func=cmd_cleanup, cleanup_parser=cleanup_parser)
 
     # comando daemon

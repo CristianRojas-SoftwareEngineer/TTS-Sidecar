@@ -136,7 +136,11 @@ herramienta de build; no forma parte del contenido redistribuido más allá del 
 ## Inventario completo del lockfile
 
 Generado desde `requirements-lock.txt` (156 paquetes de runtime, directos y transitivos).
-Los paquetes `nvidia-*`/`cuda-*` (31) solo aplican al build de Linux x64.
+Los paquetes `nvidia-*`/`cuda-*` (31) **no forman parte de ningún artefacto distribuido**:
+el build de Linux x64 usa el lock CPU-only (`requirements-lock-linux-cpu.txt`, sin
+`nvidia-*`) y en los demás builds esos paquetes están excluidos por marcador de
+plataforma. Solo aplican a una instalación desde código fuente con el lock universal
+en Linux x86_64.
 
 Resumen por familia: MIT 53 · BSD 37 · NVIDIA (propietaria) 31 · Apache-2.0 21 ·
 PSF-2.0 6 · MPL-2.0 3 · ISC 2 · LGPL-2.1+ 1 · GPLv3+ 1 · sin metadato 1.

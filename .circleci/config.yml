@@ -10,7 +10,13 @@ jobs:
     # así que no hay señal adicional en re-correrla en ARM64. Justificación
     # completa (simetría 3 tests / 4 builds) en docs/BUILD.md §4.
     docker:
-      - image: cimg/python:3.13
+      # Imagen fijada por digest (R-14): el digest es el del manifest list del
+      # tag 3.13 (multi-arch, válido para amd64 y arm64), así que los tres jobs
+      # Docker comparten el mismo pin. Bump manual: tomar el digest vigente de
+      # https://hub.docker.com/v2/repositories/cimg/python/tags/3.13 y
+      # reemplazarlo en las TRES referencias de este archivo (procedimiento
+      # completo en docs/BUILD.md §Reproducibilidad).
+      - image: cimg/python:3.13@sha256:9d189f873178a2bea234b7d51e31e1ae01a73646e962cf697f757b588f8d77b6
     steps:
       - checkout
       - run:
@@ -50,7 +56,7 @@ jobs:
             python -m venv ~/.venv
             echo "source ~/.venv/bin/activate" >> $BASH_ENV
             source ~/.venv/bin/activate
-            pip install --upgrade pip
+            pip install pip==26.1.2
             pip install -r requirements-lock-linux-cpu.txt --require-hashes --extra-index-url https://download.pytorch.org/whl/cpu
             echo "[STEP] Install runtime deps from CPU-only lock (require-hashes) - FIN"
       - save_cache:
@@ -127,7 +133,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             if (-not (Test-Path .venv)) { python -m venv .venv }
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            .venv\Scripts\python.exe -m pip install --upgrade pip
+            .venv\Scripts\python.exe -m pip install pip==26.1.2
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             .venv\Scripts\python.exe -m pip install -r requirements-lock.txt --require-hashes
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -181,6 +187,9 @@ jobs:
           # un patch exacto: el pyenv preinstalado en la imagen puede no traer
           # localmente la definición del patch más reciente (python-build es
           # un snapshot vendido con el formula de Homebrew, no se actualiza solo).
+          # Excepción consciente de pin (R-14): Homebrew no soporta fijar una
+          # versión de pyenv, y la versión de pyenv no altera el artefacto —
+          # el CPython resultante ya está pineado (3.13.14).
           name: Set up Python 3.13 via pyenv (pinned 3.13.14)
           no_output_timeout: 20m
           command: |
@@ -218,7 +227,7 @@ jobs:
             python -m venv ~/.venv
             echo "source ~/.venv/bin/activate" >> $BASH_ENV
             source ~/.venv/bin/activate
-            python -m pip install --upgrade pip
+            python -m pip install pip==26.1.2
             python -m pip install -r requirements-lock.txt --require-hashes
             echo "[STEP] Install runtime deps from universal lock (require-hashes) - FIN"
       - save_cache:
@@ -282,7 +291,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             if (-not (Test-Path .venv)) { python -m venv .venv }
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            .venv\Scripts\python.exe -m pip install --upgrade pip
+            .venv\Scripts\python.exe -m pip install pip==26.1.2
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             .venv\Scripts\python.exe -m pip install -r requirements-lock.txt --require-hashes
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -379,7 +388,9 @@ jobs:
 
   build-linux-x64:
     docker:
-      - image: cimg/python:3.13
+      # Imagen fijada por digest (R-14): mismo pin que test-linux (ver el
+      # comentario de bump allí y docs/BUILD.md §Reproducibilidad).
+      - image: cimg/python:3.13@sha256:9d189f873178a2bea234b7d51e31e1ae01a73646e962cf697f757b588f8d77b6
     # resource_class explícito: el bundling de PyInstaller con torch necesita
     # ~8 GB de RAM. En Docker x86 el tier `medium` da solo 4 GB (riesgo de OOM);
     # `large` es el tier más chico que alcanza 8 GB (sus 4 vCPU vienen de regalo,
@@ -425,7 +436,7 @@ jobs:
             python -m venv ~/.venv
             echo "source ~/.venv/bin/activate" >> $BASH_ENV
             source ~/.venv/bin/activate
-            pip install --upgrade pip
+            pip install pip==26.1.2
             pip install -r requirements-lock-linux-cpu.txt --require-hashes --extra-index-url https://download.pytorch.org/whl/cpu
             echo "[STEP] Install runtime deps from CPU-only lock (require-hashes) - FIN"
       - save_cache:
@@ -492,7 +503,9 @@ jobs:
     # --appimage-extract-and-run), así que el executor Docker es suficiente,
     # igual que en build-linux-x64.
     docker:
-      - image: cimg/python:3.13
+      # Imagen fijada por digest (R-14): el digest del manifest list resuelve
+      # también la variante arm64 (ver test-linux y docs/BUILD.md).
+      - image: cimg/python:3.13@sha256:9d189f873178a2bea234b7d51e31e1ae01a73646e962cf697f757b588f8d77b6
     resource_class: arm.medium
     steps:
       - checkout
@@ -526,7 +539,7 @@ jobs:
             python -m venv ~/.venv
             echo "source ~/.venv/bin/activate" >> $BASH_ENV
             source ~/.venv/bin/activate
-            python -m pip install --upgrade pip
+            python -m pip install pip==26.1.2
             python -m pip install -r requirements-lock.txt --require-hashes
             echo "[STEP] Install runtime deps from universal lock (require-hashes) - FIN"
       - save_cache:
@@ -605,7 +618,10 @@ jobs:
           # es obligatorio antes de fijar un patch exacto: el pyenv preinstalado
           # en la imagen puede no traer localmente la definición del patch más
           # reciente (python-build es un snapshot vendido con el formula de
-          # Homebrew, no se actualiza solo).
+          # Homebrew, no se actualiza solo). Excepción consciente de pin (R-14):
+          # Homebrew no soporta fijar una versión de pyenv, y la versión de
+          # pyenv no altera el artefacto — el CPython resultante ya está
+          # pineado (3.13.14).
           name: Set up Python 3.13 via pyenv (pinned 3.13.14)
           no_output_timeout: 20m
           command: |
@@ -642,7 +658,7 @@ jobs:
             python -m venv ~/.venv
             echo "source ~/.venv/bin/activate" >> $BASH_ENV
             source ~/.venv/bin/activate
-            python -m pip install --upgrade pip
+            python -m pip install pip==26.1.2
             python -m pip install -r requirements-lock.txt --require-hashes
             echo "[STEP] Install runtime deps from universal lock (require-hashes) - FIN"
       - save_cache:

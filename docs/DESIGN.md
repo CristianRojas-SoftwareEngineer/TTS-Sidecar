@@ -33,9 +33,9 @@ TTS Sidecar es un motor de síntesis de voz (TTS) **100% local** que usa **Chatt
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │           Reproducción de audio (APIs nativas)              │
-│   Windows: pycaw (WASAPI) / winsound (fallback)          │
-│   Linux: sounddevice (PortAudio) / pyalsaaudio          │
-│   macOS: afplay (nativo) / AVFoundation                 │
+│   Windows: winsound (integrado; pycaw enumera)           │
+│   Linux: sounddevice (PortAudio)                         │
+│   macOS: afplay (nativo; sounddevice enumera)            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -50,6 +50,9 @@ TTS-Sidecar/
 │       ├── audio.py               # Reproducción de audio multiplataforma
 │       ├── timing.py              # Instrumentación y timing
 │       ├── cli.py                 # Interfaz CLI
+│       ├── voices.py              # Resolución de voces usuario→fábrica
+│       ├── paths.py               # Rutas por SO (user-data-dir, modo congelado)
+│       ├── model_cache.py         # Detección del modelo en la caché de HF
 │       └── daemon/                # Daemon mode (FastAPI + IPC)
 │           ├── daemon.py          # Gestor del ciclo de vida
 │           ├── server.py          # Endpoints FastAPI

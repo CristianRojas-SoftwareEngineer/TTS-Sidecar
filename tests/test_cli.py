@@ -817,6 +817,33 @@ class TestExitCodes:
                 cmd_voice_add(MockArgs(name="dup"))
         assert exc.value.code == EXIT_INVALID_INPUT
 
+    def test_daemon_and_no_daemon_conflict_exits_4(self, capsys):
+        """R-02: --daemon y --no-daemon simultáneos → error claro y exit 4,
+        antes de cualquier trabajo (incluido el gate de modelo)."""
+        from tts_sidecar.cli import cmd_speak, EXIT_INVALID_INPUT
+
+        with patch("tts_sidecar.model_cache.is_model_cached",
+                   side_effect=AssertionError("el gate de modelo no debe evaluarse")):
+            with pytest.raises(SystemExit) as exc:
+                cmd_speak(MockArgs(text="hola", daemon=True, no_daemon=True))
+        assert exc.value.code == EXIT_INVALID_INPUT
+        assert "mutuamente excluyentes" in capsys.readouterr().err
+
+    def test_voice_list_filenotfound_points_to_voices_dir_not_setup(self, capsys):
+        """R-01: el FileNotFoundError de voice list menciona el directorio de
+        voces, no remite a 'setup' (la provisión del modelo no lo arregla)."""
+        from tts_sidecar.cli import cmd_voice_list, EXIT_NOT_FOUND
+
+        with patch("tts_sidecar.voices.list_voices",
+                   side_effect=FileNotFoundError("directorio ilegible")), \
+                patch("tts_sidecar.voices.voices_root", return_value="/ruta/voces"):
+            with pytest.raises(SystemExit) as exc:
+                cmd_voice_list(MockArgs())
+        assert exc.value.code == EXIT_NOT_FOUND
+        err = capsys.readouterr().err
+        assert "/ruta/voces" in err
+        assert "setup" not in err
+
     def test_daemon_start_failure_exits_5(self):
         import argparse
         from tts_sidecar.cli import cmd_daemon, EXIT_DAEMON_UNREACHABLE
@@ -843,6 +870,7 @@ class TestCmdCleanup:
             all=kw.get("all", False),
             dry_run=kw.get("dry_run", False),
             yes=kw.get("yes", False),
+            json=kw.get("json", False),
             cleanup_parser=MagicMock(),
         )
         return ns
@@ -950,6 +978,149 @@ class TestCmdCleanup:
 
         args.cleanup_parser.print_help.assert_called_once()
         assert propio1.exists() and voces.exists()
+
+
+class TestWriteCommandsJSON:
+    """R-03: los cuatro comandos de escritura aceptan --json y emiten un único
+    objeto JSON en stdout, con los listados informativos en stderr."""
+
+    @patch("tts_sidecar.model_cache.is_model_cached", return_value=True)
+    @patch("tts_sidecar.voices.register_voice_files")
+    def test_voice_add_json_payload(self, mock_register, _cached, capsys):
+        import json
+        from tts_sidecar.cli import cmd_voice_add, SCHEMA_VERSION
+
+        mock_register.return_value = ("/voces/nueva/reference.wav", "/voces/nueva/speech.wav")
+
+        cmd_voice_add(MockArgs(name="nueva", json=True))
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload == {
+            "schema_version": SCHEMA_VERSION,
+            "name": "nueva",
+            "reference": "/voces/nueva/reference.wav",
+            "speech": "/voces/nueva/speech.wav",
+        }
+
+    @patch("tts_sidecar.voices.remove_voice", return_value=True)
+    def test_voice_remove_json_payload(self, _removed, capsys):
+        import json
+        from tts_sidecar.cli import cmd_voice_remove, SCHEMA_VERSION
+
+        cmd_voice_remove(MockArgs(name="vieja", json=True))
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload == {
+            "schema_version": SCHEMA_VERSION,
+            "name": "vieja",
+            "removed": True,
+        }
+
+    def test_setup_json_payload_already_cached(self, monkeypatch, capsys):
+        import json
+        import tts_sidecar.cli as cli
+
+        monkeypatch.setattr(
+            cli, "_environment_checks",
+            lambda: [("PASS", "Chatterbox TTS", "0.1.7")],
+        )
+        with patch("tts_sidecar.model_cache.is_model_cached", return_value=True):
+            cli.cmd_setup(MockArgs(remove_path=False, json=True))
+
+        out = capsys.readouterr().out
+        payload = json.loads(out)
+        assert payload["schema_version"] == cli.SCHEMA_VERSION
+        assert payload["model"] == "es-mx-latam"
+        assert payload["already_cached"] is True
+        assert payload["downloaded"] is False
+        assert "cache_dir" in payload
+
+    def test_setup_remove_path_json_payload(self, monkeypatch, tmp_path, capsys):
+        import json
+        from tts_sidecar.cli import cmd_setup, SCHEMA_VERSION
+
+        home = tmp_path / "home"
+        home.mkdir()
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+
+        cmd_setup(MockArgs(remove_path=True, json=True))
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload == {
+            "schema_version": SCHEMA_VERSION,
+            "remove_path": True,
+            "removed": False,
+        }
+
+    def _cleanup_env(self, tmp_path, monkeypatch):
+        hub = tmp_path / "hub"
+        propio1 = hub / "models--ResembleAI--Chatterbox-Multilingual-es-mx-latam"
+        propio2 = hub / "models--ResembleAI--chatterbox"
+        for d in (propio1, propio2):
+            d.mkdir(parents=True)
+        from huggingface_hub import constants
+        monkeypatch.setattr(constants, "HF_HUB_CACHE", str(hub))
+        voces = tmp_path / "voces"
+        (voces / "mi_voz").mkdir(parents=True)
+        monkeypatch.setattr("tts_sidecar.voices.voices_root", lambda: str(voces))
+        return propio1, propio2, voces
+
+    def _cleanup_args(self, **kw):
+        import argparse
+        return argparse.Namespace(
+            model=kw.get("model", False),
+            voices=kw.get("voices", False),
+            all=kw.get("all", False),
+            dry_run=kw.get("dry_run", False),
+            yes=kw.get("yes", False),
+            json=kw.get("json", False),
+            cleanup_parser=MagicMock(),
+        )
+
+    def test_cleanup_json_with_yes_emits_removed_paths(self, tmp_path, monkeypatch, capsys):
+        import json
+        from tts_sidecar.cli import cmd_cleanup, SCHEMA_VERSION
+
+        propio1, propio2, voces = self._cleanup_env(tmp_path, monkeypatch)
+
+        cmd_cleanup(self._cleanup_args(all=True, yes=True, json=True))
+
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)  # stdout: solo el objeto JSON
+        assert payload["schema_version"] == SCHEMA_VERSION
+        assert payload["dry_run"] is False
+        assert sorted(payload["removed"]) == sorted(
+            [str(propio1), str(propio2), str(voces)]
+        )
+        assert not propio1.exists() and not propio2.exists() and not voces.exists()
+        assert "Rutas a eliminar" in captured.err  # listados informativos a stderr
+
+    def test_cleanup_json_dry_run_lists_without_deleting(self, tmp_path, monkeypatch, capsys):
+        import json
+        from tts_sidecar.cli import cmd_cleanup
+
+        propio1, propio2, voces = self._cleanup_env(tmp_path, monkeypatch)
+
+        cmd_cleanup(self._cleanup_args(all=True, dry_run=True, json=True))
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["dry_run"] is True
+        assert len(payload["removed"]) == 3
+        assert propio1.exists() and propio2.exists() and voces.exists()
+
+    def test_cleanup_json_without_yes_or_dry_run_exits_4(self, tmp_path, monkeypatch, capsys):
+        from tts_sidecar.cli import cmd_cleanup, EXIT_INVALID_INPUT
+
+        propio1, propio2, voces = self._cleanup_env(tmp_path, monkeypatch)
+
+        with pytest.raises(SystemExit) as exc:
+            cmd_cleanup(self._cleanup_args(all=True, json=True))
+
+        assert exc.value.code == EXIT_INVALID_INPUT
+        captured = capsys.readouterr()
+        assert "--yes" in captured.err and "--dry-run" in captured.err
+        assert captured.out == ""  # stdout intacto: sin JSON parcial ni prosa
+        assert propio1.exists() and propio2.exists() and voces.exists()
 
 
 class TestCmdSpeakEmptyText:

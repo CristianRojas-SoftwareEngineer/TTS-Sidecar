@@ -43,8 +43,15 @@ limitada, pero conviene explicitar sus supuestos:
 
 ### Modelo y provisión
 
-- El modelo se descarga desde HuggingFace con `tts-sidecar setup` a la caché local.
-  La integridad de los pesos depende de HuggingFace Hub.
+- El modelo se descarga desde HuggingFace con `tts-sidecar setup` a la caché local,
+  con la **revisión fijada por release** (commit hash auditado, declarado en
+  `src/tts_sidecar/model_cache.py`): un push posterior al repo del modelo —
+  malicioso o accidental — no se propaga a los usuarios, y la detección de caché
+  solo valida el snapshot de esa revisión en ambos repos (language pack y repo
+  base). El alcance del pin es ese: protege contra cambios posteriores a la
+  revisión auditada; no es una verificación criptográfica por archivo de los
+  pesos descargados (el transporte y el direccionamiento por hash de commit
+  corren a cargo de HuggingFace Hub).
 - Los builds se producen desde un **lockfile con hashes** (`--require-hashes`), lo
   que protege la cadena de dependencias frente a paquetes alterados en PyPI.
 

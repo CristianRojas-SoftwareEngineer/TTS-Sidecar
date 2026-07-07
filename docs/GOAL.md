@@ -38,6 +38,9 @@ TTS-Sidecar/
 │       ├── audio.py          # Reproducción de audio nativa
 │       ├── cli.py            # Interfaz CLI
 │       ├── timing.py         # Instrumentación y timing
+│       ├── voices.py         # Resolución de voces usuario→fábrica
+│       ├── paths.py          # Rutas por SO (user-data-dir, modo congelado)
+│       ├── model_cache.py    # Detección del modelo en la caché de HF
 │       └── daemon/           # Daemon mode (FastAPI + IPC)
 │           ├── daemon.py    # Gestor del ciclo de vida
 │           ├── server.py    # Endpoints FastAPI
@@ -101,7 +104,7 @@ sesión: se arranca antes de sintetizar y se detiene al final.
 - **100% local**: Sin APIs externas ni conexiones a internet para síntesis
 - **Instalador único por SO**: Un archivo ejecutable por plataforma
 - **Sin dependencias externas**: El usuario final no necesita instalar nada más
-- **Licencia**: El código propio se distribuye bajo GPL-3.0-or-later; todas las dependencias y el modelo usados deben tener licencias permisivas compatibles con GPLv3 (MIT/BSD/Apache/ISC/PSF)
+- **Licencia**: El código propio se distribuye bajo GPL-3.0-or-later; todas las dependencias y el modelo usados deben tener licencias compatibles con GPLv3 (permisivas — MIT/BSD/Apache/ISC/PSF — o copyleft compatible, como LGPL-2.1+/MPL-2.0)
 
 ---
 
@@ -167,7 +170,7 @@ La implementación está completa únicamente cuando:
 - [x] **docs/DESIGN.md** corresponde al estado implementado
 - [x] El daemon mode está implementado y funciona correctamente
 - [x] Los logs están normalizados con estructura consistente
-- [x] Los tests pytest pasan (199/199)
+- [x] Los tests pytest pasan (261/261)
 
 ---
 
@@ -184,5 +187,5 @@ validación E2E" arriba):
 - Scripts de build PyInstaller por SO (Windows/Linux/macOS)
 - Descarga automática del modelo Chatterbox desde HuggingFace
 - CLI completa con todos los comandos
-- Tests pytest (233 tests: timing, protocolo, daemon, CLI, voces, caché de modelo, audio y utilidades de build)
+- Tests pytest (261 tests: timing, protocolo, daemon, CLI, voces, caché de modelo, audio y utilidades de build)
 - Documentación sincronizada

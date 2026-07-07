@@ -115,14 +115,97 @@ Provisión completa. No hay nada que descargar.
 
 ## Comandos
 
-Los comandos de lectura (`version`, `doctor`, `devices`, `voice list`,
-`daemon status`) aceptan `--json` para salida legible por máquina, útil al
-invocar `tts-sidecar` desde otro programa.
+Tanto los comandos de lectura (`version`, `doctor`, `devices`, `voice list`,
+`daemon status`) como los de escritura (`voice add`, `voice remove`, `setup`,
+`cleanup`) aceptan `--json` para salida legible por máquina, útil al invocar
+`tts-sidecar` desde otro programa: ningún comando obliga a parsear texto.
 
 Todo payload `--json` incluye el campo **`"schema_version"`** (actualmente
 `"1"`), que identifica la forma del esquema. Es un campo aditivo: añadir claves
 nuevas no lo incrementa; solo un cambio incompatible de las claves existentes lo
 haría. Un consumidor puede leerlo para detectar cambios de contrato.
+
+### Referencia de esquemas `--json`
+
+Los payloads siguientes son **parte del contrato programático**: sus claves son
+estables (los cambios solo pueden ser aditivos mientras `schema_version` sea
+`"1"`). En todos los casos, stdout contiene exactamente un objeto JSON y el
+diagnóstico/progreso va a stderr. La clave `schema_version` (string) se omite de
+las tablas por brevedad: está presente en todos.
+
+**`version --json`**
+
+| Clave | Tipo | Significado |
+|-------|------|-------------|
+| `name` | string | Siempre `"tts-sidecar"` |
+| `version` | string | Versión del programa (p. ej. `"0.1.0"`) |
+
+**`doctor --json`**
+
+| Clave | Tipo | Significado |
+|-------|------|-------------|
+| `python` | string | Versión de Python del runtime |
+| `platform` | string | Sistema y versión (p. ej. `"Windows 11"`) |
+| `checks` | array de objetos | Un objeto por chequeo: `status` (`"PASS"`/`"FAIL"`/`"WARN"`/`"SKIP"`), `name` (string), `detail` (string) |
+| `passed` | number | Conteo de chequeos `PASS` |
+| `failed` | number | Conteo de chequeos `FAIL` (si > 0, exit 1) |
+
+**`devices --json`**
+
+| Clave | Tipo | Significado |
+|-------|------|-------------|
+| `devices` | array de objetos | Un objeto por dispositivo de salida: `id` (number), `name` (string), `latency` (number, segundos) |
+
+**`voice list --json`**
+
+| Clave | Tipo | Significado |
+|-------|------|-------------|
+| `voices` | array de strings | Nombres de las voces disponibles (fábrica + usuario) |
+
+**`daemon status --json`**
+
+| Clave | Tipo | Significado |
+|-------|------|-------------|
+| `running` | boolean | Si el daemon responde al health check |
+| `status` | string | Solo con `running: true`: estado reportado (`"ready"`, `"unknown"`, …) |
+| `model_loaded` | boolean | Solo con `running: true`: si el modelo está cargado |
+| `uptime_seconds` | number | Solo con `running: true`: segundos desde el arranque |
+
+**`voice add --json`**
+
+| Clave | Tipo | Significado |
+|-------|------|-------------|
+| `name` | string | Nombre de la voz registrada |
+| `reference` | string | Ruta absoluta del `reference.wav` copiado (timbre) |
+| `speech` | string | Ruta absoluta del `speech.wav` copiado (conditioning) |
+
+**`voice remove --json`**
+
+| Clave | Tipo | Significado |
+|-------|------|-------------|
+| `name` | string | Nombre de la voz eliminada |
+| `removed` | boolean | `true` en la rama de éxito (los errores conservan su mensaje en stderr y su exit code, sin payload) |
+
+**`setup --json`**
+
+| Clave | Tipo | Significado |
+|-------|------|-------------|
+| `model` | string | Alias del modelo provisionado (`"es-mx-latam"`) |
+| `already_cached` | boolean | `true` si no hubo nada que descargar (idempotencia) |
+| `downloaded` | boolean | `true` si esta ejecución descargó el modelo |
+| `cache_dir` | string | Raíz de la caché de HuggingFace usada |
+
+Con `--remove-path` (Linux), el payload es distinto: `remove_path` (boolean,
+siempre `true`) y `removed` (boolean, `true` si el symlink existía y se quitó).
+
+**`cleanup --json`** — requiere `--yes` o `--dry-run` (la confirmación
+interactiva contaminaría stdout); sin ellos, error en stderr y exit 4. Los
+listados informativos van a stderr.
+
+| Clave | Tipo | Significado |
+|-------|------|-------------|
+| `removed` | array de strings | Rutas eliminadas (o que se eliminarían, con `--dry-run`) |
+| `dry_run` | boolean | `true` si no se borró nada (solo listado) |
 
 ---
 
@@ -255,6 +338,9 @@ Con `--output`, en lugar de las líneas de `[Reproducción]` verás
 - `--speech-audio`: Ruta a archivo de audio para conditioning (usa `--voice-audio` si no se especifica)
 - `--daemon`: Usar el daemon sin sondeo previo; si falla, el error se reporta (sin fallback a directo)
 - `--no-daemon`: Forzar modo directo, sin sondear el daemon
+
+`--daemon` y `--no-daemon` son **mutuamente excluyentes**: combinarlos produce
+un error en stderr y exit 4 (`INVALID_INPUT`), antes de cualquier trabajo.
 - `--compute-backend, -cb`: Backend de cómputo para la inferencia (`auto`, `cpu`, `cuda`, `mps`; default: `auto`)
 
 Sin valor, `tts-sidecar` detecta automáticamente el mejor backend disponible
@@ -340,6 +426,8 @@ comandos de escritura, `voice add` requiere el modelo provisionado
 - `--reference, -r` (requerido): Audio para timbre (cualquier largo — el audio completo se usa para el embedding)
 - `--speech, -s` (requerido): Audio para conditioning (10+ segundos de habla limpia)
 - `--force, -f`: Sobrescribir la voz si ya existe (incluida una de fábrica homónima)
+- `--json`: Emitir el resultado como JSON (nombre y rutas registradas; ver la
+  referencia de esquemas más arriba)
 
 **¿Por qué dos archivos?**
 - `--reference` captura el **timbre** de la voz (cómo suena)
@@ -408,6 +496,7 @@ tts-sidecar cleanup --voices     # elimina las voces de usuario
 tts-sidecar cleanup --all        # ambos
 tts-sidecar cleanup --all --dry-run   # lista lo que se borraría, sin borrar
 tts-sidecar cleanup --all --yes       # borra sin pedir confirmación (uso programático)
+tts-sidecar cleanup --all --yes --json   # salida JSON (requiere --yes o --dry-run)
 ```
 
 **Qué esperar:** el comando lista las rutas exactas a eliminar y pide
@@ -787,5 +876,7 @@ la persona que ejecuta la herramienta.
 ## Licencia
 
 `tts-sidecar` se distribuye bajo **GPL-3.0-or-later** (ver [LICENSE](LICENSE)). El modelo
-Chatterbox y las dependencias empaquetadas conservan sus licencias permisivas
-(MIT/BSD/Apache), detalladas en [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
+Chatterbox se distribuye bajo MIT; las dependencias empaquetadas conservan sus propias
+licencias, en su mayoría permisivas (MIT/BSD/Apache/ISC/PSF) y algunas de copyleft
+compatible con GPLv3 (LGPL-2.1+, MPL-2.0 y el GPLv3+ de pykakasi), detalladas en
+[THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).

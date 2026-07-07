@@ -1,0 +1,62 @@
+name: Reporte de bug
+description: Reporta un comportamiento incorrecto de tts-sidecar
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por reportar. Los tres datos siguientes (versión, SO y comando
+        reproducible) son los que el soporte necesita para actuar sin rondas
+        extra de preguntas.
+
+        ⚠️ **Vulnerabilidades de seguridad**: no las reportes aquí; usa el
+        canal privado descrito en [SECURITY.md](../blob/main/SECURITY.md).
+  - type: textarea
+    id: version
+    attributes:
+      label: Versión
+      description: Pega la salida de `tts-sidecar version --json`.
+      render: json
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Sistema operativo
+      description: SO y versión (p. ej. «Windows 11 23H2», «Ubuntu 24.04», «macOS 15.2»), y si usas el binario distribuido o el código fuente.
+      placeholder: Windows 11 23H2 — instalador oficial
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Comando reproducible
+      description: El comando exacto (con sus flags) que reproduce el problema.
+      render: shell
+      placeholder: tts-sidecar speak --text "Hola" --voice mi_voz
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Salida obtenida
+      description: Salida completa (stdout y stderr) y código de salida, si lo conoces.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamiento esperado
+      description: Qué esperabas que ocurriera.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Diagnóstico (opcional)
+      description: Si puedes, pega la salida de `tts-sidecar doctor --json`.
+      render: json
+    validations:
+      required: false
