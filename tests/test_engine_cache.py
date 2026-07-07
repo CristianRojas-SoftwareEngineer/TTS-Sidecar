@@ -12,12 +12,27 @@ import time
 from pathlib import Path
 
 from tts_sidecar.model_cache import (
+    BASE_MODEL_REVISION,
+    MODEL_REVISIONS,
     _resolve_cached_snapshot,
     hub_cache_path,
     is_model_cached,
 )
 
 ES_MX_FOLDER = "models--ResembleAI--Chatterbox-Multilingual-es-mx-latam"
+
+# Revisión fijada del language pack (R-15): is_model_cached solo considera
+# válido el snapshot de esta revisión, así que las cachés sintéticas de estos
+# tests deben crearse bajo ese nombre de snapshot.
+PINNED_REV = MODEL_REVISIONS["es-mx-latam"]
+
+# Revisión fijada del repo base (fuente de ve.safetensors): la resolución del
+# snapshot base en is_ve_cached también la honra (cierre del hueco residual de R-06).
+BASE_PINNED_REV = BASE_MODEL_REVISION
+
+# Contenido safetensors sintético con header válido: header_length=100 (u64 LE)
+# seguido de 100 bytes de relleno. Pasa _safetensors_header_ok (0 < 100 < 108).
+VALID_SAFETENSORS = b"\x64\x00\x00\x00\x00\x00\x00\x00" + b"\x00" * 100
 
 
 def _make_snapshot(model_dir, name, mtime=None):
@@ -239,14 +254,13 @@ class TestIsModelCached:
     def test_snapshot_with_checkpoint_and_ve_returns_true(self, tmp_path, monkeypatch):
         hub = self._fake_hub(tmp_path, monkeypatch)
         model_dir = hub / ES_MX_FOLDER
-        snap = _make_snapshot(model_dir, "abc123")
-        _set_ref_main(model_dir, "abc123")
-        # Header safetensors válido: header_length=100 (u64 LE) + 100 bytes de relleno.
-        # Antes de R-04 bastaba con `b"\x00"` (pasaba el .exists()): ahora se valida
-        # la integridad del header, así que se usa un header-length plausible.
-        t3 = b"\x64\x00\x00\x00\x00\x00\x00\x00" + b"\x00" * 100
-        (snap / "t3_es_mx_latam.safetensors").write_bytes(t3)
-        (snap / "ve.safetensors").write_bytes(b"\x00")
+        snap = _make_snapshot(model_dir, PINNED_REV)
+        _set_ref_main(model_dir, PINNED_REV)
+        # Antes de R-04 bastaba con `b"\x00"` (pasaba el .exists()): ahora se
+        # valida la integridad del header de los tres checkpoints (R-07).
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "s3gen_v3.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "ve.safetensors").write_bytes(VALID_SAFETENSORS)
         assert is_model_cached("es-mx-latam") is True
 
     def test_t3_present_without_ve_returns_false(self, tmp_path, monkeypatch):
@@ -254,38 +268,67 @@ class TestIsModelCached:
         primer speak dispararía una descarga (fuga de la promesa offline)."""
         hub = self._fake_hub(tmp_path, monkeypatch)
         model_dir = hub / ES_MX_FOLDER
-        snap = _make_snapshot(model_dir, "abc123")
-        _set_ref_main(model_dir, "abc123")
-        t3 = b"\x64\x00\x00\x00\x00\x00\x00\x00" + b"\x00" * 100
-        (snap / "t3_es_mx_latam.safetensors").write_bytes(t3)
+        snap = _make_snapshot(model_dir, PINNED_REV)
+        _set_ref_main(model_dir, PINNED_REV)
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "s3gen_v3.safetensors").write_bytes(VALID_SAFETENSORS)
         assert is_model_cached("es-mx-latam") is False
 
     def test_ve_in_base_model_also_counts(self, tmp_path, monkeypatch):
-        """ve.safetensors puede residir en la caché del modelo base."""
+        """ve.safetensors puede residir en la caché del modelo base, siempre
+        bajo el snapshot de la revisión base fijada (el camino base honra el pin)."""
         hub = self._fake_hub(tmp_path, monkeypatch)
         model_dir = hub / ES_MX_FOLDER
-        snap = _make_snapshot(model_dir, "abc123")
-        _set_ref_main(model_dir, "abc123")
-        t3 = b"\x64\x00\x00\x00\x00\x00\x00\x00" + b"\x00" * 100
-        (snap / "t3_es_mx_latam.safetensors").write_bytes(t3)
+        snap = _make_snapshot(model_dir, PINNED_REV)
+        _set_ref_main(model_dir, PINNED_REV)
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "s3gen_v3.safetensors").write_bytes(VALID_SAFETENSORS)
 
         base_dir = hub / "models--ResembleAI--chatterbox"
-        base_snap = _make_snapshot(base_dir, "base01")
-        _set_ref_main(base_dir, "base01")
-        (base_snap / "ve.safetensors").write_bytes(b"\x00")
+        base_snap = _make_snapshot(base_dir, BASE_PINNED_REV)
+        _set_ref_main(base_dir, BASE_PINNED_REV)
+        (base_snap / "ve.safetensors").write_bytes(VALID_SAFETENSORS)
         assert is_model_cached("es-mx-latam") is True
 
-    def test_validates_refs_main_snapshot_not_other(self, tmp_path, monkeypatch):
-        """Con dos snapshots, el checkpoint debe estar en el que apunta refs/main."""
+    def test_ve_in_base_of_other_revision_returns_false(self, tmp_path, monkeypatch):
+        """Cierre del hueco residual de R-06: un ve.safetensors bajo un snapshot
+        del repo base de otra revisión no cuenta como caché válida — si un
+        release bumpea BASE_MODEL_REVISION, 'setup' debe re-descargar el VE."""
         hub = self._fake_hub(tmp_path, monkeypatch)
         model_dir = hub / ES_MX_FOLDER
-        now = time.time()
-        stale = _make_snapshot(model_dir, "vieja", mtime=now)
-        (stale / "t3_es_mx_latam.safetensors").write_bytes(b"\x00")
-        (stale / "ve.safetensors").write_bytes(b"\x00")
-        _make_snapshot(model_dir, "actual", mtime=now - 1000)  # sin checkpoint
-        _set_ref_main(model_dir, "actual")
+        snap = _make_snapshot(model_dir, PINNED_REV)
+        _set_ref_main(model_dir, PINNED_REV)
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "s3gen_v3.safetensors").write_bytes(VALID_SAFETENSORS)
+
+        base_dir = hub / "models--ResembleAI--chatterbox"
+        base_snap = _make_snapshot(base_dir, "otra_revision_base")
+        _set_ref_main(base_dir, "otra_revision_base")
+        (base_snap / "ve.safetensors").write_bytes(VALID_SAFETENSORS)
         assert is_model_cached("es-mx-latam") is False
+
+    def test_snapshot_of_other_revision_returns_false(self, tmp_path, monkeypatch):
+        """R-15: un snapshot completo pero de una revisión distinta a la fijada
+        no cuenta como caché válida, aunque refs/main apunte a él."""
+        hub = self._fake_hub(tmp_path, monkeypatch)
+        model_dir = hub / ES_MX_FOLDER
+        snap = _make_snapshot(model_dir, "otra_revision")
+        _set_ref_main(model_dir, "otra_revision")
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "s3gen_v3.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "ve.safetensors").write_bytes(VALID_SAFETENSORS)
+        assert is_model_cached("es-mx-latam") is False
+
+    def test_snapshot_of_pinned_revision_returns_true(self, tmp_path, monkeypatch):
+        """R-15: el snapshot de la revisión fijada valida incluso sin refs/main
+        (hf_hub_download con commit hash no crea refs)."""
+        hub = self._fake_hub(tmp_path, monkeypatch)
+        model_dir = hub / ES_MX_FOLDER
+        snap = _make_snapshot(model_dir, PINNED_REV)  # sin _set_ref_main
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "s3gen_v3.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "ve.safetensors").write_bytes(VALID_SAFETENSORS)
+        assert is_model_cached("es-mx-latam") is True
 
     def test_safetensors_header_truncated_returns_false(self, tmp_path, monkeypatch):
         """R-04: un t3_es_mx_latam.safetensors truncado (header-length inválido)
@@ -295,12 +338,13 @@ class TestIsModelCached:
 
         hub = self._fake_hub(tmp_path, monkeypatch)
         model_dir = hub / ES_MX_FOLDER
-        snap = _make_snapshot(model_dir, "abc123")
-        _set_ref_main(model_dir, "abc123")
+        snap = _make_snapshot(model_dir, PINNED_REV)
+        _set_ref_main(model_dir, PINNED_REV)
 
         # Header-length 0 (los 8 primeros bytes a cero): archivo vacío/truncado.
         (snap / "t3_es_mx_latam.safetensors").write_bytes(b"\x00" * 8)
-        (snap / "ve.safetensors").write_bytes(b"\x00")
+        (snap / "s3gen_v3.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "ve.safetensors").write_bytes(VALID_SAFETENSORS)
         assert is_model_cached("es-mx-latam") is False
         # El helper en sí también lo rechaza: el header-length de 0 nunca es
         # válido (un header JSON de tamaño 0 no codifica metadatos del tensor).
@@ -313,15 +357,46 @@ class TestIsModelCached:
 
         hub = self._fake_hub(tmp_path, monkeypatch)
         model_dir = hub / ES_MX_FOLDER
-        snap = _make_snapshot(model_dir, "abc123")
-        _set_ref_main(model_dir, "abc123")
-        # header_len = 100 (little-endian), seguido de 100 bytes de relleno:
-        # tamaño plausible (100 < 8+100).
-        t3 = b"\x64\x00\x00\x00\x00\x00\x00\x00" + b"\x00" * 100
-        (snap / "t3_es_mx_latam.safetensors").write_bytes(t3)
-        (snap / "ve.safetensors").write_bytes(b"\x00")
+        snap = _make_snapshot(model_dir, PINNED_REV)
+        _set_ref_main(model_dir, PINNED_REV)
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "s3gen_v3.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "ve.safetensors").write_bytes(VALID_SAFETENSORS)
         assert _safetensors_header_ok(snap / "t3_es_mx_latam.safetensors") is True
         assert is_model_cached("es-mx-latam") is True
+
+    def test_s3gen_truncated_returns_false(self, tmp_path, monkeypatch):
+        """R-07: un s3gen_v3.safetensors truncado se reporta como no cacheado,
+        igual que el T3 (el engine carga los tres checkpoints)."""
+        hub = self._fake_hub(tmp_path, monkeypatch)
+        model_dir = hub / ES_MX_FOLDER
+        snap = _make_snapshot(model_dir, PINNED_REV)
+        _set_ref_main(model_dir, PINNED_REV)
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "s3gen_v3.safetensors").write_bytes(b"\x00" * 8)  # header-length 0
+        (snap / "ve.safetensors").write_bytes(VALID_SAFETENSORS)
+        assert is_model_cached("es-mx-latam") is False
+
+    def test_s3gen_missing_returns_false(self, tmp_path, monkeypatch):
+        """R-07: sin s3gen_v3.safetensors el modelo no está completo."""
+        hub = self._fake_hub(tmp_path, monkeypatch)
+        model_dir = hub / ES_MX_FOLDER
+        snap = _make_snapshot(model_dir, PINNED_REV)
+        _set_ref_main(model_dir, PINNED_REV)
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "ve.safetensors").write_bytes(VALID_SAFETENSORS)
+        assert is_model_cached("es-mx-latam") is False
+
+    def test_ve_truncated_returns_false(self, tmp_path, monkeypatch):
+        """R-07: un ve.safetensors truncado ya no pasa por mera existencia."""
+        hub = self._fake_hub(tmp_path, monkeypatch)
+        model_dir = hub / ES_MX_FOLDER
+        snap = _make_snapshot(model_dir, PINNED_REV)
+        _set_ref_main(model_dir, PINNED_REV)
+        (snap / "t3_es_mx_latam.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "s3gen_v3.safetensors").write_bytes(VALID_SAFETENSORS)
+        (snap / "ve.safetensors").write_bytes(b"\x00" * 8)  # header-length 0
+        assert is_model_cached("es-mx-latam") is False
 
     def test_safetensors_header_larger_than_file_returns_false(self, tmp_path):
         """Un header-length que excede el tamaño del archivo es signo claro de

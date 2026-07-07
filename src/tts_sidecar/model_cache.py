@@ -20,6 +20,20 @@ MODELS = {
 # language pack es-mx-latam no incluye.
 BASE_MODEL_REPO = "ResembleAI/chatterbox"
 
+# Revisiones fijadas de los repos del modelo (R-15): commit hash de HuggingFace
+# auditado por release. 'setup' descarga exactamente estas revisiones y la
+# detección de caché valida contra su snapshot, de modo que un push posterior
+# (malicioso o accidental) al repo del modelo no se propaga a los usuarios.
+#
+# Proceso de actualización (parte del runbook de release, ver docs/RELEASING.md):
+#   1. Consultar el sha vigente:  https://huggingface.co/api/models/<repo>  (campo "sha")
+#   2. Auditar el diff de la revisión nueva en la pestaña "Files" del repo de HF.
+#   3. Reemplazar el hash aquí y verificar con 'setup --force-update' + 'doctor'.
+MODEL_REVISIONS = {
+    "es-mx-latam": "27e595bf2fe7be0533ca299d9afafcde08b7cca7",
+}
+BASE_MODEL_REVISION = "5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18"
+
 # Mapa único de alias/repos al nombre de carpeta en la caché de HuggingFace
 CACHE_NAMES = {
     "es-mx-latam": "models--ResembleAI--Chatterbox-Multilingual-es-mx-latam",
@@ -74,17 +88,25 @@ def _safetensors_header_ok(path: Path) -> bool:
     return 0 < header_len < size
 
 
-def _resolve_cached_snapshot(model_cache_dir: Path) -> Optional[Path]:
+def _resolve_cached_snapshot(
+    model_cache_dir: Path, revision: Optional[str] = None
+) -> Optional[Path]:
     """
     Resuelve el snapshot vigente de un modelo en la caché de HuggingFace.
 
-    Prefiere la revisión apuntada por refs/main (la que huggingface_hub considera
-    actual); si el ref no existe o apunta a un snapshot ausente, cae al snapshot
-    más reciente por mtime. Devuelve None si no hay ninguno.
+    Con una revisión fijada (R-15) resuelve exclusivamente snapshots/<revision>:
+    un snapshot de cualquier otra revisión no cuenta como caché válida. Sin
+    revisión, prefiere la apuntada por refs/main (la que huggingface_hub
+    considera actual); si el ref no existe o apunta a un snapshot ausente, cae
+    al snapshot más reciente por mtime. Devuelve None si no hay ninguno.
     """
     snap_path = model_cache_dir / "snapshots"
     if not snap_path.exists():
         return None
+
+    if revision is not None:
+        candidate = snap_path / revision
+        return candidate if candidate.is_dir() else None
 
     ref_main = model_cache_dir / "refs" / "main"
     if ref_main.exists():
@@ -107,10 +129,24 @@ def is_ve_cached(lang_snapshot: Optional[Path] = None) -> bool:
     en el snapshot cacheado del modelo base (BASE_MODEL_REPO): este chequeo
     replica exactamente esa resolución sin disparar descargas.
     """
-    if lang_snapshot is not None and (lang_snapshot / "ve.safetensors").exists():
-        return True
-    base = _resolve_cached_snapshot(hub_cache_path() / cache_folder_for(BASE_MODEL_REPO))
-    return base is not None and (base / "ve.safetensors").exists()
+    # R-07: existencia + validación de header, igual que los otros checkpoints;
+    # un ve.safetensors truncado por una descarga a medias pasaba el .exists()
+    # y reventaba con un error críptico en el primer speak.
+    if lang_snapshot is not None:
+        ve = lang_snapshot / "ve.safetensors"
+        if ve.exists() and _safetensors_header_ok(ve):
+            return True
+    # La resolución del repo base honra la revisión fijada (cierre del hueco
+    # residual de R-06): un ve.safetensors de otra revisión no cuenta como
+    # caché válida, igual que 'setup' lo descarga con revision=BASE_MODEL_REVISION.
+    base = _resolve_cached_snapshot(
+        hub_cache_path() / cache_folder_for(BASE_MODEL_REPO),
+        revision=BASE_MODEL_REVISION,
+    )
+    if base is None:
+        return False
+    ve = base / "ve.safetensors"
+    return ve.exists() and _safetensors_header_ok(ve)
 
 
 def is_model_cached(model: str = "es-mx-latam") -> bool:
@@ -122,7 +158,17 @@ def is_model_cached(model: str = "es-mx-latam") -> bool:
     """
     model_name = MODELS.get(model, model)
 
-    cached = _resolve_cached_snapshot(hub_cache_path() / cache_folder_for(model_name))
+    # Revisión fijada del modelo (R-15): acepta tanto el alias como el repo id.
+    revision = MODEL_REVISIONS.get(model)
+    if revision is None:
+        for alias, repo in MODELS.items():
+            if repo == model_name:
+                revision = MODEL_REVISIONS.get(alias)
+                break
+
+    cached = _resolve_cached_snapshot(
+        hub_cache_path() / cache_folder_for(model_name), revision=revision
+    )
 
     if cached is None:
         return False
@@ -135,11 +181,13 @@ def is_model_cached(model: str = "es-mx-latam") -> bool:
     # cargar, así que se reporta como no cacheado para que 'doctor' lo marque
     # FAIL y remita a 'setup' (re-descarga limpia).
     if model == "es-mx-latam" or "es-mx-latam" in model_name:
-        t3_path = cached / "t3_es_mx_latam.safetensors"
-        if not t3_path.exists():
-            return False
-        if not _safetensors_header_ok(t3_path):
-            return False
+        # R-07: el engine carga tres checkpoints (T3, S3Gen y Voice Encoder);
+        # los tres se validan con el mismo chequeo ligero de header, de modo
+        # que un truncamiento en cualquiera se reporte como «no cacheado».
+        for filename in ("t3_es_mx_latam.safetensors", "s3gen_v3.safetensors"):
+            path = cached / filename
+            if not path.exists() or not _safetensors_header_ok(path):
+                return False
         return is_ve_cached(cached)
 
     return True

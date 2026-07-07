@@ -462,8 +462,11 @@ binario.
   `Instalar (PATH + modelo).command` del volumen nuevo.
 
 En los tres casos, el modelo descargado (`~/.cache/huggingface/hub`) se
-reutiliza tal cual salvo que la nueva versión requiera un modelo distinto, en
-cuyo caso `setup` lo detecta y descarga la diferencia.
+reutiliza tal cual. Cada versión del binario fija la revisión exacta del modelo
+que usa: si tu caché contiene otra revisión (por ejemplo, la de una versión
+anterior), `setup` la detecta como no provisionada y descarga la revisión
+requerida, reutilizando los archivos que no cambiaron entre revisiones (la
+caché de HuggingFace deduplica por contenido).
 
 ---
 
