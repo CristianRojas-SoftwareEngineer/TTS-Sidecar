@@ -5,7 +5,9 @@ de los avisos de licencia en el bundle distribuible.
 """
 
 import base64
+import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -37,6 +39,13 @@ BUILD_SUBPROCESS_TIMEOUT = 600
 # BUILD_SUBPROCESS_TIMEOUT para no abortar una compilación legítima que
 # simplemente tarda más en un runner de CI cargado (WARNING-05).
 PYINSTALLER_TIMEOUT = 1800
+
+# Timeout para la generación del instalador Inno Setup (ISCC): comprimir el
+# onedir de ~1.6 GB con lzma/normal tarda ~3-5 min con progreso por archivo,
+# pero un runner de CI cargado puede acercarse al límite; los 600 s del timeout
+# genérico eran insuficientes y provocaban un TimeoutExpired no atrapado que
+# dejaba el instalador ausente (evidencia pipeline #30).
+INSTALLER_TIMEOUT = 1800
 
 # Versiones pineadas de las herramientas de build, espejo de las que instala
 # .circleci/config.yml: un build local con estas versiones produce el mismo
@@ -448,3 +457,60 @@ class BuildTimer:
             log("=== BUILD FALLIDO ===", self.duration)
         print()
         return False
+
+
+def kill_process_tree(pid: int) -> None:
+    """Mata el proceso `pid` y todos sus descendientes.
+
+    Red de seguridad para el timeout de run_pyinstaller: en el cuelgue COM de
+    Windows, matar solo al hijo directo no basta — el proceso de análisis deja
+    un zombie que retiene los pipes heredados y mantiene el job de CI colgado
+    (evidencia commit 524b18e). Se mata el árbol completo: en Windows con
+    `taskkill /T /F`, en POSIX con `os.killpg` sobre el grupo de procesos.
+    """
+    if sys.platform == "win32":
+        subprocess.run(
+            ["taskkill", "/T", "/F", "/PID", str(pid)],
+            capture_output=True,
+        )
+    else:
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+
+def run_pyinstaller(pyinstaller_args: list, timeout: int) -> int:
+    """Lanza PyInstaller heredando la consola y devuelve su returncode.
+
+    En Linux/macOS ejecuta `pyinstaller_args` directo. En Windows los reescribe
+    para lanzarlos a través de scripts/pyinstaller_wrapper.py, que setea
+    `sys.coinit_flags = 0x8` antes de importar comtypes y sale con os._exit,
+    evitando el cuelgue COM del análisis (ver el docstring del wrapper).
+    `pyinstaller_args` empieza con `[sys.executable, "-m", "PyInstaller", ...]`;
+    el wrapper reemplaza ese prefijo de 3 elementos, así que se le pasan solo los
+    args de PyInstaller (`pyinstaller_args[3:]`) — pasar `[2:]` dejaba un
+    "PyInstaller" colgando como primer argumento y rompía la invocación
+    (evidencia pipeline #22).
+
+    No se capturan pipes: el output de PyInstaller hace de heartbeat para CI. En
+    timeout mata el árbol de procesos (kill_process_tree) y devuelve 1.
+    """
+    if sys.platform == "win32":
+        wrapper = Path(__file__).parent / "pyinstaller_wrapper.py"
+        cmd = [sys.executable, str(wrapper), *pyinstaller_args[3:]]
+        proc = subprocess.Popen(cmd)
+    else:
+        # Grupo de procesos propio para poder matar el árbol completo en timeout.
+        proc = subprocess.Popen(pyinstaller_args, start_new_session=True)
+
+    try:
+        return proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        log(f"[TIMEOUT] PyInstaller excedió {timeout}s; matando el árbol de procesos")
+        kill_process_tree(proc.pid)
+        try:
+            proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            pass
+        return 1

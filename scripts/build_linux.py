@@ -18,7 +18,7 @@ BUILD_DIR = PROJECT_ROOT / "build"
 sys.path.insert(0, str(Path(__file__).parent))
 from build_utils import (
     log, StageTimer, BuildTimer, copy_license_files, get_version,
-    check_pyinstaller, common_pyinstaller_args, bundle_size_mb,
+    check_pyinstaller, common_pyinstaller_args, bundle_size_mb, run_pyinstaller,
     ensure_png_icon, ensure_build_dependency, module_available,
     fetch_pinned_asset, APPIMAGE_TOOLING,
     BUILD_SUBPROCESS_TIMEOUT, PYINSTALLER_TIMEOUT,
@@ -162,17 +162,13 @@ def build_linux(target_arch="x86_64"):
                 extra_collect_all=["sounddevice"],
             )
             log(f"Ejecutando: pyinstaller {' '.join(pyinstaller_args[2:])}")
+            # run_pyinstaller gestiona el timeout con kill de árbol de procesos
+            # (build_utils); en Linux la invocación es directa (sin wrapper COM).
             try:
-                returncode = subprocess.run(
-                    pyinstaller_args,
-                    timeout=PYINSTALLER_TIMEOUT,
-                ).returncode
+                returncode = run_pyinstaller(pyinstaller_args, PYINSTALLER_TIMEOUT)
             except KeyboardInterrupt:
                 log("\n[CANCEL] Build cancelado por el usuario.")
                 sys.exit(130)
-            except subprocess.TimeoutExpired:
-                log(f"\n[TIMEOUT] PyInstaller excedió {PYINSTALLER_TIMEOUT}s.")
-                sys.exit(1)
 
         if returncode != 0:
             log("PyInstaller falló", returncode)
@@ -235,21 +231,20 @@ def build_linux(target_arch="x86_64"):
             generated = DIST_DIR / f"tts-sidecar-{version}-{appimage_arch}.AppImage"
             env = os.environ.copy()
             env["ARCH"] = appimage_arch
+            # Consola heredada (sin capture_output): el output de appimagetool es
+            # el heartbeat del step de CI. Su fallo es fatal: un build sin AppImage
+            # nunca debe reportar éxito (publish-release exige el artefacto).
             result = subprocess.run(
                 [str(appimagetool), "--appimage-extract-and-run",
                  "--runtime-file", str(runtime),
                  str(appdir), str(generated)],
                 cwd=str(PROJECT_ROOT),
                 env=env,
-                capture_output=True, text=True,
                 timeout=BUILD_SUBPROCESS_TIMEOUT,
             )
             if result.returncode != 0 or not generated.exists():
-                log(f"La generación del AppImage falló (rc={result.returncode})")
-                print(result.stdout)
-                print(result.stderr, file=sys.stderr)
-                log("WARNING: AppImage falló — el bundle onedir sigue en dist/")
-                return
+                log(f"ERROR: La generación del AppImage falló (rc={result.returncode})")
+                sys.exit(1)
 
             log(f"AppImage creado: {generated}")
 

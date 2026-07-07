@@ -31,3 +31,50 @@ def test_desktop_entry_application_type_and_terminal():
     assert "Icon=tts-sidecar" in desktop
     assert "Terminal=true" in desktop
     assert desktop.count("\n") >= 6  # al menos 6 líneas (clave=valor)
+
+
+def test_appimage_failure_is_fatal(tmp_path, monkeypatch):
+    """appimagetool con rc != 0 debe abortar el build con SystemExit(1),
+    heredando la consola (sin capture_output) para que su output sea visible."""
+    import build_linux
+
+    dist = tmp_path / "dist"
+    build = tmp_path / "build"
+    dist.mkdir()
+    build.mkdir()
+    onedir = dist / "tts-sidecar"
+    onedir.mkdir()
+    (onedir / "tts-sidecar").write_text("bin", encoding="utf-8")
+
+    monkeypatch.setattr(build_linux, "DIST_DIR", dist)
+    monkeypatch.setattr(build_linux, "BUILD_DIR", build)
+    monkeypatch.setattr(build_linux, "run_pyinstaller", lambda args, timeout: 0)
+    monkeypatch.setattr(build_linux, "bundle_size_mb", lambda o: 0.0)
+    monkeypatch.setattr(build_linux, "copy_license_files", lambda d: None)
+    monkeypatch.setattr(build_linux, "ensure_png_icon", lambda p: p)
+    monkeypatch.setattr(build_linux, "get_version", lambda: "9.9.9")
+
+    fake_tool = tmp_path / "appimagetool"
+    fake_tool.write_text("x", encoding="utf-8")
+    fake_runtime = tmp_path / "runtime"
+    fake_runtime.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(
+        build_linux, "provision_appimage_tooling",
+        lambda arch: (fake_tool, fake_runtime),
+    )
+
+    captured = {}
+
+    class Result:
+        returncode = 1
+
+    def fake_run(*a, **k):
+        captured.update(k)
+        return Result()
+
+    monkeypatch.setattr(build_linux.subprocess, "run", fake_run)
+
+    with pytest.raises(SystemExit) as exc:
+        build_linux.build_linux("x86_64")
+    assert exc.value.code == 1
+    assert "capture_output" not in captured

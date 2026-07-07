@@ -93,6 +93,7 @@ python -m py_compile src/tts_sidecar/daemon/*.py
 ```bash
 # Windows (requiere Inno Setup instalado)
 python scripts/build_windows.py --arch x86_64
+python scripts/build_windows.py --arch x86_64 --no-installer   # solo el onedir (el CI genera el instalador aparte)
 
 # Linux (descarga appimagetool + runtime estático, pineados por SHA-256)
 python scripts/build_linux.py --arch x86_64
@@ -103,6 +104,24 @@ python scripts/build_macos.py --arch arm64
 
 Los scripts (`scripts/build_*.py`) ejecutan PyInstaller con `--onedir` y luego llaman
 a la herramienta de empaquetado correspondiente para producir el instalador final.
+
+**Lanzador común de PyInstaller.** Los tres scripts invocan PyInstaller a través de
+`build_utils.run_pyinstaller()`, que centraliza el timeout (con kill del árbol de
+procesos como red de seguridad) y, **en Windows**, reescribe la invocación para pasar
+por `scripts/pyinstaller_wrapper.py`. Ese wrapper existe por un cuelgue COM: durante el
+análisis, PyInstaller importa `pycaw → comtypes`, que inicializa COM en modo apartment;
+en el runner headless de CI, el `CoUninitialize()` de `atexit` bloquea el shutdown del
+intérprete y deja un proceso zombie que retiene el pipe de CircleCI y cuelga el job. El
+wrapper arranca un bootstrap que fija `sys.coinit_flags = 0x8` (COINIT_MULTITHREADED)
+**antes de cualquier import** y sale con `os._exit()`, saltándose ese cleanup. En Linux y
+macOS la invocación es directa, sin wrapper.
+
+**Fallo fatal de los empaquetadores.** Inno Setup (Windows), appimagetool (Linux) y
+create-dmg (macOS) heredan la consola (su propio output es el heartbeat del step de CI) y
+**su fallo aborta el build con exit ≠ 0**: un build sin instalador/AppImage/DMG nunca
+reporta éxito, porque `publish-release` exige los cuatro artefactos versionados. El
+instalador de Windows además emite compresión `lzma/normal` (progreso por archivo, en
+lugar del `lzma2/max` silencioso que CircleCI mataba) y usa `INSTALLER_TIMEOUT` holgado.
 
 > El entry point `bin/tts-sidecar` es la semilla que PyInstaller empaqueta. El bundle
 > resultante hereda ese nombre en `dist/tts-sidecar/`. Véase `docs/ARCHITECTURE.md` para
@@ -247,11 +266,26 @@ Los tests (3) y los builds (4) no están desalineados: responden a **ejes distin
 | `test-linux` | Linux x64 | docker `cimg/python:3.13` | `pytest tests/` en Linux (puerta previa) |
 | `test-windows` | Windows x64 | `win/server-2022` | `pytest tests/` en Windows nativo (puerta previa) |
 | `test-macos` | macOS arm64 (Apple Silicon) | macos `m4pro.medium` (Xcode 26.4.0) | `pytest tests/` en macOS nativo (puerta previa) |
-| `build-windows-x64` | Windows x64 | `win/server-2022` | PyInstaller onedir + Inno Setup |
+| `build-windows-x64` | Windows x64 | `win/server-2022` | **Dos steps:** «Build Windows (PyInstaller onedir)» (`--no-installer`, `no_output_timeout: 20m`) y «Generate installer» (`create_installer_windows.py`, `no_output_timeout: 25m`) |
 | `build-linux-x64` | Linux x64 | docker `cimg/python:3.13` | PyInstaller onedir + AppImage |
 | `build-linux-arm64` | Linux ARM64 | machine `arm.medium` | PyInstaller onedir + AppImage |
 | `build-darwin-arm64` | macOS arm64 (Apple Silicon) | macos `m4pro.medium` (Xcode 26.4.0) | PyInstaller onedir + .app + .dmg |
 | `publish-release` | — (CD) | docker `cimg/base:current` | Solo en tags `v*`: recolecta los 4 artefactos por workspace, genera `SHA256SUMS.txt` y crea un GitHub Release en **borrador** |
+
+**Instalador de Windows como step separado.** En `build-windows-x64`, PyInstaller y la
+generación del instalador Inno Setup son dos steps distintos: el primero corre
+`build_windows.py --no-installer` (solo el onedir), y el segundo invoca directamente a
+`create_installer_windows.py`. Cada uno declara su propio `no_output_timeout`, de modo que
+ninguna de las dos etapas largas comparte el presupuesto de silencio de la otra ni cae en
+el default de 10 min.
+
+**Logging homogéneo `[STEP] … INICIO/FIN`.** Todos los run-steps de los 7 jobs enmarcan su
+comando con marcadores `[STEP] <nombre> - INICIO` / `- FIN` (`echo` en los jobs bash,
+`Write-Host` en los PowerShell). En PowerShell, cada invocación que puede fallar va seguida
+de un chequeo `if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }` **antes** del marcador FIN:
+sin él, el `Write-Host` final resetearía el exit code del step y lo pondría verde pese al
+fallo. Los steps con riesgo de silencio prolongado (`pyenv install`, builds, instalador)
+declaran `no_output_timeout` explícito.
 
 El archivo de configuración completo está en `.circleci/config.yml`.
 

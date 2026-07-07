@@ -18,8 +18,8 @@ BUILD_DIR = PROJECT_ROOT / "build"
 sys.path.insert(0, str(Path(__file__).parent))
 from build_utils import (
     log, StageTimer, BuildTimer, copy_license_files,
-    check_pyinstaller, common_pyinstaller_args, bundle_size_mb,
-    BUILD_SUBPROCESS_TIMEOUT, PYINSTALLER_TIMEOUT,
+    check_pyinstaller, common_pyinstaller_args, bundle_size_mb, run_pyinstaller,
+    BUILD_SUBPROCESS_TIMEOUT, PYINSTALLER_TIMEOUT, INSTALLER_TIMEOUT,
 )
 
 
@@ -51,7 +51,7 @@ def check_dependencies():
     ensure_runtime_dependencies()
 
 
-def build_windows(target_arch="x86_64"):
+def build_windows(target_arch="x86_64", no_installer=False):
     """Compila tts-sidecar para Windows x64 con PyInstaller --onedir."""
     with BuildTimer():
         with StageTimer("Setup", "Preparando entorno de build"):
@@ -69,19 +69,13 @@ def build_windows(target_arch="x86_64"):
             )
             # [2:] omite [sys.executable, "-m"] del log para mostrar solo los args de PyInstaller
             log(f"Running: pyinstaller {' '.join(pyinstaller_args[2:])}")
+            # run_pyinstaller reescribe la invocación al wrapper COM en Windows y
+            # gestiona el timeout con kill de árbol de procesos (build_utils).
             try:
-                returncode = subprocess.run(
-                    pyinstaller_args,
-                    # Heredar la consola para que la barra de progreso de PyInstaller se renderice;
-                    # las cabeceras [HH:MM:SS] del padre enmarcan cada fase.
-                    timeout=PYINSTALLER_TIMEOUT,
-                ).returncode
+                returncode = run_pyinstaller(pyinstaller_args, PYINSTALLER_TIMEOUT)
             except KeyboardInterrupt:
                 log("\n[CANCEL] Build cancelado por el usuario.")
                 sys.exit(130)  # 128 + 2 (SIGINT)
-            except subprocess.TimeoutExpired:
-                log(f"\n[TIMEOUT] PyInstaller excedió {PYINSTALLER_TIMEOUT}s.")
-                sys.exit(1)
 
         if returncode != 0:
             log("PyInstaller falló", returncode)
@@ -95,22 +89,26 @@ def build_windows(target_arch="x86_64"):
         with StageTimer("Licenses", "Empaquetando avisos de licencia"):
             copy_license_files(DIST_DIR / "tts-sidecar")
 
-        with StageTimer("Installer", "Generando instalador Inno Setup"):
-            installer_script = PROJECT_ROOT / "scripts" / "create_installer_windows.py"
-            try:
-                returncode = subprocess.run(
-                    [sys.executable, str(installer_script), str(DIST_DIR / "tts-sidecar")],
-                    check=False,
-                    timeout=BUILD_SUBPROCESS_TIMEOUT,
-                ).returncode
-            except subprocess.TimeoutExpired:
-                log(f"[TIMEOUT] La generación del instalador excedió {BUILD_SUBPROCESS_TIMEOUT}s")
-                returncode = 1
-            if returncode != 0:
-                log(f"Generación del instalador fallida (rc={returncode})")
-                # No fatal: el bundle onedir sigue siendo usable
-                log("WARNING: Instalador no creado — el bundle onedir está disponible en dist/")
-            else:
+        if no_installer:
+            log("Etapa Installer omitida (--no-installer); el CI la corre como step separado")
+        else:
+            with StageTimer("Installer", "Generando instalador Inno Setup"):
+                installer_script = PROJECT_ROOT / "scripts" / "create_installer_windows.py"
+                try:
+                    returncode = subprocess.run(
+                        [sys.executable, str(installer_script), str(DIST_DIR / "tts-sidecar")],
+                        check=False,
+                        # Margen sobre el timeout interno de ISCC (create_installer_windows).
+                        timeout=INSTALLER_TIMEOUT + 60,
+                    ).returncode
+                except subprocess.TimeoutExpired:
+                    log(f"[TIMEOUT] La generación del instalador excedió {INSTALLER_TIMEOUT + 60}s")
+                    returncode = 1
+                if returncode != 0:
+                    # Fatal: un build sin instalador nunca debe reportar éxito
+                    # (el step de CI/publish-release exige el .exe versionado).
+                    log(f"ERROR: Generación del instalador fallida (rc={returncode})")
+                    sys.exit(1)
                 log("Instalador creado correctamente")
 
 
@@ -122,6 +120,10 @@ if __name__ == "__main__":
         choices=["x86_64"],
         help="Target architecture (default: x86_64; Windows-on-ARM no está soportado)",
     )
+    parser.add_argument(
+        "--no-installer", action="store_true",
+        help="Omite la etapa Installer (el CI la corre como step separado)",
+    )
     args = parser.parse_args()
     check_dependencies()
-    build_windows(args.arch)
+    build_windows(args.arch, args.no_installer)

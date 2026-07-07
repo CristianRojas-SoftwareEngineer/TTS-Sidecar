@@ -27,6 +27,15 @@ def test_installer_name_includes_version_and_suffix(iss):
     assert "OutputBaseFilename=tts-sidecar-9.9.9-x86_64-setup" in iss
 
 
+def test_setup_uses_safe_compression(iss):
+    # El .iss debe emitir compresión con output periódico visible (heartbeat de
+    # CI): lzma/normal + SolidCompression=no comprimen por archivo en vez del
+    # lzma2/max silencioso default que CircleCI mataba (pipelines #29-#30).
+    assert "Compression=lzma/normal" in iss
+    assert "SolidCompression=no" in iss
+    assert "LZMAUseSeparateProcess=yes" in iss
+
+
 def test_setup_postinstall_persists_console(iss):
     # W-03: el setup post-instalación se lanza vía `cmd /k` para que la consola
     # quede abierta mostrando el resultado (éxito o fallo) hasta que el usuario
@@ -88,13 +97,13 @@ def test_main_builds_installer_with_mocked_iscc(tmp_path, monkeypatch):
 
     def fake_run(cmd, **kwargs):
         invocations.append(cmd)
+        # ISCC ahora hereda la consola: no debe pasarse capture_output.
+        assert "capture_output" not in kwargs
         # El .iss es un tempfile que main() borra en su finally: se lee aquí.
         iss_contents.append(Path(cmd[1]).read_text(encoding="utf-8"))
 
         class Result:
             returncode = 0
-            stdout = ""
-            stderr = ""
 
         # Simula el artefacto que ISCC dejaría en OutputDir.
         version = ciw.get_version()
@@ -119,3 +128,30 @@ def test_main_builds_installer_with_mocked_iscc(tmp_path, monkeypatch):
     assert cmd[0] == fake_iscc
     assert cmd[1].endswith(".iss")
     assert "OutputBaseFilename=tts-sidecar-" in iss_contents[0]
+
+
+def test_main_installer_timeout_is_fatal(tmp_path, monkeypatch):
+    """Un ISCC que excede el timeout debe abortar con SystemExit(1), no degradar."""
+    import create_installer_windows as ciw
+
+    onedir = tmp_path / "onedir"
+    onedir.mkdir()
+    (onedir / "tts-sidecar.exe").write_bytes(b"MZ")
+    output_dir = tmp_path / "out"
+    fake_iscc = str(tmp_path / "ISCC.exe")
+
+    def fake_run(cmd, **kwargs):
+        raise ciw.subprocess.TimeoutExpired(cmd=cmd, timeout=kwargs.get("timeout"))
+
+    monkeypatch.setattr(
+        sys, "argv",
+        ["create_installer_windows.py", str(onedir), "--output", str(output_dir)],
+    )
+    monkeypatch.setattr(ciw, "get_inno_setup_path", lambda: fake_iscc)
+    monkeypatch.setattr(ciw, "ensure_build_dependency", lambda *a, **k: True)
+    monkeypatch.setattr(ciw, "ensure_ico", lambda _dir: None)
+    monkeypatch.setattr(ciw.subprocess, "run", fake_run)
+
+    with pytest.raises(SystemExit) as exc:
+        ciw.main()
+    assert exc.value.code == 1

@@ -16,25 +16,39 @@ jobs:
       - run:
           name: Install system dependencies
           command: |
+            echo "[STEP] Install system dependencies - INICIO"
             sudo apt-get update
             sudo apt-get install -y libasound2-dev
+            echo "[STEP] Install system dependencies - FIN"
       - run:
           # Instalación reproducible desde el lock universal con hashes
           # (--require-hashes rechaza cualquier paquete sin hash o no fijado).
           name: Install runtime dependencies (locked)
-          command: pip install -r requirements-lock.txt --require-hashes
+          command: |
+            echo "[STEP] Install runtime dependencies (locked) - INICIO"
+            pip install -r requirements-lock.txt --require-hashes
+            echo "[STEP] Install runtime dependencies (locked) - FIN"
       - run:
           name: Install pytest
-          command: pip install pytest==9.1.1
+          command: |
+            echo "[STEP] Install pytest - INICIO"
+            pip install pytest==9.1.1
+            echo "[STEP] Install pytest - FIN"
       - run:
           # WARNING-04: CLAUDE.md documenta py_compile como chequeo de verificación,
           # pero no corría en CI; compileall detecta errores de sintaxis en módulos
           # sin tests propios o importados condicionalmente, antes del build.
           name: Check syntax (py_compile)
-          command: python -m compileall src/
+          command: |
+            echo "[STEP] Check syntax (py_compile) - INICIO"
+            python -m compileall src/
+            echo "[STEP] Check syntax (py_compile) - FIN"
       - run:
           name: Run tests
-          command: pytest tests/ -v
+          command: |
+            echo "[STEP] Run tests - INICIO"
+            pytest tests/ -v
+            echo "[STEP] Run tests - FIN"
 
   test-windows:
     # R-22: la suite corría solo en Linux; todo el código específico de Windows
@@ -48,19 +62,36 @@ jobs:
           # Pin de Chocolatey (espejo de build-windows-x64): un release nuevo no debe
           # romper el job sin cambios en el repo.
           name: Install Python 3.13
-          command: choco install python313 -y --version=3.13.14
+          command: |
+            Write-Host "[STEP] Install Python 3.13 - INICIO"
+            choco install python313 -y --version=3.13.14
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Install Python 3.13 - FIN"
       - run:
           name: Install runtime dependencies (locked)
           command: |
+            Write-Host "[STEP] Install runtime dependencies (locked) - INICIO"
             python --version
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             python -m pip install --upgrade pip
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             python -m pip install -r requirements-lock.txt --require-hashes
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Install runtime dependencies (locked) - FIN"
       - run:
           name: Install pytest
-          command: python -m pip install pytest==9.1.1
+          command: |
+            Write-Host "[STEP] Install pytest - INICIO"
+            python -m pip install pytest==9.1.1
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Install pytest - FIN"
       - run:
           name: Run tests
-          command: python -m pytest tests/ -v
+          command: |
+            Write-Host "[STEP] Run tests - INICIO"
+            python -m pytest tests/ -v
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Run tests - FIN"
 
   test-macos:
     # Equivalencia de cobertura con test-linux/test-windows: sin un Mac físico
@@ -76,20 +107,30 @@ jobs:
       - run:
           # Pin de Python 3.13 vía pyenv (espejo de build-darwin-arm64): no usar
           # el python3 del sistema sin fijar, para testear sobre la misma versión
-          # que empaqueta el build.
+          # que empaqueta el build. no_output_timeout holgado: pyenv compila
+          # CPython desde fuente con output escaso y puede acercarse a los 10 min.
           name: Set up Python 3.13
+          no_output_timeout: 20m
           command: |
+            echo "[STEP] Set up Python 3.13 - INICIO"
             pyenv install -s 3.13
             pyenv global 3.13
             python --version
             python -m pip install --upgrade pip
             python -m pip install -r requirements-lock.txt --require-hashes
+            echo "[STEP] Set up Python 3.13 - FIN"
       - run:
           name: Install pytest
-          command: python -m pip install pytest==9.1.1
+          command: |
+            echo "[STEP] Install pytest - INICIO"
+            python -m pip install pytest==9.1.1
+            echo "[STEP] Install pytest - FIN"
       - run:
           name: Run tests
-          command: python -m pytest tests/ -v
+          command: |
+            echo "[STEP] Run tests - INICIO"
+            python -m pytest tests/ -v
+            echo "[STEP] Run tests - FIN"
 
   build-windows-x64:
     executor: win/server-2022
@@ -100,26 +141,63 @@ jobs:
           # el build sin cambios en el repo. Versión fijada al momento de escribir
           # este pin; actualizar deliberadamente cuando se quiera adoptar una nueva.
           name: Install Python 3.13
-          command: choco install python313 -y --version=3.13.14
+          command: |
+            Write-Host "[STEP] Install Python 3.13 - INICIO"
+            choco install python313 -y --version=3.13.14
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Install Python 3.13 - FIN"
       - run:
           name: Install dependencies
           command: |
+            Write-Host "[STEP] Install dependencies - INICIO"
             python --version
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             python -m pip install --upgrade pip
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             python -m pip install -r requirements-lock.txt --require-hashes
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             python -m pip install pyinstaller==6.21.0
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             choco install innosetup -y --version=6.3.3
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Install dependencies - FIN"
       - run:
-          name: Build Windows
-          command: python scripts/build_windows.py --arch x86_64
+          # PyInstaller solo (--no-installer): la etapa Installer corre como step
+          # separado (abajo). PyInstaller se lanza vía scripts/pyinstaller_wrapper.py
+          # (COINIT_MULTITHREADED + os._exit) para evitar el cuelgue COM del análisis
+          # de pycaw/comtypes en el runner headless. no_output_timeout holgado: la
+          # compilación tarda 9-15 min con output continuo.
+          name: Build Windows (PyInstaller onedir)
+          no_output_timeout: 20m
+          command: |
+            Write-Host "[STEP] Build Windows (PyInstaller onedir) - INICIO"
+            python scripts/build_windows.py --arch x86_64 --no-installer
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Build Windows (PyInstaller onedir) - FIN"
       - run:
           # Ejecuta el binario congelado recién construido para detectar
           # empaquetados rotos (metadata faltante, --collect-all incompleto)
           # antes de publicar. `version` no carga el modelo; exit 0 obligatorio.
           name: Smoke test frozen binary
           command: |
+            Write-Host "[STEP] Smoke test frozen binary - INICIO"
             dist/tts-sidecar/tts-sidecar.exe version
-            if ($LASTEXITCODE -ne 0) { throw "Smoke test falló (exit $LASTEXITCODE)" }
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Smoke test frozen binary - FIN"
+      - run:
+          # Etapa Installer como step separado: invoca directamente al generador,
+          # que emite el .iss con compresión lzma/normal (progreso por archivo, no
+          # el lzma2/max silencioso >10 min que CircleCI mataba) y hereda la consola
+          # para que ese progreso sea el heartbeat. no_output_timeout amplio y
+          # chequeo de $LASTEXITCODE: el fallo del installer aborta el job (el
+          # instalador es artefacto obligatorio de publish-release; pipelines #29-#30).
+          name: Generate installer
+          no_output_timeout: 25m
+          command: |
+            Write-Host "[STEP] Generate installer - INICIO"
+            python scripts/create_installer_windows.py dist/tts-sidecar
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Generate installer - FIN"
       - run:
           # store_artifacts no expande globs: se copia el instalador (cuyo nombre
           # incluye la versión) a un nombre estable, independiente de __version__.
@@ -128,14 +206,20 @@ jobs:
           # reporte éxito falso cuando el instalador no se generó.
           name: Stage installer artifact
           command: |
+            Write-Host "[STEP] Stage installer artifact - INICIO"
             $ErrorActionPreference = 'Stop'
             if (-not (Test-Path dist/tts-sidecar-*-x86_64-setup.exe)) { throw "Instalador no encontrado en dist/" }
             Copy-Item dist/tts-sidecar-*-x86_64-setup.exe dist/tts-sidecar-x86_64-setup.exe
+            Write-Host "[STEP] Stage installer artifact - FIN"
       - run:
           # N-04: SHA-256 del artefacto en el log del CI, única verificación de
           # integridad posible sin firma de código (R-38).
           name: Emit artifact SHA-256
-          command: Get-FileHash dist/tts-sidecar-x86_64-setup.exe -Algorithm SHA256
+          command: |
+            Write-Host "[STEP] Emit artifact SHA-256 - INICIO"
+            Get-FileHash dist/tts-sidecar-x86_64-setup.exe -Algorithm SHA256
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Emit artifact SHA-256 - FIN"
       - run:
           # Persiste el instalador VERSIONADO (nombre de release, con arch) al
           # workspace para que `publish-release` lo recolecte sin token de API de
@@ -143,10 +227,12 @@ jobs:
           # sin match no aborta en PowerShell por defecto.
           name: Persist installer to workspace
           command: |
+            Write-Host "[STEP] Persist installer to workspace - INICIO"
             $ErrorActionPreference = 'Stop'
             New-Item -ItemType Directory -Force -Path artifacts | Out-Null
             if (-not (Test-Path dist/tts-sidecar-*-x86_64-setup.exe)) { throw "Instalador versionado no encontrado en dist/" }
             Copy-Item dist/tts-sidecar-*-x86_64-setup.exe artifacts/
+            Write-Host "[STEP] Persist installer to workspace - FIN"
       - persist_to_workspace:
           root: artifacts
           paths:
@@ -166,8 +252,10 @@ jobs:
       - run:
           name: Install system dependencies
           command: |
+            echo "[STEP] Install system dependencies - INICIO"
             sudo apt-get update
             sudo apt-get install -y patchelf libasound2-dev
+            echo "[STEP] Install system dependencies - FIN"
       - run:
           # N-05: lock específico con torch/torchaudio CPU-only (wheels +cpu del
           # índice oficial de PyTorch), sin el stack nvidia-*-cu12 que el índice
@@ -176,37 +264,57 @@ jobs:
           # están marcados platform_machine == 'x86_64', por lo que arm64 ya
           # instala sin CUDA desde el lock universal.
           name: Install runtime dependencies (locked, CPU-only)
-          command: pip install -r requirements-lock-linux-cpu.txt --require-hashes --extra-index-url https://download.pytorch.org/whl/cpu
+          command: |
+            echo "[STEP] Install runtime dependencies (locked, CPU-only) - INICIO"
+            pip install -r requirements-lock-linux-cpu.txt --require-hashes --extra-index-url https://download.pytorch.org/whl/cpu
+            echo "[STEP] Install runtime dependencies (locked, CPU-only) - FIN"
       - run:
           name: Install PyInstaller
           command: |
+            echo "[STEP] Install PyInstaller - INICIO"
             pip install pyinstaller==6.21.0
+            echo "[STEP] Install PyInstaller - FIN"
       - run:
           name: Build Linux x64
-          command: python scripts/build_linux.py --arch x86_64
+          no_output_timeout: 20m
+          command: |
+            echo "[STEP] Build Linux x64 - INICIO"
+            python scripts/build_linux.py --arch x86_64
+            echo "[STEP] Build Linux x64 - FIN"
       - run:
           # Ejecuta el binario congelado onedir para detectar empaquetados rotos
           # antes de publicar. `version` no carga el modelo; exit 0 obligatorio.
           name: Smoke test frozen binary
-          command: dist/tts-sidecar/tts-sidecar version
+          command: |
+            echo "[STEP] Smoke test frozen binary - INICIO"
+            dist/tts-sidecar/tts-sidecar version
+            echo "[STEP] Smoke test frozen binary - FIN"
       - run:
           # store_artifacts no expande globs: se copia el AppImage (cuyo nombre
           # incluye la versión) a un nombre estable, independiente de __version__.
           name: Stage AppImage artifact
-          command: cp dist/tts-sidecar-*-x86_64.AppImage dist/tts-sidecar-x86_64.AppImage
+          command: |
+            echo "[STEP] Stage AppImage artifact - INICIO"
+            cp dist/tts-sidecar-*-x86_64.AppImage dist/tts-sidecar-x86_64.AppImage
+            echo "[STEP] Stage AppImage artifact - FIN"
       - run:
           # N-04: SHA-256 del artefacto en el log del CI, única verificación de
           # integridad posible sin firma de código (R-38).
           name: Emit artifact SHA-256
-          command: sha256sum dist/tts-sidecar-x86_64.AppImage
+          command: |
+            echo "[STEP] Emit artifact SHA-256 - INICIO"
+            sha256sum dist/tts-sidecar-x86_64.AppImage
+            echo "[STEP] Emit artifact SHA-256 - FIN"
       - run:
           # Persiste el AppImage VERSIONADO (nombre de release, con arch) al
           # workspace para `publish-release`. Fail-fast: sin match, el glob se
           # pasa literal a cp → error → el step aborta (bash -eo pipefail).
           name: Persist AppImage to workspace
           command: |
+            echo "[STEP] Persist AppImage to workspace - INICIO"
             mkdir -p artifacts
             cp dist/tts-sidecar-*-x86_64.AppImage artifacts/
+            echo "[STEP] Persist AppImage to workspace - FIN"
       - persist_to_workspace:
           root: artifacts
           paths:
@@ -227,23 +335,36 @@ jobs:
       - run:
           name: Install system dependencies
           command: |
+            echo "[STEP] Install system dependencies - INICIO"
             sudo apt-get update
             sudo apt-get install -y patchelf libasound2-dev
+            echo "[STEP] Install system dependencies - FIN"
       - run:
+          # no_output_timeout holgado: pyenv compila CPython desde fuente con
+          # output escaso y puede acercarse a los 10 min del default.
           name: Set up Python 3.13
+          no_output_timeout: 20m
           command: |
+            echo "[STEP] Set up Python 3.13 - INICIO"
             pyenv install -s 3.13
             pyenv global 3.13
             python --version
+            echo "[STEP] Set up Python 3.13 - FIN"
       - run:
           name: Install dependencies
           command: |
+            echo "[STEP] Install dependencies - INICIO"
             python -m pip install --upgrade pip
             python -m pip install -r requirements-lock.txt --require-hashes
             python -m pip install pyinstaller==6.21.0
+            echo "[STEP] Install dependencies - FIN"
       - run:
           name: Build Linux ARM64
-          command: python scripts/build_linux.py --arch arm64
+          no_output_timeout: 20m
+          command: |
+            echo "[STEP] Build Linux ARM64 - INICIO"
+            python scripts/build_linux.py --arch arm64
+            echo "[STEP] Build Linux ARM64 - FIN"
       - run:
           # Ejecuta el binario congelado onedir para detectar empaquetados rotos
           # antes de publicar. `version` no carga el modelo; exit 0 obligatorio.
@@ -252,25 +373,36 @@ jobs:
           # que ejercita el stack nativo aarch64 (wheels, extensiones). Decisión
           # documentada en docs/BUILD.md §4.
           name: Smoke test frozen binary
-          command: dist/tts-sidecar/tts-sidecar version
+          command: |
+            echo "[STEP] Smoke test frozen binary - INICIO"
+            dist/tts-sidecar/tts-sidecar version
+            echo "[STEP] Smoke test frozen binary - FIN"
       - run:
           # store_artifacts no expande globs: se copia el AppImage (cuyo nombre
           # incluye la versión) a un nombre estable, independiente de __version__.
           name: Stage AppImage artifact
-          command: cp dist/tts-sidecar-*-aarch64.AppImage dist/tts-sidecar-aarch64.AppImage
+          command: |
+            echo "[STEP] Stage AppImage artifact - INICIO"
+            cp dist/tts-sidecar-*-aarch64.AppImage dist/tts-sidecar-aarch64.AppImage
+            echo "[STEP] Stage AppImage artifact - FIN"
       - run:
           # N-04: SHA-256 del artefacto en el log del CI, única verificación de
           # integridad posible sin firma de código (R-38).
           name: Emit artifact SHA-256
-          command: sha256sum dist/tts-sidecar-aarch64.AppImage
+          command: |
+            echo "[STEP] Emit artifact SHA-256 - INICIO"
+            sha256sum dist/tts-sidecar-aarch64.AppImage
+            echo "[STEP] Emit artifact SHA-256 - FIN"
       - run:
           # Persiste el AppImage VERSIONADO (nombre de release, con arch) al
           # workspace para `publish-release`. Fail-fast: sin match, el glob se
           # pasa literal a cp → error → el step aborta (bash -eo pipefail).
           name: Persist AppImage to workspace
           command: |
+            echo "[STEP] Persist AppImage to workspace - INICIO"
             mkdir -p artifacts
             cp dist/tts-sidecar-*-aarch64.AppImage artifacts/
+            echo "[STEP] Persist AppImage to workspace - FIN"
       - persist_to_workspace:
           root: artifacts
           paths:
@@ -291,18 +423,24 @@ jobs:
       - run:
           # Pin de Python 3.13 vía pyenv (espejo del job build-linux-arm64):
           # el runner de macOS no debe usar su python3 del sistema sin fijar,
-          # o el build empaquetaría una versión no controlada.
+          # o el build empaquetaría una versión no controlada. no_output_timeout
+          # holgado: pyenv compila CPython desde fuente con output escaso.
           name: Set up Python 3.13
+          no_output_timeout: 20m
           command: |
+            echo "[STEP] Set up Python 3.13 - INICIO"
             pyenv install -s 3.13
             pyenv global 3.13
             python --version
             python -m pip install --upgrade pip
             python -m pip install -r requirements-lock.txt --require-hashes
+            echo "[STEP] Set up Python 3.13 - FIN"
       - run:
           name: Install PyInstaller
           command: |
+            echo "[STEP] Install PyInstaller - INICIO"
             python -m pip install pyinstaller==6.21.0
+            echo "[STEP] Install PyInstaller - FIN"
       - run:
           # create-dmg es un script de shell distribuido por Homebrew, no un
           # paquete de PyPI: `pip3 install create-dmg` fallaba siempre
@@ -311,34 +449,51 @@ jobs:
           # de pip), así que se deja sin pin explícito.
           name: Install create-dmg (Homebrew)
           command: |
+            echo "[STEP] Install create-dmg (Homebrew) - INICIO"
             brew install create-dmg
+            echo "[STEP] Install create-dmg (Homebrew) - FIN"
       - run:
           name: Build macOS arm64
-          command: python3 scripts/build_macos.py --arch arm64
+          no_output_timeout: 20m
+          command: |
+            echo "[STEP] Build macOS arm64 - INICIO"
+            python3 scripts/build_macos.py --arch arm64
+            echo "[STEP] Build macOS arm64 - FIN"
       - run:
           # Ejecuta el binario congelado dentro del .app para detectar
           # empaquetados rotos antes de publicar. `version` no carga el modelo;
           # exit 0 obligatorio.
           name: Smoke test frozen binary
-          command: dist/tts-sidecar-arm64.app/Contents/MacOS/tts-sidecar version
+          command: |
+            echo "[STEP] Smoke test frozen binary - INICIO"
+            dist/tts-sidecar-arm64.app/Contents/MacOS/tts-sidecar version
+            echo "[STEP] Smoke test frozen binary - FIN"
       - run:
           # store_artifacts no expande globs: se copia el .dmg (cuyo nombre
           # incluye la versión) a un nombre estable, independiente de __version__.
           name: Stage DMG artifact
-          command: cp dist/tts-sidecar-*-arm64.dmg dist/tts-sidecar-arm64.dmg
+          command: |
+            echo "[STEP] Stage DMG artifact - INICIO"
+            cp dist/tts-sidecar-*-arm64.dmg dist/tts-sidecar-arm64.dmg
+            echo "[STEP] Stage DMG artifact - FIN"
       - run:
           # N-04: SHA-256 del artefacto en el log del CI, única verificación de
           # integridad posible sin firma de código (R-38).
           name: Emit artifact SHA-256
-          command: shasum -a 256 dist/tts-sidecar-arm64.dmg
+          command: |
+            echo "[STEP] Emit artifact SHA-256 - INICIO"
+            shasum -a 256 dist/tts-sidecar-arm64.dmg
+            echo "[STEP] Emit artifact SHA-256 - FIN"
       - run:
           # Persiste el .dmg VERSIONADO (nombre de release, con arch) al
           # workspace para `publish-release`. Fail-fast: sin match, el glob se
           # pasa literal a cp → error → el step aborta (bash -eo pipefail).
           name: Persist DMG to workspace
           command: |
+            echo "[STEP] Persist DMG to workspace - INICIO"
             mkdir -p artifacts
             cp dist/tts-sidecar-*-arm64.dmg artifacts/
+            echo "[STEP] Persist DMG to workspace - FIN"
       - persist_to_workspace:
           root: artifacts
           paths:
@@ -368,6 +523,7 @@ jobs:
           # firma GPG); no viene preinstalado en cimg/base.
           name: Install gh CLI
           command: |
+            echo "[STEP] Install gh CLI - INICIO"
             set -euo pipefail
             sudo mkdir -p -m 755 /etc/apt/keyrings
             wget -nv -O- https://cli.github.com/packages/githubcli-archive-keyring.gpg \
@@ -377,22 +533,26 @@ jobs:
               | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
             sudo apt-get update
             sudo apt-get install -y gh
+            echo "[STEP] Install gh CLI - FIN"
       - run:
           # Los 4 artefactos ya llegan con su nombre de release (versionado, con
           # arch); solo falta el manifiesto de checksums. Fail-fast: sin los 4
           # artefactos en el workspace, sha256sum falla y el step aborta.
           name: Generate SHA256SUMS.txt
           command: |
+            echo "[STEP] Generate SHA256SUMS.txt - INICIO"
             set -euo pipefail
             cd artifacts
             sha256sum tts-sidecar-* > SHA256SUMS.txt
             cat SHA256SUMS.txt
+            echo "[STEP] Generate SHA256SUMS.txt - FIN"
       - run:
           # Extrae la sección `## [X.Y.Z]` del CHANGELOG (X.Y.Z = tag sin la `v`)
           # hasta el siguiente `## [`. Fail-fast si la sección no existe: evita
           # publicar un Release con notas vacías.
           name: Extract release notes
           command: |
+            echo "[STEP] Extract release notes - INICIO"
             set -euo pipefail
             VERSION="${CIRCLE_TAG#v}"
             # Corta en el siguiente `## [` (próxima versión) o en el bloque de
@@ -409,18 +569,21 @@ jobs:
               exit 1
             fi
             cat notes.md
+            echo "[STEP] Extract release notes - FIN"
       - run:
           # Crea el Release en BORRADOR con los 5 assets (4 artefactos +
           # SHA256SUMS.txt). Si el tag ya tiene Release, `gh release create`
           # falla ruidosamente (correcto: no re-publica en silencio).
           name: Create draft GitHub Release
           command: |
+            echo "[STEP] Create draft GitHub Release - INICIO"
             set -euo pipefail
             gh release create "$CIRCLE_TAG" \
               artifacts/tts-sidecar-* artifacts/SHA256SUMS.txt \
               --draft \
               --title "$CIRCLE_TAG" \
               --notes-file notes.md
+            echo "[STEP] Create draft GitHub Release - FIN"
 
 workflows:
   build-all:

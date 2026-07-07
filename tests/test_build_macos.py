@@ -70,3 +70,41 @@ def test_uninstall_script_rejects_non_symlink():
     assert 'elif [ -e "$LINK" ]; then' in script
     assert "no es un symlink" in script
     assert "exit 1" in script
+
+
+def test_create_dmg_failure_is_fatal(tmp_path, monkeypatch):
+    """create-dmg con rc != 0 debe abortar el build con SystemExit(1),
+    heredando la consola (sin capture_output) para que su output sea visible."""
+    import build_macos
+
+    dist = tmp_path / "dist"
+    build = tmp_path / "build"
+    dist.mkdir()
+    build.mkdir()
+    onedir = dist / "tts-sidecar"
+    onedir.mkdir()
+    (onedir / "tts-sidecar").write_text("bin", encoding="utf-8")
+
+    monkeypatch.setattr(build_macos, "DIST_DIR", dist)
+    monkeypatch.setattr(build_macos, "BUILD_DIR", build)
+    monkeypatch.setattr(build_macos, "run_pyinstaller", lambda args, timeout: 0)
+    monkeypatch.setattr(build_macos, "bundle_size_mb", lambda o: 0.0)
+    monkeypatch.setattr(build_macos, "copy_license_files", lambda d: None)
+    monkeypatch.setattr(build_macos, "ensure_icns", lambda d: None)
+    monkeypatch.setattr(build_macos, "get_version", lambda: "9.9.9")
+
+    captured = {}
+
+    class Result:
+        returncode = 1
+
+    def fake_run(*a, **k):
+        captured.update(k)
+        return Result()
+
+    monkeypatch.setattr(build_macos.subprocess, "run", fake_run)
+
+    with pytest.raises(SystemExit) as exc:
+        build_macos.build_macos("arm64")
+    assert exc.value.code == 1
+    assert "capture_output" not in captured

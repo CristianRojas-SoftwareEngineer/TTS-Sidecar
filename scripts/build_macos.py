@@ -27,7 +27,7 @@ BUILD_DIR = PROJECT_ROOT / "build"
 sys.path.insert(0, str(Path(__file__).parent))
 from build_utils import (
     log, StageTimer, BuildTimer, copy_license_files, get_version,
-    check_pyinstaller, common_pyinstaller_args, bundle_size_mb,
+    check_pyinstaller, common_pyinstaller_args, bundle_size_mb, run_pyinstaller,
     ensure_icns, ensure_build_dependency, module_available,
     BUILD_SUBPROCESS_TIMEOUT, PYINSTALLER_TIMEOUT,
 )
@@ -115,17 +115,13 @@ def build_macos(target_arch="arm64"):
                 extra_collect_binaries=["python"],
             )
             log(f"Ejecutando: pyinstaller {' '.join(pyinstaller_args[2:])}")
+            # run_pyinstaller gestiona el timeout con kill de árbol de procesos
+            # (build_utils); en macOS la invocación es directa (sin wrapper COM).
             try:
-                returncode = subprocess.run(
-                    pyinstaller_args,
-                    timeout=PYINSTALLER_TIMEOUT,
-                ).returncode
+                returncode = run_pyinstaller(pyinstaller_args, PYINSTALLER_TIMEOUT)
             except KeyboardInterrupt:
                 log("\n[CANCEL] Build cancelado por el usuario.")
                 sys.exit(130)
-            except subprocess.TimeoutExpired:
-                log(f"\n[TIMEOUT] PyInstaller excedió {PYINSTALLER_TIMEOUT}s.")
-                sys.exit(1)
 
         if returncode != 0:
             log("PyInstaller falló", returncode)
@@ -207,16 +203,18 @@ def build_macos(target_arch="arm64"):
                 create_dmg_args += ["--volicon", str(icns_path)]
             create_dmg_args += [str(dmg_path), str(dmg_src)]
 
+            # Consola heredada (sin capture_output): el output de create-dmg es el
+            # heartbeat del step de CI. Su fallo es fatal: un build sin .dmg nunca
+            # debe reportar éxito (publish-release exige el artefacto).
             result = subprocess.run(
                 create_dmg_args,
-                capture_output=True, text=True,
                 timeout=BUILD_SUBPROCESS_TIMEOUT,
             )
             if result.returncode != 0:
-                log("La creación del .dmg falló (create-dmg puede requerir brew install create-dmg)")
-                log("WARNING: .dmg no creado — el bundle .app sigue en dist/")
-            else:
-                log(f".dmg creado: {dmg_path}")
+                log(f"ERROR: La creación del .dmg falló (rc={result.returncode}; "
+                    "create-dmg puede requerir brew install create-dmg)")
+                sys.exit(1)
+            log(f".dmg creado: {dmg_path}")
 
 
 def _path_install_script(app_name: str) -> str:

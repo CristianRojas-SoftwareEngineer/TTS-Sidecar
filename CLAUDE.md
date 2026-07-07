@@ -20,6 +20,12 @@ python bin/tts-sidecar <comando>
 # Compilar binario Windows con PyInstaller
 npm run build-windows
 
+# Compilar solo el onedir de Windows, sin generar el instalador Inno Setup
+# (el CI usa este flag y genera el instalador como step separado). En Windows,
+# PyInstaller se lanza vía scripts/pyinstaller_wrapper.py para evitar el cuelgue
+# COM del análisis de pycaw/comtypes.
+python scripts/build_windows.py --arch x86_64 --no-installer
+
 # Regenerar el lockfile de dependencias (universal, con hashes) tras editar pyproject.toml
 uv pip compile --universal --generate-hashes --python-version 3.13 pyproject.toml -o requirements-lock.txt
 
@@ -210,13 +216,18 @@ assets/                  # Material fuente (audios de la voz default, logo)
 src/tts_sidecar/      # Código fuente Python
 └── daemon/              # Daemon mode
 
-tests/                   # Tests pytest (233 tests)
+tests/                   # Tests pytest (244 tests)
 ├── conftest.py
 ├── test_audio.py
+├── test_build_linux.py
+├── test_build_macos.py
 ├── test_build_utils.py
+├── test_build_windows.py
 ├── test_cli.py
+├── test_create_installer_windows.py
 ├── test_daemon.py
 ├── test_engine_cache.py
+├── test_engine_progress.py
 ├── test_protocol.py
 ├── test_timing.py
 └── test_voices.py
@@ -244,4 +255,5 @@ tests/                   # Tests pytest (233 tests)
 - `docs/BUILD.md` - Guía de compilación PyInstaller
 - `docs/ARCHITECTURE.md` - Arquitectura del sistema
 - `scripts/build_windows.py` - Build PyInstaller para Windows
+- `scripts/pyinstaller_wrapper.py` - Wrapper COM que evita el cuelgue de PyInstaller en Windows (COINIT_MULTITHREADED + os._exit)
 <!-- </related_docs> -->

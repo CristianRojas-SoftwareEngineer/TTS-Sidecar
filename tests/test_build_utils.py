@@ -1,5 +1,6 @@
 """Tests de las utilidades compartidas de los scripts de build."""
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -9,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 import build_utils
 from build_utils import (
     get_version, bundle_size_mb, ensure_build_dependency, fetch_pinned_asset,
+    run_pyinstaller, INSTALLER_TIMEOUT,
 )
 
 
@@ -169,6 +171,78 @@ def test_bundle_size_mb_sums_nested_files(tmp_path):
 
     esperado_mb = (1024 + 1024) / (1024 * 1024)
     assert bundle_size_mb(tmp_path) == pytest.approx(esperado_mb)
+
+
+def _make_fake_popen(captured, returncode=0, timeout_on_first_wait=False):
+    """Fabrica un Popen falso que registra su cmd/kwargs y simula wait()."""
+    estado = {"waits": 0}
+
+    class FakePopen:
+        def __init__(self, cmd, **kwargs):
+            captured.append({"cmd": cmd, "kwargs": kwargs})
+            self.pid = 4242
+
+        def wait(self, timeout=None):
+            estado["waits"] += 1
+            if timeout_on_first_wait and estado["waits"] == 1:
+                raise subprocess.TimeoutExpired(cmd="pyinstaller", timeout=timeout)
+            return returncode
+
+    return FakePopen
+
+
+class TestRunPyinstaller:
+    """Lanzador común de PyInstaller: reescritura al wrapper COM en Windows,
+    paso directo fuera de Windows y kill de árbol en timeout."""
+
+    ARGS = ["/py", "-m", "PyInstaller", "--onedir", "--name", "tts-sidecar"]
+
+    def test_non_win32_passes_args_intact(self, monkeypatch):
+        captured = []
+        monkeypatch.setattr(build_utils.sys, "platform", "linux")
+        monkeypatch.setattr(build_utils.subprocess, "Popen", _make_fake_popen(captured))
+
+        rc = run_pyinstaller(self.ARGS, 1800)
+
+        assert rc == 0
+        assert captured[0]["cmd"] == self.ARGS
+        # Grupo de procesos propio para poder matar el árbol en timeout.
+        assert captured[0]["kwargs"].get("start_new_session") is True
+
+    def test_win32_rewrites_to_wrapper_omitting_prefix(self, monkeypatch):
+        captured = []
+        monkeypatch.setattr(build_utils.sys, "platform", "win32")
+        monkeypatch.setattr(build_utils.subprocess, "Popen", _make_fake_popen(captured))
+
+        rc = run_pyinstaller(self.ARGS, 1800)
+
+        assert rc == 0
+        cmd = captured[0]["cmd"]
+        assert cmd[0] == build_utils.sys.executable
+        assert cmd[1].endswith("pyinstaller_wrapper.py")
+        # El prefijo de 3 ([py, -m, PyInstaller]) se omite: solo van los args de PyInstaller.
+        assert cmd[2:] == ["--onedir", "--name", "tts-sidecar"]
+        assert "PyInstaller" not in cmd[2:]
+
+    def test_timeout_kills_tree_and_returns_1(self, monkeypatch):
+        captured = []
+        matados = []
+        monkeypatch.setattr(build_utils.sys, "platform", "linux")
+        monkeypatch.setattr(
+            build_utils.subprocess, "Popen",
+            _make_fake_popen(captured, timeout_on_first_wait=True),
+        )
+        monkeypatch.setattr(build_utils, "kill_process_tree", lambda pid: matados.append(pid))
+
+        rc = run_pyinstaller(self.ARGS, 5)
+
+        assert rc == 1
+        assert matados == [4242]
+
+
+def test_installer_timeout_defined():
+    """INSTALLER_TIMEOUT existe con el valor holgado para ISCC sobre ~1.6 GB."""
+    assert INSTALLER_TIMEOUT == 1800
 
 
 def test_linux_cpu_lock_contains_no_nvidia_packages():

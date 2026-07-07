@@ -18,7 +18,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from build_utils import get_version, ensure_ico, ensure_build_dependency, INNOSETUP_PIN
+from build_utils import get_version, ensure_ico, ensure_build_dependency, INNOSETUP_PIN, INSTALLER_TIMEOUT
 
 
 def get_inno_setup_path():
@@ -75,6 +75,14 @@ def generate_iss(source_dir: Path, output_dir: Path, version: str, info_after: P
     lines.append("ArchitecturesInstallIn64BitMode=x64compatible")
     # Emite el broadcast de cambio de entorno para que el PATH actualizado se propague.
     lines.append("ChangesEnvironment=yes")
+    # Compresión con output periódico visible (heartbeat del step de CI): el
+    # default lzma2/max de Inno Setup tarda >10 min de silencio sobre el onedir
+    # de ~1.6 GB y CircleCI lo mata; lzma/normal + SolidCompression=no comprime
+    # por archivo (progreso continuo) en ~3-5 min, y LZMAUseSeparateProcess=yes
+    # paraleliza sin bloquear el thread de UI/log (evidencia pipelines #29-#30).
+    lines.append("Compression=lzma/normal")
+    lines.append("SolidCompression=no")
+    lines.append("LZMAUseSeparateProcess=yes")
     # Página informativa mostrada al terminar la instalación: explica la provisión del modelo.
     lines.append("InfoAfterFile=" + info_after_win)
     # Página de licencia (GPL v3) mostrada como paso de aceptación en el asistente.
@@ -233,9 +241,10 @@ def main():
     print(f"Source: {source_dir}")
     print(f"Output: {output_dir}")
 
-    # Inno Setup es herramienta del empaquetador (opcional en el sistema de
-    # build: el padre rescata el sys.exit(1) como no-fatal y el onedir sigue
-    # siendo usable). Se ofrece instalarlo vía Chocolatey pineado si choco existe.
+    # Inno Setup es la herramienta que genera el instalador: su ausencia o su
+    # fallo abortan el build (sys.exit(1) fatal, tanto en CI como localmente),
+    # porque un build sin instalador no debe reportar éxito. Se ofrece instalarlo
+    # vía Chocolatey pineado si choco existe.
     resolved = ensure_build_dependency(
         "Inno Setup (iscc.exe)",
         lambda: get_inno_setup_path() is not None,
@@ -276,16 +285,19 @@ def main():
 
     try:
         print("Compilando instalador con Inno Setup...")
-        result = subprocess.run(
-            [iscc, str(iss_path)],
-            capture_output=True,
-            text=True,
-            timeout=600,
-        )
+        # Consola heredada (sin capture_output): el progreso por archivo de ISCC
+        # es el heartbeat del step de CI. INSTALLER_TIMEOUT holgado con
+        # TimeoutExpired atrapado, y el exit code de ISCC se propaga siempre.
+        try:
+            result = subprocess.run(
+                [iscc, str(iss_path)],
+                timeout=INSTALLER_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
+            print(f"ERROR: Inno Setup excedió {INSTALLER_TIMEOUT}s", file=sys.stderr)
+            sys.exit(1)
         if result.returncode != 0:
             print(f"ERROR: Inno Setup failed (exit {result.returncode})", file=sys.stderr)
-            print("STDOUT:", result.stdout, file=sys.stderr)
-            print("STDERR:", result.stderr, file=sys.stderr)
             sys.exit(1)
 
         installer_name = f"tts-sidecar-{version}-x86_64-setup.exe"
