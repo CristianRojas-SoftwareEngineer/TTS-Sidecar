@@ -197,6 +197,13 @@ def build_macos(target_arch="arm64"):
                 "--hide-extension", app_bundle.name,
                 "--app-drop-link", "480", "185",
                 "--format", "ULFO",
+                # Los runners de CircleCI (m4pro.medium) no tienen sesión GUI activa:
+                # el AppleScript que create-dmg corre contra Finder para posicionar
+                # iconos/ventana cuelga con "AppleEvent timed out (-1712)" (pipeline
+                # #34). --skip-jenkins omite solo ese paso cosmético (según el propio
+                # script, pensado para entornos sandbox/no-GUI); el resto del .dmg
+                # (--app-drop-link, formato, volicon) no depende de Finder.
+                "--skip-jenkins",
             ]
             # Icono de volumen del .dmg (logo del proyecto) si el .icns está disponible.
             if icns_path and icns_path.exists():
