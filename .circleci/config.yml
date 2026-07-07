@@ -14,23 +14,24 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install system dependencies
+          name: Install apt build deps (libasound2-dev)
           command: |
-            echo "[STEP] Install system dependencies - INICIO"
+            echo "[STEP] Install apt build deps (libasound2-dev) - INICIO"
             sudo apt-get update
             sudo apt-get install -y libasound2-dev
-            echo "[STEP] Install system dependencies - FIN"
+            echo "[STEP] Install apt build deps (libasound2-dev) - FIN"
       - run:
           # Material de la clave de cache del venv: versión exacta de Python del
-          # runner + pins de herramientas fuera del lockfile. Un cambio en
-          # cualquiera invalida el cache automáticamente.
-          name: Compute cache key
+          # runner (sin pins de herramientas). Al no incluir el pin, la caché de
+          # venv es compartida entre este job de test y el build de la misma
+          # plataforma+lockfile (build-linux-x64): el test la puebla, el build
+          # acierta HIT. Un cambio de Python o del lockfile la invalida.
+          name: Compute venv cache key (python --version)
           command: |
-            echo "[STEP] Compute cache key - INICIO"
+            echo "[STEP] Compute venv cache key (python --version) - INICIO"
             python --version > cache-key.txt
-            echo "pytest==9.1.1" >> cache-key.txt
             cat cache-key.txt
-            echo "[STEP] Compute cache key - FIN"
+            echo "[STEP] Compute venv cache key (python --version) - FIN"
       - restore_cache:
           keys:
             - venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock-linux-cpu.txt" }}
@@ -43,39 +44,44 @@ jobs:
           # stack nvidia-*-cu12 del lock universal solo agregaría varios GB
           # sin señal adicional. Las dependencias viven en un venv cacheado:
           # en cache hit, pip re-verifica el lock como no-op rápido.
-          name: Install runtime dependencies (locked, CPU-only)
+          name: Install runtime deps from CPU-only lock (require-hashes)
           command: |
-            echo "[STEP] Install runtime dependencies (locked, CPU-only) - INICIO"
+            echo "[STEP] Install runtime deps from CPU-only lock (require-hashes) - INICIO"
             python -m venv ~/.venv
             echo "source ~/.venv/bin/activate" >> $BASH_ENV
             source ~/.venv/bin/activate
+            pip install --upgrade pip
             pip install -r requirements-lock-linux-cpu.txt --require-hashes --extra-index-url https://download.pytorch.org/whl/cpu
-            echo "[STEP] Install runtime dependencies (locked, CPU-only) - FIN"
-      - run:
-          name: Install pytest
-          command: |
-            echo "[STEP] Install pytest - INICIO"
-            pip install pytest==9.1.1
-            echo "[STEP] Install pytest - FIN"
+            echo "[STEP] Install runtime deps from CPU-only lock (require-hashes) - FIN"
       - save_cache:
           key: venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock-linux-cpu.txt" }}
           paths:
             - ~/.venv
       - run:
+          # La herramienta de test (pytest) se instala DESPUÉS del save_cache, sobre
+          # el venv ya poblado: así queda fuera del material cacheado y la caché de
+          # venv la comparten test y build de esta plataforma. Reinstalarla cuesta
+          # segundos (sin dependencias pesadas).
+          name: Install pytest into venv (post-cache)
+          command: |
+            echo "[STEP] Install pytest into venv (post-cache) - INICIO"
+            pip install pytest==9.1.1
+            echo "[STEP] Install pytest into venv (post-cache) - FIN"
+      - run:
           # WARNING-04: CLAUDE.md documenta py_compile como chequeo de verificación,
           # pero no corría en CI; compileall detecta errores de sintaxis en módulos
           # sin tests propios o importados condicionalmente, antes del build.
-          name: Check syntax (py_compile)
+          name: Check src/ syntax (compileall)
           command: |
-            echo "[STEP] Check syntax (py_compile) - INICIO"
+            echo "[STEP] Check src/ syntax (compileall) - INICIO"
             python -m compileall src/
-            echo "[STEP] Check syntax (py_compile) - FIN"
+            echo "[STEP] Check src/ syntax (compileall) - FIN"
       - run:
-          name: Run tests
+          name: Run pytest suite over tests/
           command: |
-            echo "[STEP] Run tests - INICIO"
+            echo "[STEP] Run pytest suite over tests/ - INICIO"
             pytest tests/ -v
-            echo "[STEP] Run tests - FIN"
+            echo "[STEP] Run pytest suite over tests/ - FIN"
 
   test-windows:
     # R-22: la suite corría solo en Linux; todo el código específico de Windows
@@ -88,23 +94,24 @@ jobs:
       - run:
           # Pin de Chocolatey (espejo de build-windows-x64): un release nuevo no debe
           # romper el job sin cambios en el repo.
-          name: Install Python 3.13
+          name: Set up Python 3.13 via pyenv (pinned 3.13.14) via choco (pinned 3.13.14)
           command: |
-            Write-Host "[STEP] Install Python 3.13 - INICIO"
+            Write-Host "[STEP] Set up Python 3.13 via choco (pinned 3.13.14) - INICIO"
             choco install python313 -y --version=3.13.14
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Write-Host "[STEP] Install Python 3.13 - FIN"
+            Write-Host "[STEP] Set up Python 3.13 via choco (pinned 3.13.14) - FIN"
       - run:
           # Material de la clave de cache del venv: versión exacta de Python del
-          # runner + pins de herramientas fuera del lockfile.
-          name: Compute cache key
+          # runner (sin pins de herramientas). Al no incluir el pin, la caché de
+          # venv es compartida entre este job de test y build-windows-x64: el test
+          # la puebla, el build acierta HIT.
+          name: Compute venv cache key (python --version)
           command: |
-            Write-Host "[STEP] Compute cache key - INICIO"
+            Write-Host "[STEP] Compute venv cache key (python --version) - INICIO"
             python --version | Out-File -Encoding ascii cache-key.txt
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Add-Content -Encoding ascii cache-key.txt "pytest==9.1.1"
             Get-Content cache-key.txt
-            Write-Host "[STEP] Compute cache key - FIN"
+            Write-Host "[STEP] Compute venv cache key (python --version) - FIN"
       - restore_cache:
           keys:
             - venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock.txt" }}
@@ -113,9 +120,9 @@ jobs:
           # tiene el equivalente de $BASH_ENV para activar el venv entre steps:
           # los steps posteriores invocan .venv\Scripts\python.exe por ruta
           # explícita. En cache hit, pip re-verifica el lock como no-op rápido.
-          name: Install runtime dependencies (locked)
+          name: Install runtime deps from universal lock (require-hashes)
           command: |
-            Write-Host "[STEP] Install runtime dependencies (locked) - INICIO"
+            Write-Host "[STEP] Install runtime deps from universal lock (require-hashes) - INICIO"
             python --version
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             if (-not (Test-Path .venv)) { python -m venv .venv }
@@ -124,25 +131,28 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             .venv\Scripts\python.exe -m pip install -r requirements-lock.txt --require-hashes
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Write-Host "[STEP] Install runtime dependencies (locked) - FIN"
-      - run:
-          name: Install pytest
-          command: |
-            Write-Host "[STEP] Install pytest - INICIO"
-            .venv\Scripts\python.exe -m pip install pytest==9.1.1
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Write-Host "[STEP] Install pytest - FIN"
+            Write-Host "[STEP] Install runtime deps from universal lock (require-hashes) - FIN"
       - save_cache:
           key: venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock.txt" }}
           paths:
             - .venv
       - run:
-          name: Run tests
+          # La herramienta de test (pytest) se instala DESPUÉS del save_cache, sobre
+          # el venv ya poblado: así queda fuera del material cacheado y la caché de
+          # venv la comparten test y build de esta plataforma.
+          name: Install pytest into venv (post-cache)
           command: |
-            Write-Host "[STEP] Run tests - INICIO"
+            Write-Host "[STEP] Install pytest into venv (post-cache) - INICIO"
+            .venv\Scripts\python.exe -m pip install pytest==9.1.1
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Install pytest into venv (post-cache) - FIN"
+      - run:
+          name: Run pytest suite over tests/
+          command: |
+            Write-Host "[STEP] Run pytest suite over tests/ - INICIO"
             .venv\Scripts\python.exe -m pytest tests/ -v
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Write-Host "[STEP] Run tests - FIN"
+            Write-Host "[STEP] Run pytest suite over tests/ - FIN"
 
   test-macos:
     # Equivalencia de cobertura con test-linux/test-windows: sin un Mac físico
@@ -171,61 +181,65 @@ jobs:
           # un patch exacto: el pyenv preinstalado en la imagen puede no traer
           # localmente la definición del patch más reciente (python-build es
           # un snapshot vendido con el formula de Homebrew, no se actualiza solo).
-          name: Set up Python 3.13
+          name: Set up Python 3.13 via pyenv (pinned 3.13.14)
           no_output_timeout: 20m
           command: |
-            echo "[STEP] Set up Python 3.13 - INICIO"
+            echo "[STEP] Set up Python 3.13 via pyenv (pinned 3.13.14) - INICIO"
             brew update && brew upgrade pyenv
             pyenv install -s 3.13.14
             pyenv global 3.13.14
             pyenv rehash
             python --version
-            echo "[STEP] Set up Python 3.13 - FIN"
+            echo "[STEP] Set up Python 3.13 via pyenv (pinned 3.13.14) - FIN"
       - save_cache:
           key: pyenv-v1-{{ arch }}-3.13.14-xcode26.4
           paths:
             - ~/.pyenv/versions
       - run:
-          # Material de la clave de cache del venv: versión exacta de Python +
-          # pins de herramientas fuera del lockfile.
-          name: Compute cache key
+          # Material de la clave de cache del venv: versión exacta de Python (sin
+          # pins de herramientas). Al no incluir el pin, la caché de venv es
+          # compartida entre este job de test y build-darwin-arm64: el test la
+          # puebla, el build acierta HIT.
+          name: Compute venv cache key (python --version)
           command: |
-            echo "[STEP] Compute cache key - INICIO"
+            echo "[STEP] Compute venv cache key (python --version) - INICIO"
             python --version > cache-key.txt
-            echo "pytest==9.1.1" >> cache-key.txt
             cat cache-key.txt
-            echo "[STEP] Compute cache key - FIN"
+            echo "[STEP] Compute venv cache key (python --version) - FIN"
       - restore_cache:
           keys:
             - venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock.txt" }}
       - run:
           # Instalación reproducible desde el lock universal con hashes, en un
           # venv cacheado: en cache hit, pip re-verifica el lock como no-op.
-          name: Install runtime dependencies (locked)
+          name: Install runtime deps from universal lock (require-hashes)
           command: |
-            echo "[STEP] Install runtime dependencies (locked) - INICIO"
+            echo "[STEP] Install runtime deps from universal lock (require-hashes) - INICIO"
             python -m venv ~/.venv
             echo "source ~/.venv/bin/activate" >> $BASH_ENV
             source ~/.venv/bin/activate
             python -m pip install --upgrade pip
             python -m pip install -r requirements-lock.txt --require-hashes
-            echo "[STEP] Install runtime dependencies (locked) - FIN"
-      - run:
-          name: Install pytest
-          command: |
-            echo "[STEP] Install pytest - INICIO"
-            python -m pip install pytest==9.1.1
-            echo "[STEP] Install pytest - FIN"
+            echo "[STEP] Install runtime deps from universal lock (require-hashes) - FIN"
       - save_cache:
           key: venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock.txt" }}
           paths:
             - ~/.venv
       - run:
-          name: Run tests
+          # La herramienta de test (pytest) se instala DESPUÉS del save_cache, sobre
+          # el venv ya poblado: así queda fuera del material cacheado y la caché de
+          # venv la comparten test y build de esta plataforma.
+          name: Install pytest into venv (post-cache)
           command: |
-            echo "[STEP] Run tests - INICIO"
+            echo "[STEP] Install pytest into venv (post-cache) - INICIO"
+            python -m pip install pytest==9.1.1
+            echo "[STEP] Install pytest into venv (post-cache) - FIN"
+      - run:
+          name: Run pytest suite over tests/
+          command: |
+            echo "[STEP] Run pytest suite over tests/ - INICIO"
             python -m pytest tests/ -v
-            echo "[STEP] Run tests - FIN"
+            echo "[STEP] Run pytest suite over tests/ - FIN"
 
   build-windows-x64:
     executor: win/server-2022
@@ -235,35 +249,35 @@ jobs:
           # SUGGESTION-06: sin pin, un release nuevo de Chocolatey puede romper
           # el build sin cambios en el repo. Versión fijada al momento de escribir
           # este pin; actualizar deliberadamente cuando se quiera adoptar una nueva.
-          name: Install Python 3.13
+          name: Set up Python 3.13 via pyenv (pinned 3.13.14) via choco (pinned 3.13.14)
           command: |
-            Write-Host "[STEP] Install Python 3.13 - INICIO"
+            Write-Host "[STEP] Set up Python 3.13 via choco (pinned 3.13.14) - INICIO"
             choco install python313 -y --version=3.13.14
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Write-Host "[STEP] Install Python 3.13 - FIN"
+            Write-Host "[STEP] Set up Python 3.13 via choco (pinned 3.13.14) - FIN"
       - run:
           # Material de la clave de cache del venv: versión exacta de Python del
-          # runner + pins de herramientas fuera del lockfile.
-          name: Compute cache key
+          # runner (sin pins de herramientas). Al no incluir el pin, la caché de
+          # venv es compartida con test-windows: el test la puebla, este build
+          # acierta HIT.
+          name: Compute venv cache key (python --version)
           command: |
-            Write-Host "[STEP] Compute cache key - INICIO"
+            Write-Host "[STEP] Compute venv cache key (python --version) - INICIO"
             python --version | Out-File -Encoding ascii cache-key.txt
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Add-Content -Encoding ascii cache-key.txt "pyinstaller==6.21.0"
             Get-Content cache-key.txt
-            Write-Host "[STEP] Compute cache key - FIN"
+            Write-Host "[STEP] Compute venv cache key (python --version) - FIN"
       - restore_cache:
           keys:
             - venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock.txt" }}
       - run:
           # Dependencias Python en un venv del proyecto (.venv) cacheado; los
           # steps posteriores invocan .venv\Scripts\python.exe por ruta explícita
-          # (PowerShell no tiene el equivalente de $BASH_ENV). Inno Setup queda
-          # fuera del cache: el install de Chocolatey no se cachea de forma
-          # confiable en CircleCI.
-          name: Install dependencies
+          # (PowerShell no tiene el equivalente de $BASH_ENV). En cache hit, pip
+          # re-verifica el lock como no-op rápido.
+          name: Install runtime deps from universal lock (require-hashes)
           command: |
-            Write-Host "[STEP] Install dependencies - INICIO"
+            Write-Host "[STEP] Install runtime deps from universal lock (require-hashes) - INICIO"
             python --version
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             if (-not (Test-Path .venv)) { python -m venv .venv }
@@ -272,38 +286,55 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             .venv\Scripts\python.exe -m pip install -r requirements-lock.txt --require-hashes
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            .venv\Scripts\python.exe -m pip install pyinstaller==6.21.0
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            choco install innosetup -y --version=6.3.3
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Write-Host "[STEP] Install dependencies - FIN"
+            Write-Host "[STEP] Install runtime deps from universal lock (require-hashes) - FIN"
       - save_cache:
           key: venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock.txt" }}
           paths:
             - .venv
+      - run:
+          # La herramienta de build (PyInstaller) se instala DESPUÉS del save_cache,
+          # sobre el venv ya poblado: así queda fuera del material cacheado y la
+          # caché de venv la comparten test-windows y este build.
+          name: Install PyInstaller into venv (post-cache)
+          command: |
+            Write-Host "[STEP] Install PyInstaller into venv (post-cache) - INICIO"
+            .venv\Scripts\python.exe -m pip install pyinstaller==6.21.0
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Install PyInstaller into venv (post-cache) - FIN"
+      - run:
+          # Inno Setup es una herramienta de sistema (no un paquete Python): vive en
+          # su propio step, separado de las dependencias Python. Queda fuera del
+          # cache: el install de Chocolatey no se cachea de forma confiable en
+          # CircleCI.
+          name: Install Inno Setup via choco (pinned 6.3.3)
+          command: |
+            Write-Host "[STEP] Install Inno Setup via choco (pinned 6.3.3) - INICIO"
+            choco install innosetup -y --version=6.3.3
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Install Inno Setup via choco (pinned 6.3.3) - FIN"
       - run:
           # PyInstaller solo (--no-installer): la etapa Installer corre como step
           # separado (abajo). PyInstaller se lanza vía scripts/pyinstaller_wrapper.py
           # (COINIT_MULTITHREADED + os._exit) para evitar el cuelgue COM del análisis
           # de pycaw/comtypes en el runner headless. no_output_timeout holgado: la
           # compilación tarda 9-15 min con output continuo.
-          name: Build Windows (PyInstaller onedir)
+          name: Build Windows x64 onedir via PyInstaller
           no_output_timeout: 20m
           command: |
-            Write-Host "[STEP] Build Windows (PyInstaller onedir) - INICIO"
+            Write-Host "[STEP] Build Windows x64 onedir via PyInstaller - INICIO"
             .venv\Scripts\python.exe scripts/build_windows.py --arch x86_64 --no-installer
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Write-Host "[STEP] Build Windows (PyInstaller onedir) - FIN"
+            Write-Host "[STEP] Build Windows x64 onedir via PyInstaller - FIN"
       - run:
           # Ejecuta el binario congelado recién construido para detectar
           # empaquetados rotos (metadata faltante, --collect-all incompleto)
           # antes de publicar. `version` no carga el modelo; exit 0 obligatorio.
-          name: Smoke test frozen binary
+          name: Smoke test dist/tts-sidecar/tts-sidecar.exe
           command: |
-            Write-Host "[STEP] Smoke test frozen binary - INICIO"
+            Write-Host "[STEP] Smoke test dist/tts-sidecar/tts-sidecar.exe - INICIO"
             dist/tts-sidecar/tts-sidecar.exe version
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Write-Host "[STEP] Smoke test frozen binary - FIN"
+            Write-Host "[STEP] Smoke test dist/tts-sidecar/tts-sidecar.exe - FIN"
       - run:
           # Etapa Installer como step separado: invoca directamente al generador,
           # que emite el .iss con compresión lzma/normal (progreso por archivo, no
@@ -311,58 +342,40 @@ jobs:
           # para que ese progreso sea el heartbeat. no_output_timeout amplio y
           # chequeo de $LASTEXITCODE: el fallo del installer aborta el job (el
           # instalador es artefacto obligatorio de publish-release; pipelines #29-#30).
-          name: Generate installer
+          name: Generate Windows x64 installer via Inno Setup
           no_output_timeout: 25m
           command: |
-            Write-Host "[STEP] Generate installer - INICIO"
+            Write-Host "[STEP] Generate Windows x64 installer via Inno Setup - INICIO"
             .venv\Scripts\python.exe scripts/create_installer_windows.py dist/tts-sidecar
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Write-Host "[STEP] Generate installer - FIN"
+            Write-Host "[STEP] Generate Windows x64 installer via Inno Setup - FIN"
       - run:
-          # store_artifacts no expande globs: se copia el instalador (cuyo nombre
-          # incluye la versión) a un nombre estable, independiente de __version__.
-          # N-01: Copy-Item con wildcard sin match no aborta en PowerShell por
-          # defecto (WARNING no fatal) — se fuerza el error para que el CI no
-          # reporte éxito falso cuando el instalador no se generó.
-          name: Stage installer artifact
+          # Copia única del instalador VERSIONADO (nombre de release, con arch) al
+          # directorio de workspace para que `publish-release` lo recolecte sin
+          # token de API de CircleCI. Fail-fast (N-01): Copy-Item con wildcard sin
+          # match no aborta en PowerShell por defecto — se fuerza el error para que
+          # el CI no reporte éxito falso cuando el instalador no se generó.
+          name: Stage versioned Windows x64 installer into workspace dir
           command: |
-            Write-Host "[STEP] Stage installer artifact - INICIO"
-            $ErrorActionPreference = 'Stop'
-            if (-not (Test-Path dist/tts-sidecar-*-x86_64-setup.exe)) { throw "Instalador no encontrado en dist/" }
-            Copy-Item dist/tts-sidecar-*-x86_64-setup.exe dist/tts-sidecar-x86_64-setup.exe
-            Write-Host "[STEP] Stage installer artifact - FIN"
-      - run:
-          # N-04: SHA-256 del artefacto en el log del CI, única verificación de
-          # integridad posible sin firma de código (R-38).
-          name: Emit artifact SHA-256
-          command: |
-            Write-Host "[STEP] Emit artifact SHA-256 - INICIO"
-            Get-FileHash dist/tts-sidecar-x86_64-setup.exe -Algorithm SHA256
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Write-Host "[STEP] Emit artifact SHA-256 - FIN"
-      - run:
-          # Persiste el instalador VERSIONADO (nombre de release, con arch) al
-          # workspace para que `publish-release` lo recolecte sin token de API de
-          # CircleCI. Mismo fail-fast que el staging (N-01): Copy-Item con wildcard
-          # sin match no aborta en PowerShell por defecto.
-          name: Persist installer to workspace
-          command: |
-            Write-Host "[STEP] Persist installer to workspace - INICIO"
+            Write-Host "[STEP] Stage versioned Windows x64 installer into workspace dir - INICIO"
             $ErrorActionPreference = 'Stop'
             New-Item -ItemType Directory -Force -Path artifacts | Out-Null
             if (-not (Test-Path dist/tts-sidecar-*-x86_64-setup.exe)) { throw "Instalador versionado no encontrado en dist/" }
             Copy-Item dist/tts-sidecar-*-x86_64-setup.exe artifacts/
-            Write-Host "[STEP] Persist installer to workspace - FIN"
+            Write-Host "[STEP] Stage versioned Windows x64 installer into workspace dir - FIN"
+      - run:
+          # N-04: SHA-256 del artefacto ya staged en artifacts/, en el log del CI;
+          # única verificación de integridad posible sin firma de código (R-38).
+          name: Emit SHA-256 of staged Windows x64 installer
+          command: |
+            Write-Host "[STEP] Emit SHA-256 of staged Windows x64 installer - INICIO"
+            Get-FileHash artifacts/tts-sidecar-*-x86_64-setup.exe -Algorithm SHA256
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Emit SHA-256 of staged Windows x64 installer - FIN"
       - persist_to_workspace:
           root: artifacts
           paths:
             - tts-sidecar-*-x86_64-setup.exe
-      - store_artifacts:
-          path: dist/tts-sidecar-x86_64-setup.exe
-          destination: tts-sidecar-win32-x86_64-setup.exe
-      - store_artifacts:
-          path: dist/tts-sidecar
-          destination: tts-sidecar-win32-x86_64/
 
   build-linux-x64:
     docker:
@@ -378,22 +391,23 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install system dependencies
+          name: Install apt build deps (patchelf, libasound2-dev)
           command: |
-            echo "[STEP] Install system dependencies - INICIO"
+            echo "[STEP] Install apt build deps (patchelf, libasound2-dev) - INICIO"
             sudo apt-get update
             sudo apt-get install -y patchelf libasound2-dev
-            echo "[STEP] Install system dependencies - FIN"
+            echo "[STEP] Install apt build deps (patchelf, libasound2-dev) - FIN"
       - run:
           # Material de la clave de cache del venv: versión exacta de Python del
-          # runner + pins de herramientas fuera del lockfile.
-          name: Compute cache key
+          # runner (sin pins de herramientas). Al no incluir el pin, la caché de
+          # venv es compartida con test-linux (misma plataforma+lockfile CPU-only):
+          # el test la puebla, este build acierta HIT.
+          name: Compute venv cache key (python --version)
           command: |
-            echo "[STEP] Compute cache key - INICIO"
+            echo "[STEP] Compute venv cache key (python --version) - INICIO"
             python --version > cache-key.txt
-            echo "pyinstaller==6.21.0" >> cache-key.txt
             cat cache-key.txt
-            echo "[STEP] Compute cache key - FIN"
+            echo "[STEP] Compute venv cache key (python --version) - FIN"
       - restore_cache:
           keys:
             - venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock-linux-cpu.txt" }}
@@ -405,75 +419,65 @@ jobs:
           # están marcados platform_machine == 'x86_64', por lo que arm64 ya
           # instala sin CUDA desde el lock universal. Las dependencias viven en
           # un venv cacheado: en cache hit, pip re-verifica el lock como no-op.
-          name: Install runtime dependencies (locked, CPU-only)
+          name: Install runtime deps from CPU-only lock (require-hashes)
           command: |
-            echo "[STEP] Install runtime dependencies (locked, CPU-only) - INICIO"
+            echo "[STEP] Install runtime deps from CPU-only lock (require-hashes) - INICIO"
             python -m venv ~/.venv
             echo "source ~/.venv/bin/activate" >> $BASH_ENV
             source ~/.venv/bin/activate
+            pip install --upgrade pip
             pip install -r requirements-lock-linux-cpu.txt --require-hashes --extra-index-url https://download.pytorch.org/whl/cpu
-            echo "[STEP] Install runtime dependencies (locked, CPU-only) - FIN"
-      - run:
-          name: Install PyInstaller
-          command: |
-            echo "[STEP] Install PyInstaller - INICIO"
-            pip install pyinstaller==6.21.0
-            echo "[STEP] Install PyInstaller - FIN"
+            echo "[STEP] Install runtime deps from CPU-only lock (require-hashes) - FIN"
       - save_cache:
           key: venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock-linux-cpu.txt" }}
           paths:
             - ~/.venv
       - run:
-          name: Build Linux x64
+          # La herramienta de build (PyInstaller) se instala DESPUÉS del save_cache,
+          # sobre el venv ya poblado: así queda fuera del material cacheado y la
+          # caché de venv la comparten test-linux y este build.
+          name: Install PyInstaller into venv (post-cache)
+          command: |
+            echo "[STEP] Install PyInstaller into venv (post-cache) - INICIO"
+            pip install pyinstaller==6.21.0
+            echo "[STEP] Install PyInstaller into venv (post-cache) - FIN"
+      - run:
+          name: Build Linux x64 AppImage via PyInstaller
           no_output_timeout: 20m
           command: |
-            echo "[STEP] Build Linux x64 - INICIO"
+            echo "[STEP] Build Linux x64 AppImage via PyInstaller - INICIO"
             python scripts/build_linux.py --arch x86_64
-            echo "[STEP] Build Linux x64 - FIN"
+            echo "[STEP] Build Linux x64 AppImage via PyInstaller - FIN"
       - run:
           # Ejecuta el binario congelado onedir para detectar empaquetados rotos
           # antes de publicar. `version` no carga el modelo; exit 0 obligatorio.
-          name: Smoke test frozen binary
+          name: Smoke test dist/tts-sidecar/tts-sidecar
           command: |
-            echo "[STEP] Smoke test frozen binary - INICIO"
+            echo "[STEP] Smoke test dist/tts-sidecar/tts-sidecar - INICIO"
             dist/tts-sidecar/tts-sidecar version
-            echo "[STEP] Smoke test frozen binary - FIN"
+            echo "[STEP] Smoke test dist/tts-sidecar/tts-sidecar - FIN"
       - run:
-          # store_artifacts no expande globs: se copia el AppImage (cuyo nombre
-          # incluye la versión) a un nombre estable, independiente de __version__.
-          name: Stage AppImage artifact
+          # Copia única del AppImage VERSIONADO (nombre de release, con arch) al
+          # directorio de workspace para `publish-release`. Fail-fast: sin match,
+          # el glob se pasa literal a cp → error → el step aborta (bash -eo pipefail).
+          name: Stage versioned Linux x64 AppImage into workspace dir
           command: |
-            echo "[STEP] Stage AppImage artifact - INICIO"
-            cp dist/tts-sidecar-*-x86_64.AppImage dist/tts-sidecar-x86_64.AppImage
-            echo "[STEP] Stage AppImage artifact - FIN"
-      - run:
-          # N-04: SHA-256 del artefacto en el log del CI, única verificación de
-          # integridad posible sin firma de código (R-38).
-          name: Emit artifact SHA-256
-          command: |
-            echo "[STEP] Emit artifact SHA-256 - INICIO"
-            sha256sum dist/tts-sidecar-x86_64.AppImage
-            echo "[STEP] Emit artifact SHA-256 - FIN"
-      - run:
-          # Persiste el AppImage VERSIONADO (nombre de release, con arch) al
-          # workspace para `publish-release`. Fail-fast: sin match, el glob se
-          # pasa literal a cp → error → el step aborta (bash -eo pipefail).
-          name: Persist AppImage to workspace
-          command: |
-            echo "[STEP] Persist AppImage to workspace - INICIO"
+            echo "[STEP] Stage versioned Linux x64 AppImage into workspace dir - INICIO"
             mkdir -p artifacts
             cp dist/tts-sidecar-*-x86_64.AppImage artifacts/
-            echo "[STEP] Persist AppImage to workspace - FIN"
+            echo "[STEP] Stage versioned Linux x64 AppImage into workspace dir - FIN"
+      - run:
+          # N-04: SHA-256 del artefacto ya staged en artifacts/, en el log del CI;
+          # única verificación de integridad posible sin firma de código (R-38).
+          name: Emit SHA-256 of staged Linux x64 AppImage
+          command: |
+            echo "[STEP] Emit SHA-256 of staged Linux x64 AppImage - INICIO"
+            sha256sum artifacts/tts-sidecar-*-x86_64.AppImage
+            echo "[STEP] Emit SHA-256 of staged Linux x64 AppImage - FIN"
       - persist_to_workspace:
           root: artifacts
           paths:
             - tts-sidecar-*-x86_64.AppImage
-      - store_artifacts:
-          path: dist/tts-sidecar-x86_64.AppImage
-          destination: tts-sidecar-linux-x86_64.AppImage
-      - store_artifacts:
-          path: dist/tts-sidecar
-          destination: tts-sidecar-linux-x86_64/
 
   build-linux-arm64:
     # Espejo de build-linux-x64: Docker cimg/python:3.13 (variante arm64) con
@@ -493,49 +497,57 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install system dependencies
+          name: Install apt build deps (patchelf, libasound2-dev)
           command: |
-            echo "[STEP] Install system dependencies - INICIO"
+            echo "[STEP] Install apt build deps (patchelf, libasound2-dev) - INICIO"
             sudo apt-get update
             sudo apt-get install -y patchelf libasound2-dev
-            echo "[STEP] Install system dependencies - FIN"
+            echo "[STEP] Install apt build deps (patchelf, libasound2-dev) - FIN"
       - run:
-          # Material de la clave de cache del venv: versión exacta de Python +
-          # pins de herramientas fuera del lockfile.
-          name: Compute cache key
+          # Material de la clave de cache del venv: versión exacta de Python (sin
+          # pins de herramientas). Al no incluir el pin, la caché de venv es
+          # compartida por plataforma+lockfile: aquí no hay un test-linux-arm64,
+          # pero la clave queda homogénea con el resto de jobs.
+          name: Compute venv cache key (python --version)
           command: |
-            echo "[STEP] Compute cache key - INICIO"
+            echo "[STEP] Compute venv cache key (python --version) - INICIO"
             python --version > cache-key.txt
-            echo "pyinstaller==6.21.0" >> cache-key.txt
             cat cache-key.txt
-            echo "[STEP] Compute cache key - FIN"
+            echo "[STEP] Compute venv cache key (python --version) - FIN"
       - restore_cache:
           keys:
             - venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock.txt" }}
       - run:
           # Lock universal en venv cacheado: en cache hit, pip re-verifica el
           # lock como no-op rápido.
-          name: Install dependencies
+          name: Install runtime deps from universal lock (require-hashes)
           command: |
-            echo "[STEP] Install dependencies - INICIO"
+            echo "[STEP] Install runtime deps from universal lock (require-hashes) - INICIO"
             python -m venv ~/.venv
             echo "source ~/.venv/bin/activate" >> $BASH_ENV
             source ~/.venv/bin/activate
             python -m pip install --upgrade pip
             python -m pip install -r requirements-lock.txt --require-hashes
-            python -m pip install pyinstaller==6.21.0
-            echo "[STEP] Install dependencies - FIN"
+            echo "[STEP] Install runtime deps from universal lock (require-hashes) - FIN"
       - save_cache:
           key: venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock.txt" }}
           paths:
             - ~/.venv
       - run:
-          name: Build Linux ARM64
+          # La herramienta de build (PyInstaller) se instala DESPUÉS del save_cache,
+          # sobre el venv ya poblado: así queda fuera del material cacheado.
+          name: Install PyInstaller into venv (post-cache)
+          command: |
+            echo "[STEP] Install PyInstaller into venv (post-cache) - INICIO"
+            python -m pip install pyinstaller==6.21.0
+            echo "[STEP] Install PyInstaller into venv (post-cache) - FIN"
+      - run:
+          name: Build Linux ARM64 AppImage via PyInstaller
           no_output_timeout: 20m
           command: |
-            echo "[STEP] Build Linux ARM64 - INICIO"
+            echo "[STEP] Build Linux ARM64 AppImage via PyInstaller - INICIO"
             python scripts/build_linux.py --arch arm64
-            echo "[STEP] Build Linux ARM64 - FIN"
+            echo "[STEP] Build Linux ARM64 AppImage via PyInstaller - FIN"
       - run:
           # Ejecuta el binario congelado onedir para detectar empaquetados rotos
           # antes de publicar. `version` no carga el modelo; exit 0 obligatorio.
@@ -543,47 +555,33 @@ jobs:
           # el engine, ver test-linux), así que este smoke test es la única puerta
           # que ejercita el stack nativo aarch64 (wheels, extensiones). Decisión
           # documentada en docs/BUILD.md §4.
-          name: Smoke test frozen binary
+          name: Smoke test dist/tts-sidecar/tts-sidecar
           command: |
-            echo "[STEP] Smoke test frozen binary - INICIO"
+            echo "[STEP] Smoke test dist/tts-sidecar/tts-sidecar - INICIO"
             dist/tts-sidecar/tts-sidecar version
-            echo "[STEP] Smoke test frozen binary - FIN"
+            echo "[STEP] Smoke test dist/tts-sidecar/tts-sidecar - FIN"
       - run:
-          # store_artifacts no expande globs: se copia el AppImage (cuyo nombre
-          # incluye la versión) a un nombre estable, independiente de __version__.
-          name: Stage AppImage artifact
+          # Copia única del AppImage VERSIONADO (nombre de release, con arch) al
+          # directorio de workspace para `publish-release`. Fail-fast: sin match,
+          # el glob se pasa literal a cp → error → el step aborta (bash -eo pipefail).
+          name: Stage versioned Linux ARM64 AppImage into workspace dir
           command: |
-            echo "[STEP] Stage AppImage artifact - INICIO"
-            cp dist/tts-sidecar-*-aarch64.AppImage dist/tts-sidecar-aarch64.AppImage
-            echo "[STEP] Stage AppImage artifact - FIN"
-      - run:
-          # N-04: SHA-256 del artefacto en el log del CI, única verificación de
-          # integridad posible sin firma de código (R-38).
-          name: Emit artifact SHA-256
-          command: |
-            echo "[STEP] Emit artifact SHA-256 - INICIO"
-            sha256sum dist/tts-sidecar-aarch64.AppImage
-            echo "[STEP] Emit artifact SHA-256 - FIN"
-      - run:
-          # Persiste el AppImage VERSIONADO (nombre de release, con arch) al
-          # workspace para `publish-release`. Fail-fast: sin match, el glob se
-          # pasa literal a cp → error → el step aborta (bash -eo pipefail).
-          name: Persist AppImage to workspace
-          command: |
-            echo "[STEP] Persist AppImage to workspace - INICIO"
+            echo "[STEP] Stage versioned Linux ARM64 AppImage into workspace dir - INICIO"
             mkdir -p artifacts
             cp dist/tts-sidecar-*-aarch64.AppImage artifacts/
-            echo "[STEP] Persist AppImage to workspace - FIN"
+            echo "[STEP] Stage versioned Linux ARM64 AppImage into workspace dir - FIN"
+      - run:
+          # N-04: SHA-256 del artefacto ya staged en artifacts/, en el log del CI;
+          # única verificación de integridad posible sin firma de código (R-38).
+          name: Emit SHA-256 of staged Linux ARM64 AppImage
+          command: |
+            echo "[STEP] Emit SHA-256 of staged Linux ARM64 AppImage - INICIO"
+            sha256sum artifacts/tts-sidecar-*-aarch64.AppImage
+            echo "[STEP] Emit SHA-256 of staged Linux ARM64 AppImage - FIN"
       - persist_to_workspace:
           root: artifacts
           paths:
             - tts-sidecar-*-aarch64.AppImage
-      - store_artifacts:
-          path: dist/tts-sidecar-aarch64.AppImage
-          destination: tts-sidecar-linux-aarch64.AppImage
-      - store_artifacts:
-          path: dist/tts-sidecar
-          destination: tts-sidecar-linux-aarch64/
 
   build-darwin-arm64:
     macos:
@@ -608,55 +606,58 @@ jobs:
           # en la imagen puede no traer localmente la definición del patch más
           # reciente (python-build es un snapshot vendido con el formula de
           # Homebrew, no se actualiza solo).
-          name: Set up Python 3.13
+          name: Set up Python 3.13 via pyenv (pinned 3.13.14)
           no_output_timeout: 20m
           command: |
-            echo "[STEP] Set up Python 3.13 - INICIO"
+            echo "[STEP] Set up Python 3.13 via pyenv (pinned 3.13.14) - INICIO"
             brew update && brew upgrade pyenv
             pyenv install -s 3.13.14
             pyenv global 3.13.14
             pyenv rehash
             python --version
-            echo "[STEP] Set up Python 3.13 - FIN"
+            echo "[STEP] Set up Python 3.13 via pyenv (pinned 3.13.14) - FIN"
       - save_cache:
           key: pyenv-v1-{{ arch }}-3.13.14-xcode26.4
           paths:
             - ~/.pyenv/versions
       - run:
-          # Material de la clave de cache del venv: versión exacta de Python +
-          # pins de herramientas fuera del lockfile.
-          name: Compute cache key
+          # Material de la clave de cache del venv: versión exacta de Python (sin
+          # pins de herramientas). Al no incluir el pin, la caché de venv es
+          # compartida con test-macos: el test la puebla, este build acierta HIT.
+          name: Compute venv cache key (python --version)
           command: |
-            echo "[STEP] Compute cache key - INICIO"
+            echo "[STEP] Compute venv cache key (python --version) - INICIO"
             python --version > cache-key.txt
-            echo "pyinstaller==6.21.0" >> cache-key.txt
             cat cache-key.txt
-            echo "[STEP] Compute cache key - FIN"
+            echo "[STEP] Compute venv cache key (python --version) - FIN"
       - restore_cache:
           keys:
             - venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock.txt" }}
       - run:
           # Lock universal en venv cacheado: en cache hit, pip re-verifica el
           # lock como no-op rápido.
-          name: Install runtime dependencies (locked)
+          name: Install runtime deps from universal lock (require-hashes)
           command: |
-            echo "[STEP] Install runtime dependencies (locked) - INICIO"
+            echo "[STEP] Install runtime deps from universal lock (require-hashes) - INICIO"
             python -m venv ~/.venv
             echo "source ~/.venv/bin/activate" >> $BASH_ENV
             source ~/.venv/bin/activate
             python -m pip install --upgrade pip
             python -m pip install -r requirements-lock.txt --require-hashes
-            echo "[STEP] Install runtime dependencies (locked) - FIN"
-      - run:
-          name: Install PyInstaller
-          command: |
-            echo "[STEP] Install PyInstaller - INICIO"
-            python -m pip install pyinstaller==6.21.0
-            echo "[STEP] Install PyInstaller - FIN"
+            echo "[STEP] Install runtime deps from universal lock (require-hashes) - FIN"
       - save_cache:
           key: venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock.txt" }}
           paths:
             - ~/.venv
+      - run:
+          # La herramienta de build (PyInstaller) se instala DESPUÉS del save_cache,
+          # sobre el venv ya poblado: así queda fuera del material cacheado y la
+          # caché de venv la comparten test-macos y este build.
+          name: Install PyInstaller into venv (post-cache)
+          command: |
+            echo "[STEP] Install PyInstaller into venv (post-cache) - INICIO"
+            python -m pip install pyinstaller==6.21.0
+            echo "[STEP] Install PyInstaller into venv (post-cache) - FIN"
       - run:
           # create-dmg es un script de shell distribuido por Homebrew, no un
           # paquete de PyPI: `pip3 install create-dmg` fallaba siempre
@@ -665,63 +666,49 @@ jobs:
           # de pip), así que se deja sin pin explícito; y como no se pinea,
           # el `brew update` implícito (minutos de wall-time) tampoco aporta:
           # HOMEBREW_NO_AUTO_UPDATE=1 lo suprime.
-          name: Install create-dmg (Homebrew)
+          name: Install create-dmg via Homebrew (no auto-update)
           command: |
-            echo "[STEP] Install create-dmg (Homebrew) - INICIO"
+            echo "[STEP] Install create-dmg via Homebrew (no auto-update) - INICIO"
             HOMEBREW_NO_AUTO_UPDATE=1 brew install create-dmg
-            echo "[STEP] Install create-dmg (Homebrew) - FIN"
+            echo "[STEP] Install create-dmg via Homebrew (no auto-update) - FIN"
       - run:
-          name: Build macOS arm64
+          name: Build macOS arm64 .app via PyInstaller
           no_output_timeout: 20m
           command: |
-            echo "[STEP] Build macOS arm64 - INICIO"
+            echo "[STEP] Build macOS arm64 .app via PyInstaller - INICIO"
             python3 scripts/build_macos.py --arch arm64
-            echo "[STEP] Build macOS arm64 - FIN"
+            echo "[STEP] Build macOS arm64 .app via PyInstaller - FIN"
       - run:
           # Ejecuta el binario congelado dentro del .app para detectar
           # empaquetados rotos antes de publicar. `version` no carga el modelo;
           # exit 0 obligatorio.
-          name: Smoke test frozen binary
+          name: Smoke test dist/tts-sidecar-arm64.app/Contents/MacOS/tts-sidecar
           command: |
-            echo "[STEP] Smoke test frozen binary - INICIO"
+            echo "[STEP] Smoke test dist/tts-sidecar-arm64.app/Contents/MacOS/tts-sidecar - INICIO"
             dist/tts-sidecar-arm64.app/Contents/MacOS/tts-sidecar version
-            echo "[STEP] Smoke test frozen binary - FIN"
+            echo "[STEP] Smoke test dist/tts-sidecar-arm64.app/Contents/MacOS/tts-sidecar - FIN"
       - run:
-          # store_artifacts no expande globs: se copia el .dmg (cuyo nombre
-          # incluye la versión) a un nombre estable, independiente de __version__.
-          name: Stage DMG artifact
+          # Copia única del .dmg VERSIONADO (nombre de release, con arch) al
+          # directorio de workspace para `publish-release`. Fail-fast: sin match,
+          # el glob se pasa literal a cp → error → el step aborta (bash -eo pipefail).
+          name: Stage versioned macOS arm64 .dmg into workspace dir
           command: |
-            echo "[STEP] Stage DMG artifact - INICIO"
-            cp dist/tts-sidecar-*-arm64.dmg dist/tts-sidecar-arm64.dmg
-            echo "[STEP] Stage DMG artifact - FIN"
-      - run:
-          # N-04: SHA-256 del artefacto en el log del CI, única verificación de
-          # integridad posible sin firma de código (R-38).
-          name: Emit artifact SHA-256
-          command: |
-            echo "[STEP] Emit artifact SHA-256 - INICIO"
-            shasum -a 256 dist/tts-sidecar-arm64.dmg
-            echo "[STEP] Emit artifact SHA-256 - FIN"
-      - run:
-          # Persiste el .dmg VERSIONADO (nombre de release, con arch) al
-          # workspace para `publish-release`. Fail-fast: sin match, el glob se
-          # pasa literal a cp → error → el step aborta (bash -eo pipefail).
-          name: Persist DMG to workspace
-          command: |
-            echo "[STEP] Persist DMG to workspace - INICIO"
+            echo "[STEP] Stage versioned macOS arm64 .dmg into workspace dir - INICIO"
             mkdir -p artifacts
             cp dist/tts-sidecar-*-arm64.dmg artifacts/
-            echo "[STEP] Persist DMG to workspace - FIN"
+            echo "[STEP] Stage versioned macOS arm64 .dmg into workspace dir - FIN"
+      - run:
+          # N-04: SHA-256 del artefacto ya staged en artifacts/, en el log del CI;
+          # única verificación de integridad posible sin firma de código (R-38).
+          name: Emit SHA-256 of staged macOS arm64 .dmg
+          command: |
+            echo "[STEP] Emit SHA-256 of staged macOS arm64 .dmg - INICIO"
+            shasum -a 256 artifacts/tts-sidecar-*-arm64.dmg
+            echo "[STEP] Emit SHA-256 of staged macOS arm64 .dmg - FIN"
       - persist_to_workspace:
           root: artifacts
           paths:
             - tts-sidecar-*-arm64.dmg
-      - store_artifacts:
-          path: dist/tts-sidecar-arm64.dmg
-          destination: tts-sidecar-darwin-arm64.dmg
-      - store_artifacts:
-          path: dist/tts-sidecar-arm64.app
-          destination: tts-sidecar-darwin-arm64.app/
 
   publish-release:
     # CD estrategia 1 (GitHub Releases). Solo corre en tags `v*` (ver el
@@ -739,9 +726,9 @@ jobs:
       - run:
           # gh CLI desde el repo apt oficial de GitHub (pineado por su propia
           # firma GPG); no viene preinstalado en cimg/base.
-          name: Install gh CLI
+          name: Install gh CLI from official apt repo (signed)
           command: |
-            echo "[STEP] Install gh CLI - INICIO"
+            echo "[STEP] Install gh CLI from official apt repo (signed) - INICIO"
             set -euo pipefail
             sudo mkdir -p -m 755 /etc/apt/keyrings
             wget -nv -O- https://cli.github.com/packages/githubcli-archive-keyring.gpg \
@@ -751,26 +738,26 @@ jobs:
               | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
             sudo apt-get update
             sudo apt-get install -y gh
-            echo "[STEP] Install gh CLI - FIN"
+            echo "[STEP] Install gh CLI from official apt repo (signed) - FIN"
       - run:
           # Los 4 artefactos ya llegan con su nombre de release (versionado, con
           # arch); solo falta el manifiesto de checksums. Fail-fast: sin los 4
           # artefactos en el workspace, sha256sum falla y el step aborta.
-          name: Generate SHA256SUMS.txt
+          name: Generate SHA256SUMS.txt over workspace artifacts
           command: |
-            echo "[STEP] Generate SHA256SUMS.txt - INICIO"
+            echo "[STEP] Generate SHA256SUMS.txt over workspace artifacts - INICIO"
             set -euo pipefail
             cd artifacts
             sha256sum tts-sidecar-* > SHA256SUMS.txt
             cat SHA256SUMS.txt
-            echo "[STEP] Generate SHA256SUMS.txt - FIN"
+            echo "[STEP] Generate SHA256SUMS.txt over workspace artifacts - FIN"
       - run:
           # Extrae la sección `## [X.Y.Z]` del CHANGELOG (X.Y.Z = tag sin la `v`)
           # hasta el siguiente `## [`. Fail-fast si la sección no existe: evita
           # publicar un Release con notas vacías.
-          name: Extract release notes
+          name: Extract release notes from CHANGELOG section
           command: |
-            echo "[STEP] Extract release notes - INICIO"
+            echo "[STEP] Extract release notes from CHANGELOG section - INICIO"
             set -euo pipefail
             VERSION="${CIRCLE_TAG#v}"
             # Corta en el siguiente `## [` (próxima versión) o en el bloque de
@@ -787,21 +774,21 @@ jobs:
               exit 1
             fi
             cat notes.md
-            echo "[STEP] Extract release notes - FIN"
+            echo "[STEP] Extract release notes from CHANGELOG section - FIN"
       - run:
           # Crea el Release en BORRADOR con los 5 assets (4 artefactos +
           # SHA256SUMS.txt). Si el tag ya tiene Release, `gh release create`
           # falla ruidosamente (correcto: no re-publica en silencio).
-          name: Create draft GitHub Release
+          name: Create draft GitHub Release with 4 artifacts + SHA256SUMS
           command: |
-            echo "[STEP] Create draft GitHub Release - INICIO"
+            echo "[STEP] Create draft GitHub Release with 4 artifacts + SHA256SUMS - INICIO"
             set -euo pipefail
             gh release create "$CIRCLE_TAG" \
               artifacts/tts-sidecar-* artifacts/SHA256SUMS.txt \
               --draft \
               --title "$CIRCLE_TAG" \
               --notes-file notes.md
-            echo "[STEP] Create draft GitHub Release - FIN"
+            echo "[STEP] Create draft GitHub Release with 4 artifacts + SHA256SUMS - FIN"
 
 workflows:
   build-all:

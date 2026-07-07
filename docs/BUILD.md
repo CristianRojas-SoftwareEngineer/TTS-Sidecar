@@ -266,7 +266,7 @@ Los tests (3) y los builds (4) no están desalineados: responden a **ejes distin
 | `test-linux` | Linux x64 | docker `cimg/python:3.13` | `pytest tests/` en Linux (puerta previa) |
 | `test-windows` | Windows x64 | `win/server-2022` | `pytest tests/` en Windows nativo (puerta previa) |
 | `test-macos` | macOS arm64 (Apple Silicon) | macos `m4pro.medium` (Xcode 26.4.0) | `pytest tests/` en macOS nativo (puerta previa) |
-| `build-windows-x64` | Windows x64 | `win/server-2022` | **Dos steps:** «Build Windows (PyInstaller onedir)» (`--no-installer`, `no_output_timeout: 20m`) y «Generate installer» (`create_installer_windows.py`, `no_output_timeout: 25m`) |
+| `build-windows-x64` | Windows x64 | `win/server-2022` | **Tres steps:** «Build Windows x64 onedir via PyInstaller» (`--no-installer`, `no_output_timeout: 20m`), «Generate Windows x64 installer via Inno Setup» (`create_installer_windows.py`, `no_output_timeout: 25m`), e «Install Inno Setup via choco (pinned 6.3.3)» como step propio separado de las deps Python |
 | `build-linux-x64` | Linux x64 | docker `cimg/python:3.13` (`large`) | PyInstaller onedir + AppImage |
 | `build-linux-arm64` | Linux ARM64 | docker `cimg/python:3.13` (`arm.medium`) | PyInstaller onedir + AppImage |
 | `build-darwin-arm64` | macOS arm64 (Apple Silicon) | macos `m4pro.medium` (Xcode 26.4.0) | PyInstaller onedir + .app + .dmg |
@@ -298,13 +298,17 @@ tipos de cache, con claves independientes:
   que no tienen el equivalente de `$BASH_ENV` y por eso invocan
   `.venv\Scripts\python.exe` por ruta explícita en los steps posteriores). La
   clave es `venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum
-  "<lockfile>" }}`, donde `cache-key.txt` se genera en runtime con la versión
-  exacta de Python efectiva más los pins de herramientas fuera del lockfile
-  (`pytest==9.1.1` en los jobs de test, `pyinstaller==6.21.0` en los de build).
-  Así, un cambio de lockfile, de patch de Python o de pin invalida el cache
-  automáticamente. En cache hit, `pip install --require-hashes` sigue corriendo
-  y re-verifica el lock como no-op rápido: el determinismo de instalación no se
-  relaja.
+  "<lockfile>" }}`, donde `cache-key.txt` contiene solo la versión exacta de
+  Python efectiva (`python --version`): **no** incluye pins de herramienta
+  (`pytest` / `PyInstaller`). Como resultado, **la caché de venv es compartida
+  entre el job de test y el job de build de cada plataforma+lockfile** —
+  mismo Python, mismo lockfile, misma clave — y el build acierta HIT desde el
+  test que corre antes en la misma pipeline. Un cambio de lockfile o de patch
+  de Python invalida el cache; los pins de herramienta se reinstalan en cada
+  corrida (después del `save_cache`, sobre el venv ya poblado), pero cuestan
+  segundos al no tener dependencias pesadas. En cache hit, `pip install
+  --require-hashes` sigue corriendo y re-verifica el lock como no-op rápido:
+  el determinismo de instalación no se relaja.
 
 - **Cache de CPython compilado (pyenv).** Solo los jobs macOS (`test-macos` y
   `build-darwin-arm64`) compilan CPython desde fuente vía pyenv (~8–15 min); el
@@ -358,17 +362,36 @@ por tests → builds → `publish-release`.
 
 ## 5. Distribución de artefactos
 
-Los artefactos publicados por CI se almacenan en `dist/`:
+El **deliverable** que se publica a usuarios es el artefacto **empaquetado**
+(instalador `.exe`, AppImage, `.dmg`), con su nombre de release **versionado
+y con arch** (p. ej. `tts-sidecar-0.1.0-x86_64-setup.exe`). Estos cuatro
+artefactos llegan al GitHub Release a través de `persist_to_workspace` /
+`attach_workspace` (handoff entre el job de build y `publish-release`): la
+publicación es **única** por el workspace, no por `store_artifacts` (el cual se
+retiró del pipeline: generaba una segunda copia redundante en la pestaña
+Artifacts de CircleCI, ~2 min de subida medidos en builds grandes, y
+duplicaba el onedir/.app crudo cuyo contenido ya viaja dentro del
+empaquetado).
+
+El output del build en el runner vive en `dist/` y se reduce a los cuatro
+artefactos versionados:
 
 ```
 dist/
 ├── tts-sidecar-0.1.0-x86_64-setup.exe   # Windows (instalador Inno Setup)
-├── tts-sidecar/                          # Windows onedir (carpeta)
 ├── tts-sidecar-0.1.0-x86_64.AppImage    # Linux x64
 ├── tts-sidecar-0.1.0-aarch64.AppImage   # Linux ARM64
-├── tts-sidecar-0.1.0-arm64.dmg          # macOS (Apple Silicon)
-└── tts-sidecar-arm64.app/                # macOS .app bundle (nombre estable: se arrastra a /Applications)
+└── tts-sidecar-0.1.0-arm64.dmg          # macOS (Apple Silicon)
 ```
+
+El **onedir** de PyInstaller (`dist/tts-sidecar/` o `dist/tts-sidecar-arm64.app/`)
+se genera como input del empaquetado y del smoke test, pero **no** se sube a
+la pestaña Artifacts de CircleCI: ya está contenido en el instalador/AppImage
+correspondiente, y subirlo aparte duplica el almacenamiento sin agregar
+información al Release. Los pasos `store_artifacts` quedaron retirados del
+`.circleci/config.yml`; la cadena de release se mantiene íntegra (los
+`attach_workspace` de `publish-release` siguen trayendo los cuatro
+empaquetados).
 
 ---
 
