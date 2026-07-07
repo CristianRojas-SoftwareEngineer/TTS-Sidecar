@@ -107,19 +107,49 @@ sesión: se arranca antes de sintetizar y se detiene al final.
 
 ## Criterios de Aceptación
 
-<!-- Los criterios 1-3 son claims de ejecución por SO: el pipeline de build (CI +
-scripts/build_*.py) produce los instaladores, pero la validación end-to-end sobre
-cada SO no es verificable desde el repo, por eso quedan pendientes. -->
+<!-- Los criterios 1-3 y 9 son claims de ejecución por SO: el pipeline de build
+(CI + scripts/build_*.py) produce los instaladores y un smoke test automatizado
+del binario congelado (`tts-sidecar version`), pero la validación end-to-end
+sobre cada SO es por diseño externa al pipeline (ver "Decisión de validación
+E2E" más abajo). -->
 
-1. [ ] El instalador de Windows (.exe) funciona en Windows 10/11 sin dependencias (validación por SO pendiente)
-2. [ ] El instalador de Linux funciona en distribuciones principales (validación por SO pendiente)
-3. [ ] El instalador de macOS funciona en el mínimo declarado por `LSMinimumSystemVersion` (Apple Silicon; Mac Intel no soportado) — derivado dinámicamente del `MACOSX_DEPLOYMENT_TARGET` del toolchain de build, no un número fijo (validación por SO pendiente)
+1. [ ] El instalador de Windows (.exe) funciona en Windows 10/11 sin dependencias (validación E2E por SO, ver "Decisión de validación E2E" más abajo)
+2. [ ] El instalador de Linux funciona en distribuciones principales (validación E2E por SO, ver "Decisión de validación E2E" más abajo)
+3. [ ] El instalador de macOS funciona en el mínimo declarado por `LSMinimumSystemVersion` (Apple Silicon; Mac Intel no soportado) — derivado dinámicamente del `MACOSX_DEPLOYMENT_TARGET` del toolchain de build, no un número fijo (validación E2E por SO, ver "Decisión de validación E2E" más abajo)
 4. [x] `tts-sidecar speak --text "Hola mundo"` reproduce audio en español
 5. [x] `tts-sidecar voice add --name test --reference ref.wav --speech speech.wav` clona la voz
 6. [x] El audio generado suena en español con las características de la voz de referencia
 7. [x] El español latinoamericano suena natural y con buena prosodia
 8. [x] La síntesis funciona sin conexión a internet (modelo en local)
-9. [ ] El instalador incluye todo lo necesario (no requiere instalaciones adicionales) (validación por SO pendiente)
+9. [ ] El instalador incluye todo lo necesario (no requiere instalaciones adicionales) (validación E2E por SO, ver "Decisión de validación E2E" más abajo)
+
+### Decisión de validación E2E
+
+La validación end-to-end de los instaladores (instalar → `setup` → `speak` real
+→ desinstalar) **no se ejecuta dentro del pipeline de CI** por una decisión
+consciente de diseño: requiere cuota de runner significativa (carga del modelo
+Chatterbox + descarga de ~2 GB de pesos + síntesis real con audio) y
+reproducirla en cada push no aporta señal proporcional a su coste. El pipeline
+sí ejecuta un **smoke test automatizado** del binario congelado (`tts-sidecar
+version`, exit 0) en los cuatro jobs de build, que detecta empaquetados rotos
+(metadata faltante, `--collect-all` incompleto) sin pagar el coste del modelo.
+
+Fuera del pipeline, la validación se reparte así:
+
+- **Windows**: la realiza el propietario manualmente sobre su equipo local,
+  instalando el artefacto de cada release, ejecutando el recorrido
+  `setup` → `speak` → desinstalar, y registrando el resultado.
+- **Linux y macOS**: dependen de **feedback de usuarios reales** que prueben la
+  instalación y ejecución en sus equipos. Ese feedback (positivo o negativo) es
+  la entrada de issues que cierra el circuito y guía correcciones específicas
+  por plataforma.
+
+Por tanto, los criterios 1-3 y 9 no son "pendientes" en el sentido de tareas
+olvidadas: son el **borde externo** del proceso de calidad, donde el propietario
+más el feedback de la comunidad reemplazan a un runner de CI que no podría
+ejercitar la matriz de hardware/SO real. Cualquier issue reportado en estos
+criterios se incorpora al ciclo de desarrollo como bug prioritario y motiva
+fixes versionados.
 
 ---
 
@@ -132,7 +162,7 @@ La implementación está completa únicamente cuando:
 - [x] El audio generado preserva las características de la voz original
 - [x] El español latinoamericano suena natural
 - [x] Hay scripts de build e instalador por cada SO (Windows, Linux, macOS) en el pipeline de CI
-- [ ] Los instaladores funcionan sin ninguna dependencia externa (validación end-to-end por SO pendiente)
+- [ ] Los instaladores funcionan sin ninguna dependencia externa (validación E2E por SO, ver "Decisión de validación E2E" arriba: smoke test automatizado en CI + validación manual Windows del propietario + feedback de usuarios reales en Linux y macOS)
 - [x] **README.md** refleja la nueva arquitectura con Chatterbox
 - [x] **docs/DESIGN.md** corresponde al estado implementado
 - [x] El daemon mode está implementado y funciona correctamente
@@ -144,7 +174,8 @@ La implementación está completa únicamente cuando:
 ## Estado Actual
 
 **Implementado y verificable en el repo** (la validación end-to-end de los
-instaladores por SO queda pendiente, ver Criterios de Aceptación):
+instaladores por SO es externa al pipeline por diseño; ver "Decisión de
+validación E2E" arriba):
 - Motor Chatterbox Multilingual V3 implementado (Python)
 - Sistema de audio playback nativo por SO (pycaw/winsound/sounddevice/afplay)
 - Daemon mode con IPC HTTP (FastAPI, puerto 8765)
