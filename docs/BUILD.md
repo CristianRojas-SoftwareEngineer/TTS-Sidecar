@@ -267,7 +267,7 @@ Los tests (3) y los builds (4) no están desalineados: responden a **ejes distin
 | `test-windows` | Windows x64 | `win/server-2022` | `pytest tests/` en Windows nativo (puerta previa) |
 | `test-macos` | macOS arm64 (Apple Silicon) | macos `m4pro.medium` (Xcode 26.4.0) | `pytest tests/` en macOS nativo (puerta previa) |
 | `build-windows-x64` | Windows x64 | `win/server-2022` | **Dos steps:** «Build Windows (PyInstaller onedir)» (`--no-installer`, `no_output_timeout: 20m`) y «Generate installer» (`create_installer_windows.py`, `no_output_timeout: 25m`) |
-| `build-linux-x64` | Linux x64 | docker `cimg/python:3.13` | PyInstaller onedir + AppImage |
+| `build-linux-x64` | Linux x64 | docker `cimg/python:3.13` (`large`) | PyInstaller onedir + AppImage |
 | `build-linux-arm64` | Linux ARM64 | docker `cimg/python:3.13` (`arm.medium`) | PyInstaller onedir + AppImage |
 | `build-darwin-arm64` | macOS arm64 (Apple Silicon) | macos `m4pro.medium` (Xcode 26.4.0) | PyInstaller onedir + .app + .dmg |
 | `publish-release` | — (CD) | docker `cimg/base:current` | Solo en tags `v*`: recolecta los 4 artefactos por workspace, genera `SHA256SUMS.txt` y crea un GitHub Release en **borrador** |

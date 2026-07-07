@@ -367,6 +367,14 @@ jobs:
   build-linux-x64:
     docker:
       - image: cimg/python:3.13
+    # resource_class explícito: el bundling de PyInstaller con torch necesita
+    # ~8 GB de RAM. En Docker x86 el tier `medium` da solo 4 GB (riesgo de OOM);
+    # `large` es el tier más chico que alcanza 8 GB (sus 4 vCPU vienen de regalo,
+    # aunque PyInstaller es mayormente single-thread y no los aprovecha). Se
+    # declara para no depender del default de cuenta, que podría cambiar a
+    # `medium` y romper el build de forma silenciosa. Simetría de RAM con
+    # build-linux-arm64, donde `arm.medium` ya trae 8 GB con 2 vCPU.
+    resource_class: large
     steps:
       - checkout
       - run:
