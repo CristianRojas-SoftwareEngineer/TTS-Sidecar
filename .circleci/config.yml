@@ -468,8 +468,19 @@ jobs:
           destination: tts-sidecar-linux-x86_64/
 
   build-linux-arm64:
-    machine:
-      image: ubuntu-2204:current
+    # Espejo de build-linux-x64: Docker cimg/python:3.13 (variante arm64) con
+    # Python preinstalado, en lugar del `machine` executor + pyenv. Compilar
+    # CPython desde fuente con pyenv (~10 min/corrida) era, además de lento,
+    # inviable de cachear aquí: el pyenv del `machine` executor vive en
+    # /opt/circleci/.pyenv (propiedad del usuario `circleci`), por lo que el job
+    # —que corre como otro usuario— no puede escribir ahí (git pull fallaba con
+    # "Permission denied") y la ruta de cache ~/.pyenv/versions ni siquiera
+    # coincidía con la de instalación (el cache guardaba un directorio vacío).
+    # El build de AppImage no requiere FUSE (build_linux.py usa
+    # --appimage-extract-and-run), así que el executor Docker es suficiente,
+    # igual que en build-linux-x64.
+    docker:
+      - image: cimg/python:3.13
     resource_class: arm.medium
     steps:
       - checkout
@@ -480,36 +491,6 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y patchelf libasound2-dev
             echo "[STEP] Install system dependencies - FIN"
-      - restore_cache:
-          keys:
-            - pyenv-v1-{{ arch }}-3.13.14
-      - run:
-          # Pin EXACTO de Python 3.13.14 (espejo del pin de Chocolatey en los
-          # jobs Windows): patch fijo para que la clave de cache del CPython
-          # compilado sea estable. no_output_timeout holgado: pyenv compila
-          # CPython desde fuente con output escaso (~10 min) en el primer miss;
-          # con cache restaurado, `pyenv install -s` salta la compilación. Si
-          # `~/.pyenv` es un checkout git (instalación estándar del pyenv-installer
-          # en las imágenes `machine` de CircleCI), se actualiza antes de instalar:
-          # la definición de un patch recién liberado puede no estar en el
-          # snapshot vendido con la imagen. El directorio pertenece a `circleci`
-          # pero el job corre como otro usuario del sistema, por lo que git
-          # rechaza operar ahí ("dubious ownership") sin la excepción explícita.
-          name: Set up Python 3.13
-          no_output_timeout: 20m
-          command: |
-            echo "[STEP] Set up Python 3.13 - INICIO"
-            git config --global --add safe.directory "$(pyenv root)"
-            if [ -d "$(pyenv root)/.git" ]; then git -C "$(pyenv root)" pull --ff-only; fi
-            pyenv install -s 3.13.14
-            pyenv global 3.13.14
-            pyenv rehash
-            python --version
-            echo "[STEP] Set up Python 3.13 - FIN"
-      - save_cache:
-          key: pyenv-v1-{{ arch }}-3.13.14
-          paths:
-            - ~/.pyenv/versions
       - run:
           # Material de la clave de cache del venv: versión exacta de Python +
           # pins de herramientas fuera del lockfile.

@@ -236,7 +236,7 @@ Los tests (3) y los builds (4) no están desalineados: responden a **ejes distin
   extensión nativa) lo cubre el **smoke test** del propio build (`tts-sidecar version`,
   que importa el stack nativo en ARM y exige exit 0), no la suite. Se documenta como
   **decisión consciente**: un `test-linux-arm64` re-correría la suite mockeada (señal
-  marginal) a un coste recurrente en cada push (VM `machine`), sin cerrar el riesgo que
+  marginal) a un coste recurrente en cada push, sin cerrar el riesgo que
   el smoke test ya cubre. Reconsiderar solo ante un bug arch-específico; el *fast-follow*
   de mayor ROI sería un test de integración que cargue el modelo y sintetice en ARM, no
   re-correr la suite.
@@ -268,7 +268,7 @@ Los tests (3) y los builds (4) no están desalineados: responden a **ejes distin
 | `test-macos` | macOS arm64 (Apple Silicon) | macos `m4pro.medium` (Xcode 26.4.0) | `pytest tests/` en macOS nativo (puerta previa) |
 | `build-windows-x64` | Windows x64 | `win/server-2022` | **Dos steps:** «Build Windows (PyInstaller onedir)» (`--no-installer`, `no_output_timeout: 20m`) y «Generate installer» (`create_installer_windows.py`, `no_output_timeout: 25m`) |
 | `build-linux-x64` | Linux x64 | docker `cimg/python:3.13` | PyInstaller onedir + AppImage |
-| `build-linux-arm64` | Linux ARM64 | machine `arm.medium` | PyInstaller onedir + AppImage |
+| `build-linux-arm64` | Linux ARM64 | docker `cimg/python:3.13` (`arm.medium`) | PyInstaller onedir + AppImage |
 | `build-darwin-arm64` | macOS arm64 (Apple Silicon) | macos `m4pro.medium` (Xcode 26.4.0) | PyInstaller onedir + .app + .dmg |
 | `publish-release` | — (CD) | docker `cimg/base:current` | Solo en tags `v*`: recolecta los 4 artefactos por workspace, genera `SHA256SUMS.txt` y crea un GitHub Release en **borrador** |
 
@@ -306,20 +306,29 @@ tipos de cache, con claves independientes:
   y re-verifica el lock como no-op rápido: el determinismo de instalación no se
   relaja.
 
-- **Cache de CPython compilado (pyenv).** `test-macos`, `build-linux-arm64` y
-  `build-darwin-arm64` compilan CPython desde fuente vía pyenv (~8–15 min).
-  El patch se fija **exacto** (`pyenv install -s 3.13.14`, espejo del pin
+- **Cache de CPython compilado (pyenv).** Solo los jobs macOS (`test-macos` y
+  `build-darwin-arm64`) compilan CPython desde fuente vía pyenv (~8–15 min); el
+  executor `macos` no ofrece una imagen con Python preinstalado equivalente a
+  `cimg`. El patch se fija **exacto** (`pyenv install -s 3.13.14`, espejo del pin
   `3.13.14` de Chocolatey en los jobs Windows — versión flotante y clave de
   cache estable son incompatibles) y `~/.pyenv/versions` se cachea con clave
-  `pyenv-v1-{{ arch }}-3.13.14`; en los jobs macOS la clave añade el literal de
-  la versión de Xcode (`-xcode26.4`) porque el CPython compilado depende del SDK
-  del runner. Con el cache restaurado, `pyenv install -s` salta la compilación
-  en segundos. Separar esta clave de la del venv evita que un cambio de lockfile
-  fuerce recompilar Python. Antes de instalar, los jobs macOS corren
-  `brew update && brew upgrade pyenv` (el `python-build` que trae la imagen es
-  un snapshot vendido con el formula de Homebrew y puede no incluir todavía la
-  definición de un patch recién liberado); `build-linux-arm64` hace el
-  equivalente con `git pull` sobre `~/.pyenv` si es un checkout git.
+  `pyenv-v1-{{ arch }}-3.13.14-xcode26.4`; la clave incluye el literal de la
+  versión de Xcode porque el CPython compilado depende del SDK del runner. Con el
+  cache restaurado, `pyenv install -s` salta la compilación en segundos. Separar
+  esta clave de la del venv evita que un cambio de lockfile fuerce recompilar
+  Python. Antes de instalar, ambos jobs corren `brew update && brew upgrade
+  pyenv` (el `python-build` que trae la imagen es un snapshot vendido con el
+  formula de Homebrew y puede no incluir todavía la definición de un patch recién
+  liberado).
+
+  Los builds de Linux (`build-linux-x64` y `build-linux-arm64`) **no** usan
+  pyenv: corren sobre `docker: cimg/python:3.13`, que ya trae Python. Esto era
+  obligado en arm64 —donde el `machine` executor guarda pyenv en
+  `/opt/circleci/.pyenv`, propiedad de otro usuario: ni se puede actualizar
+  (`git pull` sin permiso de escritura) ni la ruta de cache `~/.pyenv/versions`
+  coincidía con la de instalación (se cacheaba un directorio vacío)— y de paso lo
+  vuelve simétrico con x64. El build de AppImage no necesita FUSE
+  (`--appimage-extract-and-run`), así que Docker basta.
 
 Los caches de CircleCI son **inmutables por clave**: para invalidar todo el
 conjunto manualmente, incrementar el prefijo versionado (`v1-` → `v2-`) en
