@@ -150,6 +150,19 @@ def build_macos(target_arch="arm64"):
                     shutil.move(str(item), str(dest))
                 shutil.rmtree(onedir)
 
+                # El bootloader de PyInstaller, al detectar que el ejecutable vive
+                # bajo un path "*.app/Contents/MacOS/" (como este bundle armado a
+                # mano), busca libpython3.13.dylib en Contents/Frameworks/ —no en
+                # _internal/, donde --collect-binaries python lo deja realmente—
+                # y falla con "Failed to load Python shared library" (pipeline #36).
+                # Se crea Frameworks como symlink a MacOS/_internal, el mismo truco
+                # de cross-linking que PyInstaller usa para Resources/Frameworks en
+                # bundles con Qt.
+                internal_dir = macos_dir / "_internal"
+                if internal_dir.exists():
+                    frameworks_dir = app_bundle / "Contents" / "Frameworks"
+                    frameworks_dir.symlink_to(Path("MacOS") / "_internal", target_is_directory=True)
+
             # Genera el .icns del logo en Contents/Resources (None si Pillow o la
             # fuente faltan; en ese caso el .app queda sin icono nativo).
             icns_path = ensure_icns(app_bundle / "Contents" / "Resources")
