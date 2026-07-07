@@ -203,9 +203,13 @@ guiada + desinstalación limpia):
 Los artefactos **no están firmados ni notarizados**: en macOS, Gatekeeper
 bloquea la primera apertura del `.app`/`.dmg` (clic derecho → Abrir, o
 `xattr -d com.apple.quarantine`); en Windows, SmartScreen muestra la advertencia
-de editor desconocido en el instalador. Firmar/notarizar requiere certificados
-de pago (Apple Developer ID, certificado Authenticode) y queda fuera del
-alcance actual del pipeline.
+de editor desconocido en el instalador (solo sobre archivos descargados de
+internet, que llevan la Mark of the Web — un build local no la dispara).
+Firmar/notarizar con identidad propia requiere certificados de pago (Apple
+Developer ID, certificado Authenticode) y queda fuera del alcance actual del
+pipeline; la ruta prevista para Windows es
+[SignPath Foundation](https://signpath.org/) (firma gratuita para proyectos
+open source, integrada al CI; ver `SECURITY.md` §«Artefactos sin firmar»).
 
 ---
 

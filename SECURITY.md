@@ -65,10 +65,23 @@ limitada, pero conviene explicitar sus supuestos:
 ## Artefactos sin firmar
 
 Los binarios distribuidos **no están firmados ni notarizados**: Gatekeeper (macOS) y
-SmartScreen (Windows) advierten en el primer arranque. Sin firma de código, la
-única verificación de integridad disponible es cotejar el SHA-256 del artefacto
-descargado contra el archivo `SHA256SUMS.txt` publicado junto a cada
+SmartScreen (Windows) advierten en el primer arranque, y cada release —al ser
+un archivo nuevo sin reputación acumulada— vuelve a disparar la advertencia.
+Sin firma de código, la única verificación de integridad disponible es cotejar
+el SHA-256 del artefacto descargado contra el archivo `SHA256SUMS.txt`
+publicado junto a cada
 [Release](https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/releases)
 — esos hashes, a su vez, deben coincidir con los emitidos en el log del
 pipeline de CI que construyó el artefacto. Ver el flujo completo de
-publicación y verificación en [docs/RELEASING.md](docs/RELEASING.md).
+publicación y verificación en [docs/RELEASING.md](docs/RELEASING.md), y la
+guía de usuario para los diálogos de bloqueo en
+[USAGE.md](USAGE.md#el-sistema-bloquea-el-primer-arranque-binarios-sin-firmar).
+
+**Ruta prevista**: incorporar firma de código vía
+[SignPath Foundation](https://signpath.org/), que ofrece firma gratuita a
+proyectos open source con licencia OSI (el certificado se emite a nombre de la
+fundación y la clave privada reside en su HSM; requiere builds verificables
+desde el repositorio, MFA de los mantenedores y una política de firma
+publicada). La firma OV no suprime la advertencia de SmartScreen de inmediato
+—la reputación se acumula por volumen de descargas— pero reemplaza «editor
+desconocido» por un editor verificable.

@@ -72,16 +72,24 @@ verifica tu descarga contra él antes de ejecutar el instalador (ver
 
 ### Primer arranque: SmartScreen / Gatekeeper
 
-Los binarios distribuidos **no están firmados ni notarizados** (reserva conocida:
-la firma de código requiere certificados de pago que el proyecto aún no financia),
-por lo que el sistema puede bloquear la **primera** apertura:
+Al ejecutar el instalador por primera vez, **es esperable** que el sistema lo
+bloquee con una advertencia («Windows protegió tu PC» / «no se puede verificar
+el desarrollador»). **No indica malware**: los binarios distribuidos no están
+firmados con un certificado de código (los certificados son de pago y el
+proyecto aún no los financia), así que el sistema muestra «editor desconocido»
+y, al ser cada release un archivo nuevo sin historial de descargas, carece de
+reputación acumulada ante SmartScreen.
 
-- **Windows (SmartScreen)**: si aparece «Windows protegió tu PC», pulsa
-  **Más información** → **Ejecutar de todas formas**.
+- **Windows (SmartScreen)**: pulsa **Más información** → **Ejecutar de todas
+  formas**.
 - **macOS (Gatekeeper)**: haz clic derecho sobre el `.app`/`.dmg` → **Abrir** y
   confirma (o quita la cuarentena con `xattr`).
 
-Solo ocurre en el primer arranque. Ver el detalle paso a paso en
+Solo ocurre en el primer arranque. La forma objetiva de confiar en el artefacto
+es **verificar su SHA-256** contra el `SHA256SUMS.txt` del Release (ver
+[SECURITY.md](SECURITY.md)). Está previsto firmar los binarios vía
+[SignPath Foundation](https://signpath.org/) (firma de código gratuita para
+proyectos open source) en una versión futura. Detalle paso a paso en
 [USAGE.md](USAGE.md#el-sistema-bloquea-el-primer-arranque-binarios-sin-firmar).
 
 ### Provisión del modelo (`setup`)

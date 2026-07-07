@@ -827,8 +827,19 @@ allí (degrada el chequeo de audio a `[WARN]` y provisiona igual).
 
 ### El sistema bloquea el primer arranque (binarios sin firmar)
 
-Los binarios distribuidos no están firmados ni notarizados, así que la primera
-apertura puede ser bloqueada por el sistema:
+Al abrir el instalador por primera vez es **esperable** que el sistema lo
+bloquee. No significa que el archivo contenga malware: los binarios
+distribuidos no están firmados ni notarizados, y los sistemas de reputación
+(SmartScreen en Windows, Gatekeeper en macOS) tratan todo ejecutable de «editor
+desconocido» y sin historial de descargas como no confiable por defecto. Cada
+release es un archivo nuevo, así que la advertencia reaparece con cada versión.
+
+Cómo proceder:
+
+- **Windows (SmartScreen)**: en el diálogo «Windows protegió tu PC», pulsa
+  **Más información** → **Ejecutar de todas formas**. (Si el navegador ya
+  bloqueó la descarga, consérvala desde el menú de descargas: **Conservar** →
+  **Conservar de todas formas**.)
 
 - **macOS (Gatekeeper)**: al abrir el `.app`/`.dmg` por primera vez, haz clic
   derecho sobre él → **Abrir** y confirma; o quita la cuarentena desde una
@@ -838,11 +849,28 @@ apertura puede ser bloqueada por el sistema:
   xattr -d com.apple.quarantine /Applications/tts-sidecar-arm64.app
   ```
 
-- **Windows (SmartScreen)**: si aparece «Windows protegió tu PC» al ejecutar el
-  instalador, pulsa **Más información** → **Ejecutar de todas formas**.
-
 Esto solo ocurre en el primer arranque; las ejecuciones posteriores no vuelven a
 pedir confirmación.
+
+Antes de aceptar, puedes comprobar objetivamente que el archivo es el que
+publicó el proyecto cotejando su SHA-256 contra el `SHA256SUMS.txt` del
+Release (ver [SECURITY.md](SECURITY.md#artefactos-sin-firmar)):
+
+```powershell
+# Windows (PowerShell)
+Get-FileHash .\tts-sidecar-X.Y.Z-x86_64-setup.exe -Algorithm SHA256
+```
+
+```bash
+# Linux / macOS
+sha256sum -c SHA256SUMS.txt --ignore-missing
+```
+
+Si un antivirus de terceros pone el instalador en cuarentena, restáuralo y
+añade una exclusión **solo después** de verificar el hash. El plan del
+proyecto es eliminar esta fricción firmando los binarios a través de
+[SignPath Foundation](https://signpath.org/) (firma de código gratuita para
+proyectos open source) en una versión futura.
 
 ## Uso ético y responsable
 

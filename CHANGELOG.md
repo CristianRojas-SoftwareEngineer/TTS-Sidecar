@@ -38,6 +38,13 @@ de contrato son aditivos: los códigos de salida existentes no cambian y
 
 ### Cambiado
 
+- **Documentación del bloqueo SmartScreen/Gatekeeper ampliada**: `README.md`,
+  `USAGE.md`, `SECURITY.md` y `docs/BUILD.md` explican por qué el sistema
+  bloquea el primer arranque (binario sin firma + sin reputación por ser cada
+  release un archivo nuevo), que no indica malware, cómo proceder paso a paso
+  (incluido el bloqueo del navegador y la cuarentena de antivirus de terceros,
+  siempre tras verificar el SHA-256) y la ruta prevista de firma de código vía
+  SignPath Foundation (gratuita para proyectos open source).
 - **`daemon stop` honesto durante la ventana de arranque** (R-05): detecta el
   daemon en arranque por cmdline (sin PID file), avisa «arrancando; aún no
   acepta conexiones» y termina con exit 5 en vez de reportar un éxito falso;
