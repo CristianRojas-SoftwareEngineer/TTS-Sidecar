@@ -806,6 +806,67 @@ jobs:
               --notes-file notes.md
             echo "[STEP] Create draft GitHub Release with 4 artifacts + SHA256SUMS - FIN"
 
+  publish-pypi:
+    # Canal de distribución A (docs/DISTRIBUTION.md): publica el sdist+wheel a
+    # PyPI en el mismo tag `v*` que dispara los 4 builds nativos, en paralelo a
+    # ellos (el paquete no depende de PyInstaller). PyPI no soporta trusted
+    # publishing desde CircleCI, así que la autenticación usa un token API
+    # (PYPI_API_TOKEN) en el context aislado `pypi-publish`, que ningún otro
+    # job ve. La publicación es irreversible (un paquete subido no se puede
+    # sobrescribir, solo yankear): el smoke test en un venv limpio corre antes
+    # del upload para no publicar un wheel roto.
+    docker:
+      - image: cimg/python:3.13@sha256:9d189f873178a2bea234b7d51e31e1ae01a73646e962cf697f757b588f8d77b6
+    steps:
+      - checkout
+      - run:
+          name: Install build tooling (build, twine)
+          command: |
+            echo "[STEP] Install build tooling (build, twine) - INICIO"
+            pip install build==1.2.2.post1 twine==6.1.0
+            echo "[STEP] Install build tooling (build, twine) - FIN"
+      - run:
+          name: Build sdist and wheel
+          command: |
+            echo "[STEP] Build sdist and wheel - INICIO"
+            python -m build
+            echo "[STEP] Build sdist and wheel - FIN"
+      - run:
+          name: Validate package metadata (twine check)
+          command: |
+            echo "[STEP] Validate package metadata (twine check) - INICIO"
+            twine check dist/*
+            echo "[STEP] Validate package metadata (twine check) - FIN"
+      - run:
+          # Instala el wheel recién construido en un venv limpio (sin las
+          # dependencias pesadas del repo) y verifica que el entry point
+          # funciona y que la voz 'default' viaja dentro del wheel, antes de
+          # publicar en un canal donde la publicación es irreversible.
+          name: Smoke test wheel in a clean venv
+          command: |
+            echo "[STEP] Smoke test wheel in a clean venv - INICIO"
+            set -euo pipefail
+            python -m venv /tmp/smoke-venv
+            source /tmp/smoke-venv/bin/activate
+            pip install dist/*.whl
+            EXPECTED_VERSION="${CIRCLE_TAG#v}"
+            ACTUAL_VERSION="$(tts-sidecar version)"
+            if [ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]; then
+              echo "ERROR: version del wheel ($ACTUAL_VERSION) no coincide con el tag ($EXPECTED_VERSION)" >&2
+              exit 1
+            fi
+            python -c "from tts_sidecar import voices; assert 'default' in voices.list_voices(), 'voz default ausente del wheel'"
+            deactivate
+            echo "[STEP] Smoke test wheel in a clean venv - FIN"
+      - run:
+          # Upload final: PYPI_API_TOKEN viene del context `pypi-publish`
+          # (prerequisito operativo documentado en docs/RELEASING.md).
+          name: Publish to PyPI (twine upload)
+          command: |
+            echo "[STEP] Publish to PyPI (twine upload) - INICIO"
+            TWINE_USERNAME=__token__ TWINE_PASSWORD="$PYPI_API_TOKEN" twine upload dist/*
+            echo "[STEP] Publish to PyPI (twine upload) - FIN"
+
 workflows:
   build-all:
     # CircleCI NO ejecuta un job en un tag salvo que el job Y todas sus
@@ -885,3 +946,15 @@ workflows:
             - build-linux-x64
             - build-linux-arm64
             - build-darwin-arm64
+      - publish-pypi:
+          context:
+            - pypi-publish
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+          requires:
+            - test-linux
+            - test-windows
+            - test-macos
