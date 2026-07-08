@@ -2,12 +2,12 @@
 Gestión del registro de voces, libre de modelo.
 
 Hogar único de las rutas del directorio de voces y de las operaciones de registro
-(listar, eliminar, resolver rutas). El modelo de voces es de **dos niveles**:
+(listar, eliminar, resolver rutas). El modelo de voces es de **dos niveles**,
+uniforme en los tres modos de ejecución (fuente, pip/uv-installed, congelado):
 
-- **Usuario**: voces escribibles en `data_root()/voices` (user-data-dir por SO
-  cuando está congelado; `src/voices` en modo fuente históricamente, hoy vacío).
+- **Usuario**: voces escribibles en `data_root()/voices` (user-data-dir por SO).
 - **Fábrica**: voces de solo lectura empaquetadas en `bundled_voices_dir()`
-  (raíz del repo en modo fuente; `sys._MEIPASS` congelado).
+  (subdirectorio `voices` del paquete `tts_sidecar`; `sys._MEIPASS` congelado).
 
 La resolución de un nombre busca primero en usuario y luego en fábrica, de modo
 que un usuario puede sobrescribir una voz de fábrica registrando una propia con

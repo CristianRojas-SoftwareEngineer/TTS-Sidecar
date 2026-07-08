@@ -245,9 +245,10 @@ def common_pyinstaller_args(
         # Data files
         "--collect-data", "soundfile",
         "--collect-data", "certifi",
-        # Voces de fábrica (incluida la voz 'default') en la raíz del bundle,
-        # resueltas en runtime por paths.bundled_voices_dir() (sys._MEIPASS).
-        "--add-data", f"{project_root / 'voices'}{data_sep}voices",
+        # Voces de fábrica (incluida la voz 'default'), empaquetadas dentro del
+        # árbol del paquete y resueltas en runtime por paths.bundled_voices_dir()
+        # (sys._MEIPASS/tts_sidecar/voices).
+        "--add-data", f"{project_root / 'src' / 'tts_sidecar' / 'voices'}{data_sep}tts_sidecar/voices",
         # Metadata requerida por importlib.metadata / pkg_resources
         "--recursive-copy-metadata", "chatterbox-tts",
         "--copy-metadata", "requests",

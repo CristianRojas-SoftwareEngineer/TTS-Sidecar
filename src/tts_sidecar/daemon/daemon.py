@@ -72,10 +72,13 @@ class DaemonManager:
 
         if background:
             env = os.environ.copy()
-            # Modo fuente: fijar PYTHONPATH para que el subproceso encuentre
-            # tts_sidecar. En modo congelado el ejecutable ya es autocontenido.
+            # Modo fuente/pip-installed: fijar PYTHONPATH para que el subproceso
+            # encuentre tts_sidecar. En modo congelado el ejecutable ya es
+            # autocontenido. La ruta calculada es el padre del paquete (`src/`
+            # en modo fuente, `site-packages` en pip/uv): en ambos casos es
+            # inocua y suficiente para que el import se resuelva.
             if not paths.is_frozen():
-                # __file__ es src/tts_sidecar/daemon/daemon.py → 3 dirname = src/
+                # __file__ es .../tts_sidecar/daemon/daemon.py → 3 dirname = padre del paquete
                 src_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                 if os.path.exists(src_path):
                     env["PYTHONPATH"] = src_path
