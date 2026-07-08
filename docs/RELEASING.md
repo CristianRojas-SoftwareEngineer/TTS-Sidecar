@@ -86,8 +86,14 @@ Una vez pushado el tag, el pipeline ejecuta sin intervención:
    puerta de tests): construye el sdist y el wheel, valida la metadata
    (`twine check`), instala el wheel en un venv limpio para verificar que
    `tts-sidecar version` coincide con el tag y que la voz `default` está
-   presente, y publica a PyPI con `twine upload`. Detalle completo en
-   [docs/DISTRIBUTION.md](DISTRIBUTION.md#flujo-de-publicación-ci).
+   presente, y publica a PyPI con `twine upload --skip-existing`. Detalle
+   completo en [docs/DISTRIBUTION.md](DISTRIBUTION.md#flujo-de-publicación-ci).
+   El `--skip-existing` hace idempotente el job ante un re-tag: si falla un
+   build nativo y hay que borrar y recrear el tag (Ej. sección "1. Corte"),
+   el pipeline nuevo vuelve a correr `publish-pypi` desde cero — si esa
+   versión ya se había publicado con éxito en el intento anterior, twine
+   detecta que el archivo ya existe en PyPI y termina en éxito sin reintentar
+   el upload, en vez de fallar ruidosamente.
 
 Ya no hay descarga ni cotejo manual de artefactos: la recolección por workspace
 es determinista (el mismo binario que pasó el smoke test es el que se adjunta).

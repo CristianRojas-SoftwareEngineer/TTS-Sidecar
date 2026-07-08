@@ -864,7 +864,7 @@ jobs:
           name: Publish to PyPI (twine upload)
           command: |
             echo "[STEP] Publish to PyPI (twine upload) - INICIO"
-            TWINE_USERNAME=__token__ TWINE_PASSWORD="$PYPI_API_TOKEN" twine upload dist/*
+            TWINE_USERNAME=__token__ TWINE_PASSWORD="$PYPI_API_TOKEN" twine upload --skip-existing dist/*
             echo "[STEP] Publish to PyPI (twine upload) - FIN"
 
 workflows:
