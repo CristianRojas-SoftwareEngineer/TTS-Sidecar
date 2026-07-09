@@ -548,9 +548,12 @@ y 3** (la Fase 1 no lo necesita). No se repite por release.
 - **Docs/tests**: sección de instalación de una línea en `README.md`/`USAGE.md`;
   nota de seguridad en `SECURITY.md` (verificación de checksum dentro del script);
   tests de shell (`bats`) mockeando `curl`/`uname`/`sha256sum`.
-- **Criterio de cierre**: en una VM Linux limpia (glibc ≥ 2.35),
-  `curl … | sh` deja `tts-sidecar` invocable por nombre y el modelo provisionado,
-  sin pasos manuales adicionales.
+- **Criterio de cierre**: (a) **smoke-test automatizado** (`bats` mockeando
+  `curl`/`uname`/`sha256sum`, ver línea 550) en CI como regresión continua; (b) en
+  una VM Linux limpia (glibc ≥ 2.35), `curl … | sh` deja `tts-sidecar` invocable
+  por nombre y el modelo provisionado, sin pasos manuales; (c) **desinstalación
+  limpia (paridad estricta, G-5)**: `setup --remove-path` + borrado del AppImage
+  dejan binario, PATH, caché del modelo y datos de usuario eliminados.
 - **Riesgos residuales**: glibc < 2.35 (detectar y advertir); PATH no persistente
   en la sesión (el CLI ya lo avisa).
 
@@ -580,9 +583,13 @@ y 3** (la Fase 1 no lo necesita). No se repite por release.
   publicación automática de metadata); `docs/DISTRIBUTION.md`/`docs/BUILD.md`
   (refinamiento macOS); test del generador de Cask (patrón de
   `tests/test_build_windows.py`).
-- **Criterio de cierre**: publicar un release y verificar en un Mac Apple Silicon
-  limpio que `brew install --cask` instala la versión nueva (Cask actualizado
-  automáticamente por el job) y expone `tts-sidecar` por nombre.
+- **Criterio de cierre**: publicar un release y verificar que `brew install
+  --cask` instala la versión nueva (Cask actualizado automáticamente por el job) y
+  expone `tts-sidecar` por nombre; la verificación es **automática si es viable**
+  (`brew audit`/`brew style` o instalación headless en CI) y **manual en Mac limpio**
+  si no (G-2). **Desinstalación limpia (paridad estricta, G-5)**: `brew uninstall
+  --cask` + `zap trash:` (línea 568) dejan binario, PATH, caché del modelo y datos
+  de usuario eliminados.
 - **Riesgos residuales**: unicidad del nombre de Cask; `livecheck` correcto contra
   GitHub Releases; primer release manual del Cask antes de automatizar.
 
@@ -611,10 +618,13 @@ y 3** (la Fase 1 no lo necesita). No se repite por release.
 - **Docs/tests**: `docs/RELEASING.md` (cert + hosting + secrets); guía de alta de
   la fuente en `README.md`/`USAGE.md`; nota en `SECURITY.md` sobre el alcance del
   certificado autofirmado; test del generador de manifiesto/índice.
-- **Criterio de cierre**: en una VM Windows limpia, tras importar el cert y añadir
+- **Criterio de cierre**: verificación **manual** en VM/equipo Windows limpio (el
+  propietario lo prueba en su equipo de trabajo, G-2): tras importar el cert y añadir
   la fuente, `winget install` instala la versión nueva y `tts-sidecar version`
   responde; una release posterior aparece disponible sin re-tocar la fuente
-  manualmente.
+  manualmente. **Desinstalación limpia (paridad estricta, G-5)**: `winget uninstall`
+  deja binario, PATH, caché del modelo y datos de usuario eliminados; el plan decide
+  si se revierte la importación del certificado en la verificación.
 - **Riesgos residuales**: madurez del tooling (H-6, mitigado por el spike);
   renovación anual del certificado (mantenimiento propio, no gate); winget **no**
   limpia la Mark-of-the-Web — no sustituye la firma Authenticode del roadmap de
@@ -685,8 +695,9 @@ Resultado de auditar el roadmap anterior contra los objetivos rectores
 estrategia antivirus).
 El roadmap está **completo** para su propósito (insumo del plan, no el plan): cada
 fase tiene entregables, cambios de build, docs/tests, criterio de cierre y riesgos
-residuales. De las brechas detectadas en la auditoría, las de decisión ya están
-cerradas y quedan **dos** refinamientos menores para resolver dentro del plan.
+residuales. De las brechas detectadas en la auditoría, **todas** las de decisión
+están cerradas: G-1/G-3/G-4/G-6 en la revisión y **G-2/G-5 el 2026-07-08** (ver
+abajo). No quedan refinamientos abiertos que bloqueen el plan.
 
 **Cerradas por decisión** (reflejadas en el roadmap de arriba):
 
@@ -701,19 +712,21 @@ cerradas y quedan **dos** refinamientos menores para resolver dentro del plan.
   soportada + test (Fase 1), no solo documentación.
 - **G-6 — Estrategia antivirus**: modelada como asunto transversal (H-7), con la
   Línea A comprometida en este ciclo.
-
-**Abiertas, a resolver dentro del plan** (no bloquean su redacción):
-
-- **G-2 — Criterios de cierre automatizables.** Hoy son "verificar en una VM
-  limpia" (verificación humana). El plan debe decidir si el `curl|sh`, el Cask y
-  la fuente winget tienen algún smoke-test automatizado o si la verificación en VM
-  limpia es explícitamente el criterio aceptado. **Severidad: baja.**
-- **G-5 — Paridad de desinstalación como criterio de cierre.** Los tres mecanismos
-  difieren —Cask (`zap trash:`), Linux (`setup --remove-path` + borrado del
-  AppImage), winget (`winget uninstall`)— y el roadmap no fija "desinstalación
-  limpia y equivalente" como criterio por fase. **Severidad: baja.**
+- **G-2 — Criterios de cierre (resuelta 2026-07-08)**: política mixta por SO.
+  **Linux (Fase 1)** se certifica con **smoke-test automatizado** (`bats` mockeando
+  `curl`/`uname`/`sha256sum`) por ser barato de automatizar y dar regresión continua.
+  **Windows (Fase 3)** se certifica **manual** en VM/equipo Windows limpio (el
+  propietario lo prueba en su equipo de trabajo). **macOS (Fase 2)** se automatiza
+  si es viable (`brew audit`/`brew style` o instalación headless); si no, manual en
+  Mac limpio, igual que Windows. No se exige automatización donde no aporte valor.
+- **G-5 — Paridad de desinstalación (resuelta 2026-07-08)**: se fija **paridad
+  estricta total** como criterio de cierre por fase. "Limpio" = quitar binario +
+  integración de PATH + caché del modelo **y** datos de usuario, dejando el sistema
+  idéntico a antes de instalar en los tres SO. En Windows, `winget uninstall` puede
+  dejar el certificado autofirmado importado: el plan decide si se revierte ese paso
+  en la verificación (no bloquea).
 
 **Veredicto**: el roadmap es auditable, viable y **listo para `create-plan`**, con
-la arquitectura de CI actualizada (100% CircleCI, sin draft) y G-3 cerrada por
-decisión. G-2 y G-5 son refinamientos menores (severidad baja) que el propio plan
-resolverá; ninguno bloquea su redacción.
+la arquitectura de CI actualizada (100% CircleCI, sin draft), G-3 cerrada por
+decisión y **G-2/G-5 cerradas el 2026-07-08**. Sin brechas de decisión abiertas;
+el plan puede redactarse íntegro.
