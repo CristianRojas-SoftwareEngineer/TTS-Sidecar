@@ -559,6 +559,40 @@ class TestSetupLinuxPath:
         assert link.resolve() == appimage.resolve()
         assert "symlink creado" in capsys.readouterr().err
 
+    def test_creates_symlink_from_externally_exported_appimage(self, monkeypatch, tmp_path, capsys):
+        # Contrato oficial: install.sh exporta APPIMAGE tras instalar el AppImage
+        # en ~/.local/opt/tts-sidecar/, sin correr dentro de un runtime AppImage
+        # real. El symlink debe crearse igual que si lo exportara el runtime.
+        if not _symlinks_supported(tmp_path):
+            pytest.skip("el entorno no permite crear symlinks")
+        from tts_sidecar.cli import _integrate_linux_path
+
+        home = self._fake_home(monkeypatch, tmp_path)
+        install_dir = tmp_path / "opt" / "tts-sidecar"
+        install_dir.mkdir(parents=True)
+        appimage = install_dir / "tts-sidecar-x86_64.AppImage"
+        appimage.write_bytes(b"appimage instalado por install.sh")
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setenv("APPIMAGE", str(appimage))
+
+        _integrate_linux_path()
+
+        link = home / ".local" / "bin" / "tts-sidecar"
+        assert link.is_symlink()
+        assert link.resolve() == appimage.resolve()
+
+    def test_appimage_pointing_to_missing_file_is_skipped(self, monkeypatch, tmp_path, capsys):
+        from tts_sidecar.cli import _integrate_linux_path
+
+        home = self._fake_home(monkeypatch, tmp_path)
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setenv("APPIMAGE", str(tmp_path / "no-existe.AppImage"))
+
+        _integrate_linux_path()
+
+        assert not (home / ".local").exists()
+        assert "no apunta a un archivo existente" in capsys.readouterr().err
+
     def test_updates_existing_symlink_idempotent(self, monkeypatch, tmp_path, capsys):
         if not _symlinks_supported(tmp_path):
             pytest.skip("el entorno no permite crear symlinks")

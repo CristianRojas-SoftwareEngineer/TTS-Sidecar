@@ -40,6 +40,23 @@ trade-offs en [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md)): el binario
 pre-compilado por SO (audiencia general, sin Python) y el paquete PyPI
 (audiencia técnica con Python 3.13+).
 
+### Instalación de una línea (Linux)
+
+En Linux, `install.sh` automatiza la Opción 1 completa: resuelve el último
+Release, descarga el `.AppImage` de tu arquitectura, verifica su checksum
+contra `SHA256SUMS.txt`, lo instala en `~/.local/opt/tts-sidecar/` y ejecuta
+`setup` (integra el PATH y ofrece descargar el modelo):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/main/install.sh | sh
+```
+
+El script aborta la instalación si el checksum descargado no coincide con
+`SHA256SUMS.txt` (ver [SECURITY.md](SECURITY.md#nota-sobre-el-instalador-de-una-línea-de-linux)).
+Para desinstalar: `tts-sidecar setup --remove-path` (revierte el symlink de
+PATH), borra `~/.local/opt/tts-sidecar/` y `tts-sidecar cleanup --all` (borra
+la caché del modelo y los datos de usuario).
+
 ### Opción 1: Descargar binario pre-compilado
 
 Descarga el ejecutable para tu plataforma desde [Releases](https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/releases):

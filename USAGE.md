@@ -26,6 +26,18 @@ PATH (en Windows el instalador lo agrega automáticamente). Luego invoca:
 tts-sidecar <comando>
 ```
 
+En **Linux**, `install.sh` automatiza toda la descarga/verificación/instalación
+con una sola línea (detalle en [README.md](README.md#instalación-de-una-línea-linux)):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/main/install.sh | sh
+```
+
+**Desinstalación limpia (Linux)**, en tres pasos: `tts-sidecar setup --remove-path`
+(revierte el symlink de PATH en `~/.local/bin`), borrar el AppImage instalado en
+`~/.local/opt/tts-sidecar/`, y `tts-sidecar cleanup --all` (borra la caché del
+modelo y los datos de usuario).
+
 ### Usuario de PyPI (`uv tool install` / `pipx`)
 
 ```bash

@@ -1,0 +1,128 @@
+# Smoke-test de install.sh (bats-core): mockea curl/uname/sha256sum por PATH,
+# sin red ni GitHub real. Cubre selección de arquitectura, elección del asset
+# correcto y aborto ante checksum corrupto (docs/SELF-HOSTED-INSTALL.md).
+#
+# Ejecutar: bats tests/installer/install.bats
+
+setup() {
+    REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
+    INSTALL_SH="$REPO_ROOT/install.sh"
+
+    WORK="$(mktemp -d)"
+    export HOME="$WORK/home"
+    mkdir -p "$HOME"
+
+    MOCK_BIN="$WORK/bin"
+    mkdir -p "$MOCK_BIN"
+    export PATH="$MOCK_BIN:$PATH"
+
+    # Contenido fijo del "AppImage" falso: un script shell válido, para que
+    # "$final_path" setup (última línea de install.sh) se ejecute sin error
+    # de formato ejecutable, en vez de un ELF real.
+    FAKE_APPIMAGE_CONTENT='#!/bin/sh
+echo "fake tts-sidecar $*"
+'
+    FAKE_SHA256="$(printf '%s' "$FAKE_APPIMAGE_CONTENT" | sha256sum | cut -d' ' -f1)"
+}
+
+teardown() {
+    rm -rf "$WORK"
+}
+
+# Instala un mock de `uname` que responde $1 a `uname -m`.
+mock_uname() {
+    local machine="$1"
+    cat > "$MOCK_BIN/uname" <<EOF
+#!/bin/sh
+if [ "\$1" = "-m" ]; then echo "$machine"; fi
+EOF
+    chmod +x "$MOCK_BIN/uname"
+}
+
+# Instala un mock de `curl` que sirve un release con un único asset .AppImage
+# por arquitectura ($1 = "x86_64" o "aarch64") + SHA256SUMS.txt calculado
+# sobre FAKE_APPIMAGE_CONTENT. $2 opcional: si es "corrupt", el checksum
+# publicado no coincide con el contenido real (para el caso de aborto).
+mock_curl() {
+    local arch="$1"
+    local mode="${2:-ok}"
+    local asset_name="tts-sidecar-1.0.0-${arch}.AppImage"
+    local published_sha="$FAKE_SHA256"
+    if [ "$mode" = "corrupt" ]; then
+        published_sha="0000000000000000000000000000000000000000000000000000000000ff"
+    fi
+
+    cat > "$MOCK_BIN/curl" <<EOF
+#!/bin/sh
+out=""
+url=""
+while [ \$# -gt 0 ]; do
+    case "\$1" in
+        -o) out="\$2"; shift 2 ;;
+        -fsSL) shift ;;
+        http*) url="\$1"; shift ;;
+        *) shift ;;
+    esac
+done
+case "\$url" in
+    *api.github.com*)
+        cat <<JSON
+{"assets":[
+{"browser_download_url":"https://example.invalid/${asset_name}"},
+{"browser_download_url":"https://example.invalid/SHA256SUMS.txt"}
+]}
+JSON
+        ;;
+    *${asset_name})
+        printf '%s' '$FAKE_APPIMAGE_CONTENT' > "\$out"
+        ;;
+    *SHA256SUMS.txt)
+        printf '%s  %s\n' "$published_sha" "$asset_name" > "\$out"
+        ;;
+esac
+EOF
+    chmod +x "$MOCK_BIN/curl"
+}
+
+@test "selecciona el asset x86_64 cuando uname -m devuelve x86_64" {
+    mock_uname x86_64
+    mock_curl x86_64
+
+    run sh "$INSTALL_SH"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"tts-sidecar-1.0.0-x86_64.AppImage"* ]]
+    [ -f "$HOME/.local/opt/tts-sidecar/tts-sidecar-1.0.0-x86_64.AppImage" ]
+}
+
+@test "selecciona el asset aarch64 cuando uname -m devuelve aarch64" {
+    mock_uname aarch64
+    mock_curl aarch64
+
+    run sh "$INSTALL_SH"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"tts-sidecar-1.0.0-aarch64.AppImage"* ]]
+    [ -f "$HOME/.local/opt/tts-sidecar/tts-sidecar-1.0.0-aarch64.AppImage" ]
+}
+
+@test "arquitectura no soportada aborta con error" {
+    mock_uname riscv64
+    mock_curl x86_64
+
+    run sh "$INSTALL_SH"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"arquitectura no soportada"* ]]
+}
+
+@test "aborta y no instala nada si el checksum no coincide" {
+    mock_uname x86_64
+    mock_curl x86_64 corrupt
+
+    run sh "$INSTALL_SH"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"checksum"* ]]
+    [ ! -d "$HOME/.local/opt/tts-sidecar" ]
+}
