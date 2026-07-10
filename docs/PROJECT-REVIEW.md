@@ -381,7 +381,9 @@ Ver H-7 y la sección «Auditoría de completitud del roadmap».
 - `SECURITY.md` §"Artefactos sin firmar" (líneas 65-87): nota sobre la superficie
   del script `curl|sh` (ejecución de script remoto) y su mitigación (verificación
   de `SHA256SUMS.txt` dentro del propio script); nota sobre el certificado
-  autofirmado de la fuente winget (qué garantiza y qué no).
+  autofirmado de la fuente winget (qué garantiza y qué no); **el runbook WDSI**
+  (guía paso a paso de la Línea A para reportar falsos positivos de Defender
+  Antivirus, con su alcance —no SmartScreen— y las expectativas de re-reporte).
 - Tests (`tests/test_build_windows.py:1-65` como patrón: `monkeypatch` sobre
   `subprocess.run`/utilidades, sin disco ni red): un generador de Cask y un
   generador de manifiestos/índice winget son testeables con el mismo patrón; el
@@ -667,7 +669,9 @@ independientes del orden de las Fases 1-2 (H-7):
     de Defender.
   - Procedimiento documentado (*runbook*, guía paso a paso) para reportar los
     falsos positivos al portal WDSI de Microsoft (`microsoft.com/wdsi`) cuando un
-    release sea marcado. **Alcance del runbook**: cubre solo la detección de
+    release sea marcado. **Ubicación**: `SECURITY.md` §"Artefactos sin firmar"
+    (junto a la narrativa de por qué el binario no está firmado). **Alcance del
+    runbook**: cubre solo la detección de
     **Defender Antivirus** (una firma concreta —p. ej. `Trojan:Win32/Wacatac`— que,
     tras revisión de un analista, Microsoft **borra globalmente** para todos los
     Defender). **No** apaga **SmartScreen**, que es reputación (no una firma de
