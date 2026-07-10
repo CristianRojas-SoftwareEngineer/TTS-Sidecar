@@ -33,6 +33,22 @@ Ver [README.md](../README.md#instalación) y [USAGE.md](../USAGE.md#instalación
 para el detalle completo por SO (instalador de Windows, AppImage de Linux,
 `.dmg` de macOS).
 
+Dos de las tres plataformas tienen además una **instalación auto-hospedada de
+una línea**, capa adicional sobre el mismo artefacto nativo (no un canal
+nuevo): en Linux, `install.sh` (`curl | sh`) automatiza la descarga,
+verificación de checksum e instalación del `.AppImage`; en macOS, un Cask de
+Homebrew propio (`brew tap CristianRojas-SoftwareEngineer/tts-sidecar &&
+brew install --cask tts-sidecar`) instala desde el `.dmg` del release y
+resuelve la integración de PATH, la desinstalación y la limpieza del atributo
+de cuarentena sin intervención manual. El `.dmg` descargado a mano (con sus
+scripts `.command` de instalación/desinstalación) sigue siendo un canal
+válido en paralelo. Windows no tiene una vía auto-hospedada equivalente (ver
+«Fuera de alcance» en [docs/SELF-HOSTED-INSTALL.md](SELF-HOSTED-INSTALL.md)):
+mientras el proyecto no tenga firma de código Authenticode, un instalador
+descargado seguiría disparando SmartScreen sin aportar valor frente al canal
+pip. Diseño completo de ambos instaladores en
+[docs/SELF-HOSTED-INSTALL.md](SELF-HOSTED-INSTALL.md).
+
 ### Canal PyPI (`uv tool install` / `pipx`)
 
 ```bash

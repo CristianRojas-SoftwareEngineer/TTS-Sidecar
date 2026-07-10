@@ -250,6 +250,29 @@ jobs:
             python -m pytest tests/ -v
             echo "[STEP] Run pytest suite over tests/ - FIN"
 
+  test-installer-linux:
+    # Smoke-test de install.sh (docs/SELF-HOSTED-INSTALL.md): valida el script
+    # sin red real, mockeando curl/uname/sha256sum por PATH (tests/installer/).
+    # cimg/base es una imagen liviana (Ubuntu), suficiente porque el job no
+    # compila nada: solo instala bats-core y corre el smoke-test de shell.
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout
+      - run:
+          name: Install bats-core
+          command: |
+            echo "[STEP] Install bats-core - INICIO"
+            sudo apt-get update
+            sudo apt-get install -y bats
+            echo "[STEP] Install bats-core - FIN"
+      - run:
+          name: Run install.sh smoke-test (bats)
+          command: |
+            echo "[STEP] Run install.sh smoke-test (bats) - INICIO"
+            bats tests/installer/*.bats
+            echo "[STEP] Run install.sh smoke-test (bats) - FIN"
+
   build-windows-x64:
     executor: win/server-2022
     steps:
@@ -806,6 +829,91 @@ jobs:
               --notes-file notes.md
             echo "[STEP] Create GitHub Release (direct publish) with 4 artifacts + SHA256SUMS - FIN"
 
+  publish-metadata:
+    # Cask de Homebrew (docs/SELF-HOSTED-INSTALL.md): tras cada Release público,
+    # reescribe Casks/tts-sidecar.rb en el tap propio `homebrew-tts-sidecar` con
+    # la versión del tag y el sha256 del .dmg arm64, leído del SHA256SUMS.txt ya
+    # público (gh release download, sin depender del workspace del pipeline: es
+    # durable e idempotente, el reintento en cualquier momento es seguro).
+    # Requiere el context `homebrew-tap` (HOMEBREW_TAP_PAT, permiso Contents:RW
+    # solo sobre el tap). El PRIMER Cask del tap es un bootstrap manual único
+    # (docs/RELEASING.md): este job actualiza un Cask que ya debe existir.
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout                       # para scripts/render_cask.py
+      - run:
+          # gh CLI desde el repo apt oficial de GitHub (mismo patrón que
+          # publish-release, pineado por su propia firma GPG).
+          name: Install gh CLI from official apt repo (signed)
+          command: |
+            echo "[STEP] Install gh CLI from official apt repo (signed) - INICIO"
+            set -euo pipefail
+            sudo mkdir -p -m 755 /etc/apt/keyrings
+            wget -nv -O- https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+              | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+            sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+              | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt-get update
+            sudo apt-get install -y gh git python3 ruby
+            echo "[STEP] Install gh CLI from official apt repo (signed) - FIN"
+      - run:
+          # SHA256SUMS.txt ya es público (publicado por publish-release);
+          # se recupera con gh (necesita GH_TOKEN del context `github-release`
+          # para no toparse con el rate-limit anónimo de la API).
+          name: Download SHA256SUMS.txt from the just-published release
+          command: |
+            echo "[STEP] Download SHA256SUMS.txt from the just-published release - INICIO"
+            set -euo pipefail
+            gh release download "$CIRCLE_TAG" -R "$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME" \
+              -p SHA256SUMS.txt --dir /tmp/release-metadata
+            echo "[STEP] Download SHA256SUMS.txt from the just-published release - FIN"
+      - run:
+          name: Render Casks/tts-sidecar.rb
+          command: |
+            echo "[STEP] Render Casks/tts-sidecar.rb - INICIO"
+            set -euo pipefail
+            python3 scripts/render_cask.py \
+              --tag "$CIRCLE_TAG" \
+              --sums-file /tmp/release-metadata/SHA256SUMS.txt \
+              --out /tmp/tap-clone/Casks/tts-sidecar.rb
+            echo "[STEP] Render Casks/tts-sidecar.rb - FIN"
+      - run:
+          # Check estático viable sin un Mac: `brew audit`/`brew style` exigen
+          # una instalación completa de Homebrew (costosa en un runner Linux
+          # solo para este generador); `ruby -c` verifica al menos que el Cask
+          # generado es Ruby sintácticamente válido antes de empujarlo al tap.
+          name: Syntax-check rendered Cask (ruby -c)
+          command: |
+            echo "[STEP] Syntax-check rendered Cask (ruby -c) - INICIO"
+            ruby -c /tmp/tap-clone/Casks/tts-sidecar.rb
+            echo "[STEP] Syntax-check rendered Cask (ruby -c) - FIN"
+      - run:
+          # Clona el tap con el PAT del context (write-scoped solo al tap),
+          # sobrescribe el Cask ya renderizado en /tmp/tap-clone y hace push.
+          # Sin cambios reales (regenerar y re-empujar con los mismos inputs),
+          # el commit es un no-op detectado por `git diff --quiet`.
+          name: Clone tap, commit rendered Cask, and push
+          command: |
+            echo "[STEP] Clone tap, commit rendered Cask, and push - INICIO"
+            set -euo pipefail
+            RENDERED="/tmp/tap-clone/Casks/tts-sidecar.rb"
+            git clone --depth 1 "https://x-access-token:${HOMEBREW_TAP_PAT}@github.com/CristianRojas-SoftwareEngineer/homebrew-tts-sidecar.git" /tmp/tap-repo
+            mkdir -p /tmp/tap-repo/Casks
+            cp "$RENDERED" /tmp/tap-repo/Casks/tts-sidecar.rb
+            cd /tmp/tap-repo
+            git config user.name "tts-sidecar-ci"
+            git config user.email "ci@tts-sidecar.invalid"
+            git add Casks/tts-sidecar.rb
+            if git diff --cached --quiet; then
+              echo "Cask sin cambios (regeneración idempotente); nada que empujar."
+            else
+              git commit -m "Cask: actualizar a ${CIRCLE_TAG}"
+              git push origin HEAD:main
+            fi
+            echo "[STEP] Clone tap, commit rendered Cask, and push - FIN"
+
   publish-pypi:
     # Canal de distribución A (docs/DISTRIBUTION.md): publica el sdist+wheel a
     # PyPI en el mismo tag `v*` que dispara los 4 builds nativos, en paralelo a
@@ -893,6 +1001,12 @@ workflows:
               only: /^v.*/
             branches:
               ignore: /.*/
+      - test-installer-linux:
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
       - build-windows-x64:
           filters:
             tags:
@@ -903,6 +1017,7 @@ workflows:
             - test-linux
             - test-windows
             - test-macos
+            - test-installer-linux
       - build-linux-x64:
           filters:
             tags:
@@ -913,6 +1028,7 @@ workflows:
             - test-linux
             - test-windows
             - test-macos
+            - test-installer-linux
       - build-linux-arm64:
           filters:
             tags:
@@ -923,6 +1039,7 @@ workflows:
             - test-linux
             - test-windows
             - test-macos
+            - test-installer-linux
       - build-darwin-arm64:
           filters:
             tags:
@@ -933,6 +1050,7 @@ workflows:
             - test-linux
             - test-windows
             - test-macos
+            - test-installer-linux
       - publish-release:
           context:
             - github-release
@@ -946,6 +1064,17 @@ workflows:
             - build-linux-x64
             - build-linux-arm64
             - build-darwin-arm64
+      - publish-metadata:
+          context:
+            - github-release
+            - homebrew-tap
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+          requires:
+            - publish-release
       - publish-pypi:
           context:
             - pypi-publish

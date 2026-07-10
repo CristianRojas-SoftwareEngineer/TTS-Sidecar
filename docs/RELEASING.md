@@ -47,6 +47,17 @@ humano.
 - **Prerequisito operativo (una sola vez):** existe el context `pypi-publish`
   en CircleCI con la variable `PYPI_API_TOKEN` = un token API de PyPI con scope
   al proyecto. Está aislado al job `publish-pypi`; ningún otro job lo ve.
+- **Prerequisitos del canal Cask de macOS (una sola vez):** existe el
+  repositorio tap `homebrew-tts-sidecar` (público), y el context de CircleCI
+  `homebrew-tap` con la variable `HOMEBREW_TAP_PAT` (un PAT fine-grained con
+  permiso `Contents:RW` solo sobre el tap). Está aislado al job
+  `publish-metadata`. Además, **el primer Cask del tap es un bootstrap manual
+  único**: `publish-metadata` reescribe `Casks/tts-sidecar.rb`, pero asume que
+  el archivo ya existe en el tap la primera vez (crearlo a mano con el
+  generador: `python scripts/render_cask.py --tag vX.Y.Z --sums-file
+  SHA256SUMS.txt --out Casks/tts-sidecar.rb` y commitear/pushear al tap antes
+  del primer release que dependa de este job). Detalle del diseño completo en
+  [docs/SELF-HOSTED-INSTALL.md](SELF-HOSTED-INSTALL.md).
 - **La publicación a PyPI es irreversible**: al igual que el GitHub Release —que
   se publica directo sobre el tag y, para revertirlo, hay que borrar un Release
   ya público—, el tag dispara la publicación en firme a PyPI: un paquete subido
@@ -95,6 +106,14 @@ Una vez pushado el tag, el pipeline ejecuta sin intervención:
    versión ya se había publicado con éxito en el intento anterior, twine
    detecta que el archivo ya existe en PyPI y termina en éxito sin reintentar
    el upload, en vez de fallar ruidosamente.
+
+3. **`publish-metadata`** (tras `publish-release`, solo en tags `v*`): recupera
+   `SHA256SUMS.txt` del Release recién publicado (`gh release download`,
+   idempotente y sin depender del workspace del pipeline), reescribe
+   `Casks/tts-sidecar.rb` con la versión del tag y el sha256 del `.dmg` arm64
+   (`scripts/render_cask.py`), y hace push al tap `homebrew-tts-sidecar`. Si el
+   Cask no cambia (regeneración con los mismos inputs), el commit es un no-op y
+   no se empuja nada; reintentar este job en cualquier momento es seguro.
 
 Ya no hay descarga ni cotejo manual de artefactos: la recolección por workspace
 es determinista (el mismo binario que pasó el smoke test es el que se adjunta).

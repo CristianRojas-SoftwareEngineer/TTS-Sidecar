@@ -198,6 +198,16 @@ guiada + desinstalación limpia):
 > empaqueta en el ejecutable; `speak` y `daemon start` fallan rápido remitiendo
 > a `setup` mientras falte.
 
+La tabla describe el `.dmg`/AppImage descargados a mano. Linux y macOS tienen
+además una instalación auto-hospedada de una línea que resuelve PATH,
+`setup` y desinstalación sin los pasos manuales de arriba: `install.sh`
+(`curl | sh`) en Linux, y un Cask de Homebrew propio
+(`brew install --cask tts-sidecar`, con `brew uninstall --cask` + `zap` para
+la desinstalación limpia) en macOS. Ninguno de los dos cambia el `.dmg`/
+AppImage que este script produce; ambos se apoyan en el artefacto nativo tal
+cual. Diseño completo en
+[docs/SELF-HOSTED-INSTALL.md](SELF-HOSTED-INSTALL.md).
+
 ### Limitación conocida: firma de código y notarización
 
 Los artefactos **no están firmados ni notarizados**: en macOS, Gatekeeper
