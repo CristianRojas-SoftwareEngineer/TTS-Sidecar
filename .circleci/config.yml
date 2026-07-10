@@ -273,6 +273,32 @@ jobs:
             bats tests/installer/*.bats
             echo "[STEP] Run install.sh smoke-test (bats) - FIN"
 
+  test-installer-windows:
+    # Smoke-test de install.ps1 (docs/SELF-HOSTED-INSTALL.md): valida el script
+    # sin red ni instalación reales, mockeando las funciones propias del script
+    # con Pester v5 (tests/installer/install.tests.ps1) — espejo de
+    # test-installer-linux. Mismo executor Windows que test-windows; Pester
+    # pineado (el server-2022 trae Pester 3.x, y un release nuevo de Pester no
+    # debe romper el job sin cambios en el repo).
+    executor: win/server-2022
+    steps:
+      - checkout
+      - run:
+          name: Install Pester (pinned 5.8.0)
+          command: |
+            Write-Host "[STEP] Install Pester (pinned 5.8.0) - INICIO"
+            Install-Module Pester -RequiredVersion 5.8.0 -Force -SkipPublisherCheck -Scope CurrentUser
+            if ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Install Pester (pinned 5.8.0) - FIN"
+      - run:
+          name: Run install.ps1 smoke-test (Pester)
+          command: |
+            Write-Host "[STEP] Run install.ps1 smoke-test (Pester) - INICIO"
+            Import-Module Pester -RequiredVersion 5.8.0
+            Invoke-Pester tests/installer/install.tests.ps1 -CI
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "[STEP] Run install.ps1 smoke-test (Pester) - FIN"
+
   build-windows-x64:
     executor: win/server-2022
     steps:
@@ -1007,6 +1033,12 @@ workflows:
               only: /^v.*/
             branches:
               ignore: /.*/
+      - test-installer-windows:
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
       - build-windows-x64:
           filters:
             tags:
@@ -1018,6 +1050,7 @@ workflows:
             - test-windows
             - test-macos
             - test-installer-linux
+            - test-installer-windows
       - build-linux-x64:
           filters:
             tags:
@@ -1029,6 +1062,7 @@ workflows:
             - test-windows
             - test-macos
             - test-installer-linux
+            - test-installer-windows
       - build-linux-arm64:
           filters:
             tags:
@@ -1040,6 +1074,7 @@ workflows:
             - test-windows
             - test-macos
             - test-installer-linux
+            - test-installer-windows
       - build-darwin-arm64:
           filters:
             tags:
@@ -1051,6 +1086,7 @@ workflows:
             - test-windows
             - test-macos
             - test-installer-linux
+            - test-installer-windows
       - publish-release:
           context:
             - github-release
