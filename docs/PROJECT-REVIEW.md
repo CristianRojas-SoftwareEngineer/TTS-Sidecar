@@ -1,12 +1,14 @@
-# Revisión: instalación auto-hospedada por SO (script Linux, tap/Cask Homebrew, fuente winget)
+# Revisión: instalación auto-hospedada por SO (script Linux, tap/Cask Homebrew; winget diferido)
 
 Índice de hallazgos y roadmap de la extensión a una experiencia de instalación
 **auto-hospedada** por SO, como refinamiento del canal nativo existente:
 
-- **Linux**: script `curl | sh` sobre el `.AppImage`.
-- **macOS**: tap/Cask de Homebrew propio sobre el `.dmg`.
-- **Windows**: fuente winget propia (`Microsoft.PreIndexed.Package`) sobre el
-  instalador Inno Setup.
+- **Linux**: script `curl | sh` sobre el `.AppImage` (Fase 1, activa).
+- **macOS**: tap/Cask de Homebrew propio sobre el `.dmg` (Fase 2, activa; metadata
+  publicada por el job `publish-metadata`).
+- **Windows**: fuente winget (`Microsoft.PreIndexed.Package`) **diferida** a un
+  roadmap futuro, condicionada a firma Authenticode vía SignPath Foundation y ROI
+  positivo; ver Línea B y la sección «Roadmap futuro (diferido)».
 
 Este documento es el insumo probado para el plan de implementación posterior; el
 roadmap (sección final) fija el orden de fases, requisitos y criterios de cierre.
@@ -16,8 +18,9 @@ el paso de draft** de `publish-release` (ver H-2 y la decisión «Arquitectura d
 La eliminación del paso de draft **ya está implementada** (2026-07-08): `publish-release`
 publica el Release directo sin `--draft` y `docs/RELEASING.md`, `docs/BUILD.md` y
 `docs/DISTRIBUTION.md` están sincronizados con ese comportamiento. Es el único
-entregable del ciclo materializado en el repo; el resto del roadmap (Fases 0-3 y
-Línea A) sigue pendiente y es insumo de `create-plan`.
+entregable del ciclo materializado en el repo; el resto del roadmap (Fases 0-2 y
+Línea A) sigue pendiente y es insumo de `create-plan`. El canal winget queda como
+entrada futura diferida, sin alcance activo en este ciclo.
 
 ## Glosario (términos técnicos usados en este documento)
 
@@ -104,15 +107,21 @@ Actions *también* cumpliría la restricción rectora es cierto en el plano de l
 autonomía; aun así el propietario decide **no** usarlo, por consistencia de operar
 un solo sistema de CI — ver la decisión «Arquitectura de CI».)
 
-Esta aclaración **reabre el mecanismo winget**, que una iteración previa de este
-documento había descartado por leer erróneamente "el usuario importa un
-certificado" como una violación de la restricción. Ver H-1.
+Esta aclaración **habilita el mecanismo winget** bajo la restricción rectora, que
+una iteración previa de este documento había descartado por leer erróneamente "el
+usuario importa un certificado" como una violación de la restricción (ver H-1). El
+propietario, sin embargo, **difiere su implementación** a un roadmap futuro
+condicionado a firma Authenticode real vía SignPath Foundation y a ROI positivo;
+winget queda **fuera del alcance activo** de este ciclo (ver la sección «Roadmap
+futuro (diferido): winget + SignPath Foundation»).
 
 ## Resumen ejecutivo
 
-Los **tres mecanismos son viables** bajo la restricción rectora, sin cambios de
-build en los artefactos actuales (o con cambios mínimos identificados). Se
-ordenan por esfuerzo/riesgo creciente:
+Los **dos mecanismos activos** (Linux, macOS) son viables bajo la restricción
+rectora, sin cambios de build en los artefactos actuales (o con cambios mínimos
+identificados). El tercer mecanismo (Windows/winget) queda **diferido** a un
+roadmap futuro (ver sección «Roadmap futuro (diferido): winget + SignPath
+Foundation»). Se ordenan por esfuerzo/riesgo creciente dentro del alcance activo:
 
 1. **Linux (script)** — el más simple: no requiere CI nuevo, ni repo externo, ni
    certificado. El script resuelve versión/URL/checksum en tiempo de ejecución
@@ -120,70 +129,53 @@ ordenan por esfuerzo/riesgo creciente:
 2. **macOS (Cask)** — esfuerzo medio: requiere un repo tap propio y un job que
    actualice el Cask (`version`/`sha256`/`url`) en cada release. Introduce el
    backbone de CI compartido (job `publish-metadata` en CircleCI). Ver H-3, H-2.
-3. **Windows (winget)** — el de mayor esfuerzo/riesgo: viable y autónomo tras la
-   corrección de restricción, pero el riesgo real ya **no es la firma** (un
-   certificado autofirmado propio basta), sino la **madurez del tooling** para
-   generar el `index.msix` preindexado en CI. Ver H-1, H-6.
 
-El obstáculo estructural común a macOS y Windows —publicar metadata que apunte a
-los assets del release— se resuelve **eliminando el paso de draft**: `publish-release`
-publica el GitHub Release directo (sin `--draft`), con lo que sus assets son
-públicos en cuanto el job termina. Un job siguiente en el **mismo pipeline de
-CircleCI**, `publish-metadata`, con `requires: [publish-release]`, publica la
-metadata de Cask y winget leyendo sus insumos del propio release ya público
-(`CIRCLE_TAG` + `SHA256SUMS.txt`), sin API de terceros ni un segundo sistema de CI.
-El proyecto se mantiene **100% en CircleCI** por decisión del propietario. El costo
+El canal **Windows (winget)** se difiere en este ciclo: sin firma Authenticode real
+no aporta reputación frente a SmartScreen (H-7) y solo añade superficie de fallos y
+mantenimiento sin retorno actual o próximo; su entrada futura está condicionada a
+una firma real vía SignPath Foundation (Línea B, `docs/GOAL.md:216-241`) y a un
+ROI positivo. El conocimiento técnico ya acumulado (H-1, H-6) se preserva como
+insumo de esa fase futura, sin eliminarlo.
+
+El obstáculo estructural —publicar la metadata del Cask que apunte a los assets del
+release— se resuelve **eliminando el paso de draft**: `publish-release` publica el
+GitHub Release directo (sin `--draft`), con lo que sus assets son públicos en
+cuanto el job termina. Un job siguiente en el **mismo pipeline de CircleCI**,
+`publish-metadata`, con `requires: [publish-release]`, publica la **metadata del
+Cask** leyendo sus insumos del propio release ya público (`CIRCLE_TAG` +
+`SHA256SUMS.txt`), sin API de terceros ni un segundo sistema de CI. (La extensión
+de `publish-metadata` a winget es una evolución futura, no operativa hoy.) El
+proyecto se mantiene **100% en CircleCI** por decisión del propietario. El costo
 del cambio es la pérdida del *gate* humano que daba el draft (el tag pasa a ser el
 punto de no retorno, igual que ya ocurre con `publish-pypi`); recuperarlo de forma
 opcional sin reintroducir el draft es una decisión de diseño (job `type: approval`
 de CircleCI). Ver H-2.
 
 **Dimensión antivirus / falsos positivos (requisito nuevo del propietario)**: la
-auditoría concluye que los tres mecanismos auto-hospedados **no** son una
-estrategia contra las alertas de antivirus, salvo el Cask de Homebrew (que limpia
-la cuarentena y mitiga Gatekeeper en macOS). En Windows, winget **añade** la marca
-Mark-of-the-Web (MOTW) al instalador y SmartScreen sigue disparándose sobre él por
-no estar firmado. Las únicas vías que evitan las alertas de raíz son estructurales
-(el canal pip, que genera el ejecutable en la máquina del usuario, sin MOTW) o de
-firma de código (estrategia B de `docs/GOAL.md`). Por eso la estrategia antivirus
-se modela como un **asunto transversal** (atraviesa todas las fases) acoplado a la
-estrategia B y a una **línea de trabajo** barata de endurecimiento del build,
-**no** como una cuarta fase de los mecanismos auto-hospedados. Ver H-7 y la
-sección «Auditoría de completitud del roadmap».
+auditoría concluye que los mecanismos auto-hospedados **no** son una estrategia
+contra las alertas de antivirus, salvo el Cask de Homebrew (que limpia la
+cuarentena y mitiga Gatekeeper en macOS). El canal Windows (winget) queda diferido
+(ver sección «Roadmap futuro (diferido)»); en cualquier caso, winget **añadiría**
+la marca Mark-of-the-Web (MOTW) al instalador y SmartScreen seguiría disparándose
+sin firma real (H-7). Las únicas vías que evitan las alertas de raíz son
+estructurales (el canal pip, que genera el ejecutable en la máquina del usuario,
+sin MOTW) o de firma de código (estrategia B de `docs/GOAL.md`). Por eso la
+estrategia antivirus se modela como un **asunto transversal** (atraviesa todas las
+fases) acoplado a la estrategia B y a una **línea de trabajo** barata de
+endurecimiento del build, **no** como una fase de los mecanismos auto-hospedados.
+Ver H-7 y la sección «Auditoría de completitud del roadmap».
 
 ## Hallazgos
 
 ### Críticos
 
-**H-1 — La fuente winget autofirmada ES viable y autónoma bajo la restricción rectora (corrige el descarte previo).**
-- **Corrección**: una versión anterior de este documento clasificó winget como
-  "descartado" porque la firma del `index.msix` con certificado autofirmado
-  obliga al usuario a importar el `.cer`. Bajo la restricción rectora aclarada,
-  esa fricción del usuario final **es aceptable** y no descalifica el mecanismo.
-- **Evidencia de autonomía de publicación**: `learn.microsoft.com/windows/msix/package/signing-package-overview`
-  y `.../create-certificate-package-signing` — el certificado autofirmado es una
-  opción de firma legítima, generable con `New-SelfSignedCertificate` (PowerShell
-  PKI, sin red ni aprobación externa), exportable a PFX y usable con `signtool.exe`
-  en CI. Generar el certificado, firmar el `index.msix` y publicarlo en hosting
-  estático propio es un proceso 100% bajo control del propietario, sin aprobación
-  de Microsoft ni PR a repo externo alguno.
-- **Flujo del usuario final (aceptable, una sola vez)**, con comandos exactos:
-  1. Importar el certificado público a `LocalMachine\TrustedPeople` (Microsoft
-     advierte explícitamente **no** usar `Trusted Root` salvo CA real), elevado:
-     `Import-Certificate -FilePath tts-sidecar-source.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople`.
-  2. `winget source add --name tts-sidecar --arg https://<hosting-propio> --type Microsoft.PreIndexed.Package --accept-source-agreements` (requiere admin).
-  3. `winget install tts-sidecar --source tts-sidecar`.
-- **Dependencias residuales, clasificadas honestamente** (ninguna es gate de
-  terceros para publicar):
-  - Certificado autofirmado: expira a 1 año por defecto; renovarlo es
-    mantenimiento propio, no aprobación externa. **No es gate.**
-  - Timestamp server RFC 3161 (`signtool /tr <url> /td sha256`): servicio de red
-    gratuito (Sectigo/DigiCert/etc.), sin cuenta ni contrato — equivalente a un
-    NTP server; mantiene válidos los paquetes ya firmados tras expirar el cert.
-    **No es gate.**
-  - Hosting estático (GitHub Pages/Releases): TOS genérico de uso, no aprobación
-    por release. **No es gate.**
-- **Riesgo real desplazado a H-6** (tooling de generación del índice).
+**H-1 — La fuente winget autofirmada ES viable y autónoma bajo la restricción rectora (ver subsección «Hallazgos diferidos (winget)»).**
+- **Estado**: H-1 sigue siendo válido como *insumo técnico* de la fase winget
+  futura —corrige el descarte previo de winget: la firma autofirmada es aceptable
+  bajo la restricción rectora—. El propietario **difiere** su implementación a un
+  roadmap futuro (firma real vía SignPath Foundation + ROI positivo), por lo que
+  H-1 **no** está en el alcance activo de este ciclo. Su contenido íntegro se
+  conserva en la subsección «Hallazgos diferidos (winget)».
 
 **H-2 — La metadata de Cask/winget se publica desde un job `publish-metadata` en el mismo pipeline de CircleCI, tras eliminar el paso de draft de `publish-release`.**
 - **Problema original**: `publish-release` (`.circleci/config.yml:729-807`) creaba
@@ -224,12 +216,11 @@ sección «Auditoría de completitud del roadmap».
     **sin depender del workspace** (importa para la idempotencia; ver más abajo y G-3).
   - **Secretos como contexts de CircleCI** (no «secrets de GitHub Actions»): un
     context `homebrew-tap` con `HOMEBREW_TAP_PAT` (PAT fine-grained, `Contents:RW`
-    solo en el repo tap) para el push del Cask; un context `winget-sign` con el PFX
-    (base64) y su contraseña para la firma del `index.msix`. Cada context lo ve solo
-    el job que lo declara, igual que `github-release`/`pypi-publish` hoy.
-  - **Firma winget en el executor Windows existente**: la firma con `signtool` corre
-    en el mismo tipo de executor Windows que ya usan los builds, sin infraestructura
-    nueva.
+    solo en el repo tap) para el push del Cask. Cada context lo ve solo el job que
+    lo declara, igual que `github-release`/`pypi-publish` hoy. (El futuro
+    `winget-sign` con el PFX sería un context análogo, pero queda **fuera del
+    alcance activo**; ver la sección «Roadmap futuro (diferido): winget + SignPath
+    Foundation».)
   - **Push cross-repo a repos propios**: el `HOMEBREW_TAP_PAT` permite `git commit` +
     `git push` directo a `main` del tap. **Push directo a un repo propio ≠ PR a
     proyecto externo**: no hay revisión ni merge de terceros; la restricción rectora
@@ -287,12 +278,14 @@ sección «Auditoría de completitud del roadmap».
     estructural** (es el único mecanismo auto-hospedado que aporta algo frente al
     antivirus). Bajar el `.dmg` a mano, en cambio, sigue exigiendo notarización
     (estrategia B).
-  - **Windows**: **winget añade la marca Mark-of-the-Web** (el flujo
-    `Zone.Identifier`) y lanza el instalador por una ruta que pasa por el shell,
-    así que **SmartScreen se dispara igual** sobre el instalador Inno sin firmar.
+  - **Windows**: el canal Windows (winget) queda **diferido** a un roadmap futuro
+    (ver sección «Roadmap futuro (diferido)»), pero su análisis técnico ya está
+    hecho: winget **añadiría la marca Mark-of-the-Web** (el flujo `Zone.Identifier`)
+    y lanzaría el instalador por una ruta que pasa por el shell, así que
+    **SmartScreen se dispararía igual** sobre el instalador Inno sin firma real.
     Verificado en `microsoft/winget-cli` #6232 y en el caso `vim-win32-installer`
-    #319 (los instaladores firmados pasan; los que no están firmados, no).
-    **winget NO resuelve el antivirus**; solo aporta descubrimiento e instalación.
+    #319 (los instaladores firmados pasan; los que no están firmados, no). **winget
+    NO resolvería el antivirus**; solo aportaría descubrimiento e instalación.
 - **Las únicas vías que evitan las alertas de raíz**:
   1. **Estructural — canal pip** (ya implementado): `pip`/`uv`/`pipx` generan el
      ejecutable **en la máquina del usuario**, así que no lleva MOTW ni cuarentena
@@ -315,9 +308,11 @@ sección «Auditoría de completitud del roadmap».
 - **Conclusión**: la estrategia antivirus **atraviesa todas las fases**, no es una
   fase de los mecanismos auto-hospedados. Se divide en (a) la línea de trabajo de
   endurecimiento del build (barata, sin dependencia de terceros) y (b) la
-  estrategia B (firma), ya comprometida en `docs/GOAL.md`. Presentar winget o el
-  script como "solución al antivirus" sería un error de categoría (el mismo tipo de
-  error que el descarte equivocado de winget que corrigió H-1).
+  estrategia B (firma), ya comprometida en `docs/GOAL.md`. Presentar el script o el
+  Cask como "solución al antivirus" sería un error de categoría: el Cask solo
+  mitiga Gatekeeper en macOS (H-3); Windows nativo solo lo logra vía firma real
+  (Línea B). El canal winget, de implementarse en el futuro, tampoco resolvería el
+  antivirus sin firma real (H-7).
 
 ### Advertencias
 
@@ -364,8 +359,9 @@ sección «Auditoría de completitud del roadmap».
 ### Sugerencias
 
 **H-5 — Superficie documental y de tests a extender (una vez fijado el alcance).**
-- `docs/DISTRIBUTION.md`: los tres mecanismos se documentan como **refinamientos
-  del canal nativo** (mismo artefacto ya publicado), sin nueva fila en la matriz
+- `docs/DISTRIBUTION.md`: los dos mecanismos activos (Linux, macOS) se documentan
+  como **refinamientos del canal nativo** (mismo artefacto ya publicado), sin nueva
+  fila en la matriz
   de dos-canales (líneas 10-23); el detalle iría en "Instalación por canal"
   §"Canal nativo" (líneas 28-34) y un registro de decisión análogo al de A-vs-B
   (líneas 97-125).
@@ -373,9 +369,11 @@ sección «Auditoría de completitud del roadmap».
   101-116) para reflejar la **publicación directa** (el tag es el punto de no
   retorno, como `publish-pypi`; iterar ante error implica **borrar un Release
   público**, no descartar un draft); agregar los prerequisitos operativos
-  una-sola-vez (contexts `homebrew-tap`/`winget-sign`, repos propios, certificado
-  winget) junto a los contexts existentes (líneas 42-48) y un paso que describa la
-  publicación automática de metadata por `publish-metadata` tras `publish-release`.
+  una-sola-vez del alcance activo (context `homebrew-tap`, repo tap) junto a los
+  contexts existentes (líneas 42-48) y un paso que describa la publicación
+  automática de metadata del Cask por `publish-metadata` tras `publish-release`.
+  (Los prerequisitos de winget —context `winget-sign`, certificado, hosting— quedan
+  para la fase futura diferida.)
 - `docs/GOAL.md` §"Roadmap (compromisos a futuro)" (líneas 216-241): registrar
   los mecanismos comprometidos como entrada(s) de roadmap, análogas a la entrada
   de firma/notarización.
@@ -390,6 +388,49 @@ sección «Auditoría de completitud del roadmap».
   generador de manifiestos/índice winget son testeables con el mismo patrón; el
   script Linux se testea con un runner de shell (`bats`) o tests de integración
   que mockeen `curl`/`uname`.
+
+**H-6 — El riesgo real de winget es la madurez del tooling de generación del índice, no la firma (ver subsección «Hallazgos diferidos (winget)»).**
+- **Estado**: válido como *insumo técnico* de la fase winget futura —el riesgo real
+  está en el tooling `WinGetSourceCreator`, no en la firma—. Diferido junto con H-1;
+  su contenido íntegro se conserva en la subsección «Hallazgos diferidos (winget)».
+
+### Hallazgos diferidos (winget)
+
+Los dos hallazgos siguientes **no** están en el alcance activo de este ciclo: el
+propietario difiere la implementación del canal Windows (winget) a un roadmap
+futuro condicionado a firma Authenticode real vía SignPath Foundation (Línea B,
+`docs/GOAL.md:216-241`) y a ROI positivo. Se conservan íntegros como **insumo
+técnico** de esa fase futura, sin eliminar el conocimiento acumulado.
+
+**H-1 — La fuente winget autofirmada ES viable y autónoma bajo la restricción rectora (corrige el descarte previo).**
+- **Corrección**: una versión anterior de este documento clasificó winget como
+  "descartado" porque la firma del `index.msix` con certificado autofirmado
+  obliga al usuario a importar el `.cer`. Bajo la restricción rectora aclarada,
+  esa fricción del usuario final **es aceptable** y no descalifica el mecanismo.
+- **Evidencia de autonomía de publicación**: `learn.microsoft.com/windows/msix/package/signing-package-overview`
+  y `.../create-certificate-package-signing` — el certificado autofirmado es una
+  opción de firma legítima, generable con `New-SelfSignedCertificate` (PowerShell
+  PKI, sin red ni aprobación externa), exportable a PFX y usable con `signtool.exe`
+  en CI. Generar el certificado, firmar el `index.msix` y publicarlo en hosting
+  estático propio es un proceso 100% bajo control del propietario, sin aprobación
+  de Microsoft ni PR a repo externo alguno.
+- **Flujo del usuario final (aceptable, una sola vez)**, con comandos exactos:
+  1. Importar el certificado público a `LocalMachine\TrustedPeople` (Microsoft
+     advierte explícitamente **no** usar `Trusted Root` salvo CA real), elevado:
+     `Import-Certificate -FilePath tts-sidecar-source.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople`.
+  2. `winget source add --name tts-sidecar --arg https://<hosting-propio> --type Microsoft.PreIndexed.Package --accept-source-agreements` (requiere admin).
+  3. `winget install tts-sidecar --source tts-sidecar`.
+- **Dependencias residuales, clasificadas honestamente** (ninguna es gate de
+  terceros para publicar):
+  - Certificado autofirmado: expira a 1 año por defecto; renovarlo es
+    mantenimiento propio, no aprobación externa. **No es gate.**
+  - Timestamp server RFC 3161 (`signtool /tr <url> /td sha256`): servicio de red
+    gratuito (Sectigo/DigiCert/etc.), sin cuenta ni contrato — equivalente a un
+    NTP server; mantiene válidos los paquetes ya firmados tras expirar el cert.
+    **No es gate.**
+  - Hosting estático (GitHub Pages/Releases): TOS genérico de uso, no aprobación
+    por release. **No es gate.**
+- **Riesgo real desplazado a H-6** (tooling de generación del índice).
 
 **H-6 — El riesgo real de winget es la madurez del tooling de generación del índice, no la firma.**
 - `src/WinGetSourceCreator` en `github.com/microsoft/winget-cli` es el componente
@@ -416,30 +457,45 @@ es su materialización.
 - **Restricción rectora**: la autonomía aplica solo a *publicar* (sin
   aprobación/PR de terceros por versión); la fricción del usuario final es
   aceptable. Habilita winget vía fuente autofirmada `Microsoft.PreIndexed.Package`
-  (H-1), condicionada al spike de tooling (H-6).
+  (H-1), pero el propietario **difiere** su implementación a un roadmap futuro
+  (ver la decisión «Diferir winget» más abajo).
 - **Arquitectura de CI (decisión del propietario que reabre H-2)**: el proyecto se
   mantiene **100% en CircleCI**; **no** se introduce GitHub Actions. Además,
   `publish-release` **publica el Release directo, sin el paso de draft (implementado
   el 2026-07-08)**. La metadata
-  de Cask/winget la publica un job `publish-metadata` en el mismo pipeline, con
+  de **Cask** la publica un job `publish-metadata` en el mismo pipeline, con
   `requires: [publish-release]`, insumos leídos del Release público
   (`CIRCLE_TAG` + `SHA256SUMS.txt`) y secretos vía contexts de CircleCI. Costo
   aceptado: se pierde el gate humano del draft (el tag es el punto de no retorno,
   como en `publish-pypi`). Ver H-2.
-- **Alcance**: los **tres mecanismos** (Linux, macOS, Windows) en un único
-  roadmap; cada fase es un entregable liberable por separado.
+- **Alcance**: los **dos mecanismos activos** (Linux, macOS) en el roadmap de
+  este ciclo, cada fase un entregable liberable por separado. El mecanismo Windows
+  (winget) queda **diferido** a un roadmap futuro (ver decisión «Diferir winget»).
 - **Estrategia antivirus**: **asunto transversal** acoplado a la firma de código,
   no una fase (H-7). La **Línea A** (endurecimiento del build) entra en el alcance
   de este ciclo; la Línea B (firma/notarización) permanece en `docs/GOAL.md`.
-- **Fase 0**: los prerequisitos de una sola vez (repos, certificado, contexts de
-  CircleCI, GitHub Pages) se formalizan como hito previo a las Fases 2-3.
+- **Fase 0**: los prerequisitos de una sola vez (repo tap, context de CircleCI
+  `homebrew-tap`) se formalizan como hito previo a la **Fase 2** (la Fase 1 no lo
+  necesita). El repo de fuente winget, sus GitHub Pages y el context `winget-sign`
+  quedan fuera del alcance activo (ver decisión «Diferir winget»).
 - **Contrato de `_integrate_linux_path()`**: se **endurece** con una vía soportada
   explícita para exportar `APPIMAGE`, cubierta por un test, antes de la Fase 1 (no
   solo documentación).
-- **Nombres y hosting**: repo tap `homebrew-tts-sidecar`; context de CircleCI
-  `homebrew-tap` con `HOMEBREW_TAP_PAT`; context `winget-sign` con el PFX (base64) y
-  su contraseña de firma; la fuente winget se sirve por **GitHub Pages** de un repo
-  propio (URL estable entre releases).
+- **Nombres y hosting (alcance activo)**: repo tap `homebrew-tts-sidecar`; context
+  de CircleCI `homebrew-tap` con `HOMEBREW_TAP_PAT`. El context `winget-sign`, su
+  PFX y las GitHub Pages de la fuente winget quedan **fuera del alcance activo**
+  (se activarían solo al retomar winget en el futuro; ver decisión «Diferir
+  winget»).
+- **Diferir winget (decisión de diseño del propietario)**: el canal Windows
+  (fuente `Microsoft.PreIndexed.Package`) **no** se implementa en este ciclo.
+  **Justificación**: sin firma Authenticode *real* (Línea B, `docs/GOAL.md:216-241`)
+  winget no aporta reputación frente a SmartScreen —de hecho añadiría la marca
+  Mark-of-the-Web y SmartScreen seguiría disparándose sobre el instalador sin
+  firmar (H-7)—, y solo añadiría superficie de fallos y mantenimiento (madurez de
+  `WinGetSourceCreator`, H-6) sin retorno actual ni próximo (ROI negativo hasta
+  tener firma real). **Condición de reapertura**: aprobación del proyecto por el
+  programa SignPath OSS + certificado, y ROI positivo. Hasta entonces, el
+  conocimiento técnico se preserva en la subsección «Hallazgos diferidos (winget)».
 
 ### Decisiones del propietario resueltas en esta revisión (2026-07-08)
 
@@ -472,11 +528,12 @@ grado de materialización en el repo es:
   `docs/RELEASING.md`, `docs/BUILD.md` y `docs/DISTRIBUTION.md` describen la
   publicación directa. Es el único entregable materializado del ciclo y el
   prerrequisito de CI que habilita la Fase 2 del roadmap.
-- **Pendiente (todo el resto del roadmap)**: Fase 0, Fase 1 (Linux), Fase 2
-  (macOS), Fase 3 (Windows) y Línea A (endurecimiento del build). Ninguno existe
-  aún en el repo (no hay `install.sh`, job `publish-metadata`, repos propios,
-  ni `--noupx`/`--version-file`), y debe planificarse con `create-plan` y
-  ejecutarse fase por fase.
+- **Pendiente (resto del roadmap activo)**: Fase 0 (prerequisitos de Homebrew),
+  Fase 1 (Linux), Fase 2 (macOS) y Línea A (endurecimiento del build). Ninguno
+  existe aún en el repo (no hay `install.sh`, job `publish-metadata`, repos
+  propios, ni `--noupx`/`--version-file`), y debe planificarse con `create-plan` y
+  ejecutarse fase por fase. El canal Windows (winget) queda **diferido** fuera de
+  este ciclo (ver «Roadmap futuro (diferido)»).
 
 # Roadmap: instalación auto-hospedada por SO
 
@@ -485,49 +542,48 @@ aprobación ni PR a terceros), reutilizando los artefactos que el canal nativo y
 produce, y entregando una experiencia de instalación equivalente por SO
 (descubrir → instalar → comando en el PATH → provisión guiada → desinstalar).
 
-Las fases se ordenan por esfuerzo/riesgo creciente y por dependencia de
-infraestructura: la Fase 2 introduce el backbone de CI (job `publish-metadata` en
-CircleCI, tras `publish-release` sin draft) que la Fase 3 reutiliza.
+El alcance activo de este ciclo es **Fase 1 (Linux) + Fase 2 (macOS) + Línea A**,
+con la **Fase 0** reducida a los prerequisitos de Homebrew. La Fase 2 introduce el
+backbone de CI (job `publish-metadata` en CircleCI, tras `publish-release` sin
+draft). El canal **Windows (winget)** queda **diferido** a un roadmap futuro
+(acoplado a la Línea B de `docs/GOAL.md:216-241`); ver la subsección «Roadmap
+futuro (diferido): winget + SignPath Foundation».
 
 ## Infraestructura compartida (backbone de CI)
 
 Un único job nuevo, `publish-metadata`, dentro del workflow `build-all` de CircleCI,
 con `requires: [publish-release]` y los mismos filtros de tag `only: /^v.*/`. Corre
 **después** de que `publish-release` publica el Release directo (sin draft), de modo
-que sus assets ya son públicos, y publica la metadata de las Fases 2 y 3. El único
-cambio en `publish-release` —**quitar `--draft`**— **ya está implementado**
+que sus assets ya son públicos, y publica la **metadata del Cask** de la Fase 2. El
+único cambio en `publish-release` —**quitar `--draft`**— **ya está implementado**
 (`.circleci/config.yml`: `gh release create` sin `--draft`, sincronizado en
 `docs/RELEASING.md`/`BUILD.md`/`DISTRIBUTION.md`); no se introdujo GitHub Actions.
-Todos los recursos propios de la tabla se crean en la
-**Fase 0**; la columna "Consume" indica qué fase los usa.
+(La extensión de `publish-metadata` a winget queda para el roadmap futuro; ver la
+subsección «Roadmap futuro (diferido)»). Todos los recursos propios de la tabla se
+crean en la **Fase 0**; la columna "Consume" indica qué fase los usa.
 
 | Recurso propio | Propósito | Consume |
 |---|---|---|
-| Job `publish-metadata` en `.circleci/config.yml` (`requires: [publish-release]`) | Tras el Release público, publica Cask e índice winget | 2, 3 |
+| Job `publish-metadata` en `.circleci/config.yml` (`requires: [publish-release]`) | Tras el Release público, publica la metadata del Cask | 2 |
 | Repo `homebrew-tts-sidecar` (público) | Tap de Homebrew (`Casks/tts-sidecar.rb`) | 2 |
 | Context de CircleCI `homebrew-tap` con `HOMEBREW_TAP_PAT` (fine-grained, `Contents:RW` solo en el tap) | Push del Cask actualizado al tap | 2 |
-| Repo propio de la fuente winget, con **GitHub Pages** | URL estable que sirve `index.msix` + `.cer` + manifiestos | 3 |
-| Context de CircleCI `winget-sign` con el PFX (base64) + su contraseña | Firmar el `index.msix` de la fuente winget | 3 |
 
-## Fase 0 — Prerequisitos compartidos (una sola vez)
+## Fase 0 — Prerequisitos de Homebrew (una sola vez)
 
-Hito de arranque, con acciones manuales del propietario, que **gatea las Fases 2
-y 3** (la Fase 1 no lo necesita). No se repite por release.
+Hito de arranque, con acciones manuales del propietario, que **gatea la Fase 2**
+(la Fase 1 no lo necesita). No se repite por release. El canal Windows (winget)
+queda diferido y **no** aporta prerequisitos activos en este ciclo (ver la
+subsección «Roadmap futuro (diferido)»).
 
 - **Entregables**:
   - Repo tap `homebrew-tts-sidecar` (público) creado.
-  - Repo propio de la fuente winget creado, con **GitHub Pages habilitado** (fija
-    la URL estable que consumirá `winget source add`).
-  - Certificado autofirmado generado (`New-SelfSignedCertificate`), exportado a
-    PFX (firma) y a `.cer` (distribución pública).
-  - Contexts de CircleCI configurados: `homebrew-tap` (con `HOMEBREW_TAP_PAT`) y
-    `winget-sign` (con el PFX en base64 y su contraseña).
-- **Nota sobre el primer publish**: el **primer** push del Cask (Fase 2) y de la
-  fuente winget (Fase 3) es manual y se hace como paso de bootstrap **al inicio de
-  cada fase** (requiere que el artefacto de esa fase ya exista); a partir de ahí
-  `publish-metadata` los actualiza solo.
-- **Criterio de cierre**: los repos y contexts existen; GitHub Pages sirve la URL
-  estable de la fuente; el certificado está generado y su `.cer` publicable.
+  - Context de CircleCI `homebrew-tap` configurado con `HOMEBREW_TAP_PAT`
+    (fine-grained, `Contents:RW` solo en el tap).
+- **Nota sobre el primer publish**: el **primer** push del Cask (Fase 2) es manual
+  y se hace como paso de bootstrap **al inicio de la fase** (requiere que el
+  `.dmg` ya exista); a partir de ahí `publish-metadata` lo actualiza solo.
+- **Criterio de cierre**: el repo tap y el context existen; el push inicial del
+  Cask al tap es viable con el `HOMEBREW_TAP_PAT`.
 
 ## Fase 1 — Linux (`curl \| sh`)
 
@@ -593,49 +649,15 @@ y 3** (la Fase 1 no lo necesita). No se repite por release.
 - **Riesgos residuales**: unicidad del nombre de Cask; `livecheck` correcto contra
   GitHub Releases; primer release manual del Cask antes de automatizar.
 
-## Fase 3 — Windows (fuente winget propia, `Microsoft.PreIndexed.Package`)
-
-**Mayor esfuerzo/riesgo. Empieza por un spike de tooling (H-6).**
-
-- **Paso 0 — Spike/PoC (obligatorio antes de automatizar)**: generar y firmar a
-  mano un `index.msix` mínimo (un manifiesto para el `.exe` actual), con
-  certificado autofirmado, y validar el flujo completo en una VM Windows limpia:
-  importar `.cer` a `TrustedPeople` → `winget source add` → `winget install`.
-  Decide entre adaptar `WinGetSourceCreator` (código de Microsoft) o `winget.pro`.
-- **Entregables (tras el spike)**: el certificado, los secrets y el hosting
-  (GitHub Pages) provienen de la Fase 0.
-  - Generador del manifiesto winget + índice, derivando del instalador actual
-    (`scripts/create_installer_windows.py`): `InstallerType: inno`,
-    `Scope: machine` (por `PrivilegesRequired=admin`, línea 73), switches
-    silenciosos por defecto de Inno (winget los aplica al declarar `inno`).
-  - Job `publish-metadata` (en `.circleci/config.yml`) que, tras el Release público,
-    regenera el `index.msix`, lo firma (`signtool /tr <TSA>`, con el PFX del context
-    `winget-sign` en el executor Windows), y lo publica en **GitHub Pages** del repo
-    de la fuente junto al `.cer`.
-- **Experiencia de usuario (una sola vez)**: importar `.cer` a `TrustedPeople`
-  (admin) → `winget source add --arg https://<owner>.github.io/<repo> --type Microsoft.PreIndexed.Package`
-  (admin) → `winget install tts-sidecar --source tts-sidecar`.
-- **Docs/tests**: `docs/RELEASING.md` (cert + hosting + secrets); guía de alta de
-  la fuente en `README.md`/`USAGE.md`; nota en `SECURITY.md` sobre el alcance del
-  certificado autofirmado; test del generador de manifiesto/índice.
-- **Criterio de cierre**: verificación **manual** en VM/equipo Windows limpio (el
-  propietario lo prueba en su equipo de trabajo, G-2): tras importar el cert y añadir
-  la fuente, `winget install` instala la versión nueva y `tts-sidecar version`
-  responde; una release posterior aparece disponible sin re-tocar la fuente
-  manualmente. **Desinstalación limpia (paridad estricta, G-5)**: `winget uninstall`
-  deja binario, PATH, caché del modelo y datos de usuario eliminados; el plan decide
-  si se revierte la importación del certificado en la verificación.
-- **Riesgos residuales**: madurez del tooling (H-6, mitigado por el spike);
-  renovación anual del certificado (mantenimiento propio, no gate); winget **no**
-  limpia la Mark-of-the-Web — no sustituye la firma Authenticode del roadmap de
-  `docs/GOAL.md` (estrategia B), es solo descubrimiento/instalación.
+*(Canal Windows/winget diferido — ver la subsección «Roadmap futuro (diferido):
+winget + SignPath Foundation», más abajo.)*
 
 ## Asunto transversal — antivirus / falsos positivos (no es una fase)
 
 Requisito nuevo del propietario. **No** es una cuarta fase de los mecanismos
 auto-hospedados: ninguno resuelve las alertas de antivirus salvo el Cask
 (Gatekeeper en macOS). Se modela como dos líneas de trabajo paralelas,
-independientes del orden de las Fases 1-3 (H-7):
+independientes del orden de las Fases 1-2 (H-7):
 
 - **Línea A — endurecimiento del build (comprometida en este ciclo; barata, sin
   dependencia de terceros)**:
@@ -659,17 +681,44 @@ independientes del orden de las Fases 1-3 (H-7):
   se alcanza hoy por el canal pip (estructural) y, en macOS, por el Cask (borra la
   cuarentena); Windows nativo la logrará únicamente con la Línea B.
 
+## Roadmap futuro (diferido): winget + SignPath Foundation
+
+El canal **Windows (winget, `Microsoft.PreIndexed.Package`)** se implementa **solo
+en un ciclo futuro**, condicionado a dos hitos que hoy no se dan:
+
+- **Firma Authenticode real vía SignPath Foundation** (Línea B de
+  `docs/GOAL.md:216-241`): el proyecto debe ser aprobado por el programa SignPath
+  OSS y obtener un certificado con cadena de confianza reconocida. Sin esto, winget
+  no aporta reputación frente a SmartScreen —de hecho añadiría la marca
+  Mark-of-the-Web y SmartScreen seguiría disparándose sobre el instalador sin
+  firmar (H-7)—, y solo añadiría superficie de fallos y mantenimiento (madurez de
+  `WinGetSourceCreator`, H-6) sin retorno actual ni próximo.
+- **ROI positivo**: el esfuerzo de automatizar la fuente winget (y su mantenimiento
+  anual de certificado, renovación, hosting) debe justificarse frente a los canales
+  ya operativos (nativo + PyPI) y al Cask de macOS.
+
+**Insumo ya acumulado** (preservado, no eliminado): H-1 documenta la viabilidad y
+autonomía de la fuente autofirmada bajo la restricción rectora; H-6 documenta que el
+riesgo real está en el tooling de generación del índice (`WinGetSourceCreator`), no
+en la firma, y que la fase debe arrancar con un spike/PoC que valide
+`winget source add` + `winget install` en una VM limpia. Ambos viven en la
+subsección «Hallazgos diferidos (winget)».
+
+**Condición de entrada para reabrir**: aprobación SignPath OSS + certificado real,
+y ROI positivo. Hasta entonces el canal winget **no** figura en el alcance activo
+del roadmap ni en el `create-plan` subsiguiente.
+
 ## Orden recomendado y dependencias
 
 1. **Fase 1 (Linux)** — independiente, entregable de inmediato, sin infraestructura
    nueva ni Fase 0.
-2. **Fase 0 (prerequisitos)** — crear repos, certificado, contexts de CircleCI y
-   GitHub Pages; gatea las Fases 2-3.
+2. **Fase 0 (prerequisitos de Homebrew)** — crear el repo tap y el context
+   `homebrew-tap`; gatea la Fase 2.
 3. **Fase 2 (macOS)** — establece el backbone de CI (job `publish-metadata` en
    CircleCI + eliminación del draft en `publish-release`) y el patrón de repo propio
-   + context + push; base reutilizable por la Fase 3.
-4. **Fase 3 (Windows)** — reutiliza el backbone; el spike de tooling (Paso 0) es su
-   primer hito y su mayor riesgo.
+   + context + push; es el único consumidor del backbone en el alcance activo.
+4. **(Futuro) Fase Windows/winget** — **no** en este ciclo; queda en la subsección
+   «Roadmap futuro (diferido)», condicionada a SignPath Foundation + ROI positivo.
 
 La **Línea A** (endurecimiento del build, sección «Asunto transversal») es
 transversal, pero su *orden* conviene matizar. Los **build flags** (`--noupx`,
@@ -677,14 +726,15 @@ transversal, pero su *orden* conviene matizar. Los **build flags** (`--noupx`,
 `build_utils.py` que consumen todos los artefactos: `--noupx` evita la compresión
 UPX en cualquier build de PyInstaller (incluido el bootloader del `.AppImage` de
 Linux) y `--version-file` (metadata PE) es Windows-only y beneficia el `.exe`/
-instalador Inno de las Fases 2-3. Con este adelanto, el `.AppImage` de Linux ya
-sale sin UPX y el `.exe` de Windows de las fases siguientes ya lleva la metadata PE
+instalador Inno de la Fase 2 (y, en el futuro, de winget). Con este adelanto, el
+`.AppImage` de Linux ya sale sin UPX y el `.exe` de Windows ya lleva la metadata PE
 embebida. El paso **VirusTotal-CI** y el **runbook WDSI** sí pueden quedar sueltos
-en paralelo, sin depender del orden de las fases. Esto no cambia el número de
-fases, solo el orden de un subconjunto de la Línea A.
+en paralelo, sin depender del orden de las fases. La Línea A es **independiente de
+winget** y se ejecuta igual con winget diferido.
 
-Las tres fases son entregables independientes: se pueden publicar y anunciar por
-separado. Ninguna bloquea el canal nativo ni el canal PyPI existentes.
+Las fases activas (Fase 1 y Fase 2) son entregables independientes: se pueden
+publicar y anunciar por separado. Ninguna bloquea el canal nativo ni el canal PyPI
+existentes.
 
 ---
 
@@ -715,18 +765,20 @@ abajo). No quedan refinamientos abiertos que bloqueen el plan.
 - **G-2 — Criterios de cierre (resuelta 2026-07-08)**: política mixta por SO.
   **Linux (Fase 1)** se certifica con **smoke-test automatizado** (`bats` mockeando
   `curl`/`uname`/`sha256sum`) por ser barato de automatizar y dar regresión continua.
-  **Windows (Fase 3)** se certifica **manual** en VM/equipo Windows limpio (el
-  propietario lo prueba en su equipo de trabajo). **macOS (Fase 2)** se automatiza
-  si es viable (`brew audit`/`brew style` o instalación headless); si no, manual en
-  Mac limpio, igual que Windows. No se exige automatización donde no aporte valor.
+  **macOS (Fase 2)** se automatiza si es viable (`brew audit`/`brew style` o
+  instalación headless); si no, manual en Mac limpio. El canal Windows (winget)
+  queda diferido y su criterio de cierre se reabrirá con la fase futura (ver
+  «Roadmap futuro (diferido)»). No se exige automatización donde no aporte valor.
 - **G-5 — Paridad de desinstalación (resuelta 2026-07-08)**: se fija **paridad
   estricta total** como criterio de cierre por fase. "Limpio" = quitar binario +
   integración de PATH + caché del modelo **y** datos de usuario, dejando el sistema
-  idéntico a antes de instalar en los tres SO. En Windows, `winget uninstall` puede
-  dejar el certificado autofirmado importado: el plan decide si se revierte ese paso
-  en la verificación (no bloquea).
+  idéntico a antes de instalar. Aplica a las fases activas (Linux, macOS); el canal
+  Windows (winget) diferido retomará este criterio en su fase futura (ver
+  «Roadmap futuro (diferido)»).
 
-**Veredicto**: el roadmap es auditable, viable y **listo para `create-plan`**, con
-la arquitectura de CI actualizada (100% CircleCI, sin draft), G-3 cerrada por
-decisión y **G-2/G-5 cerradas el 2026-07-08**. Sin brechas de decisión abiertas;
-el plan puede redactarse íntegro.
+**Veredicto**: el roadmap simplificado (Fase 1 Linux + Fase 2 macOS + Línea A
+activas; Fase 0 reducida a Homebrew; winget diferido a la sección futura) es
+auditable, viable y **listo para `create-plan`**, con la arquitectura de CI
+actualizada (100% CircleCI, sin draft), G-3 cerrada por decisión y **G-2/G-5
+cerradas el 2026-07-08**. Sin brechas de decisión abiertas; el plan puede
+redactarse sobre el alcance reducido.
