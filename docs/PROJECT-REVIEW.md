@@ -301,10 +301,9 @@ Ver H-7 y la sección «Auditoría de completitud del roadmap».
   costo: (a) pasar `--noupx` de forma explícita (hoy no se hace: si el servidor de
   CI tuviera UPX instalado, PyInstaller comprimiría el ejecutable y subiría la
   sospecha); (b) embeber la metadata PE (`--version-file` con empresa/producto/
-  versión) para darle señales de confianza al clasificador; (c) subir el `.exe` a
-  VirusTotal desde CI como diagnóstico (avisar si demasiados motores lo marcan);
-  (d) reportar los falsos positivos al portal WDSI de Microsoft
-  (`microsoft.com/wdsi`) cuando ocurran. Ninguna depende de aprobación de terceros.
+  versión) para darle señales de confianza al clasificador; (c) reportar los
+  falsos positivos al portal WDSI de Microsoft (`microsoft.com/wdsi`) cuando
+  ocurran. Ninguna depende de aprobación de terceros.
 - **Conclusión**: la estrategia antivirus **atraviesa todas las fases**, no es una
   fase de los mecanismos auto-hospedados. Se divide en (a) la línea de trabajo de
   endurecimiento del build (barata, sin dependencia de terceros) y (b) la
@@ -666,13 +665,11 @@ independientes del orden de las Fases 1-2 (H-7):
   - Embeber la metadata PE en el `.exe` de Windows (`--version-file`:
     empresa, producto, versión) para darle señales de confianza al clasificador
     de Defender.
-  - Subir el `.exe` a VirusTotal desde CI como diagnóstico (avisar o fallar si el
-    número de motores que lo marcan supera un umbral).
   - Procedimiento documentado (*runbook*, guía paso a paso) para reportar los
     falsos positivos al portal WDSI de Microsoft (`microsoft.com/wdsi`) cuando un
     release sea marcado.
-  - **Criterio de cierre**: el `.exe` lleva metadata PE y `--noupx`; el reporte de
-    VirusTotal del release queda registrado; existe la guía de reporte a WDSI.
+  - **Criterio de cierre**: el `.exe` lleva metadata PE y `--noupx`; existe la guía
+    de reporte a WDSI.
 - **Línea B — firma de código / notarización (= estrategia B, ya comprometida)**
   (`docs/GOAL.md:216-241`): Authenticode vía SignPath (Windows) + notarización
   Apple (macOS). Es la mitigación de fondo del canal nativo que se descarga a
@@ -728,9 +725,9 @@ UPX en cualquier build de PyInstaller (incluido el bootloader del `.AppImage` de
 Linux) y `--version-file` (metadata PE) es Windows-only y beneficia el `.exe`/
 instalador Inno de la Fase 2 (y, en el futuro, de winget). Con este adelanto, el
 `.AppImage` de Linux ya sale sin UPX y el `.exe` de Windows ya lleva la metadata PE
-embebida. El paso **VirusTotal-CI** y el **runbook WDSI** sí pueden quedar sueltos
-en paralelo, sin depender del orden de las fases. La Línea A es **independiente de
-winget** y se ejecuta igual con winget diferido.
+embebida. El **runbook WDSI** sí puede quedar suelto en paralelo, sin depender del
+orden de las fases. La Línea A es **independiente de winget** y se ejecuta igual con
+winget diferido.
 
 Las fases activas (Fase 1 y Fase 2) son entregables independientes: se pueden
 publicar y anunciar por separado. Ninguna bloquea el canal nativo ni el canal PyPI
