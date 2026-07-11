@@ -19,7 +19,7 @@ sección correspondiente.
 | Instalación sin privilegios de admin | ✅ per-user, sin UAC | ✅ `~/.local` | ✅ `~/.local` (one-liner y `.command` sin `sudo`) | **Sí** |
 | Modelo provisionado al terminar de instalar | ✅ encadena `setup` | ✅ encadena `setup` | ✅ one-liner/`.command` encadenan `setup` (Cask: *caveat*) | **Sí** |
 | Verificación de checksum automática | ✅ | ✅ | ✅ (one-liner con `shasum`; Cask sí) | **Sí** |
-| Primer arranque sin advertencia de reputación | ✅ (one-liner, sin MOTW) | ✅ (no aplica) | ⚠️ one-liner y Cask limpian cuarentena; `.dmg` de navegador dispara Gatekeeper | Parcial (brecha 4: firma) |
+| Primer arranque sin advertencia de reputación | ⚠️ one-liner esquiva MOTW; `.exe` de navegador dispara SmartScreen | ✅ (no aplica) | ⚠️ one-liner/Cask limpian cuarentena; `.dmg` de navegador dispara Gatekeeper | Parcial (brecha 4: firma, cross-SO) |
 | Uso (CLI, daemon, voces, contratos `--json`) | ✅ | ✅ | ✅ | **Sí** |
 | Actualización sin residuo ni trampa | ✅ Inno reemplaza en sitio | ✅ re-ejecutar one-liner limpia AppImages viejos | ✅ `brew upgrade --cask` / re-ejecutar one-liner | **Sí** |
 | Desinstalación integrada y con residuo cero | ✅ desinstalador del SO + `cleanup` | ✅ `setup --uninstall` (un paso) | ✅ `.command` sin `sudo` + `cleanup`; `brew uninstall --zap` completo | **Sí** |
@@ -27,11 +27,14 @@ sección correspondiente.
 
 **Conclusión**: con v0.5.0 la paridad es **completa** en instalación, uso,
 actualización y desinstalación en los tres SO. La única fase que no alcanza
-paridad plena es el *primer arranque* en macOS (brecha 4): el one-liner y el
-Cask limpian la cuarentena, pero el `.dmg` descargado por navegador sigue
-disparando Gatekeeper. Su fondo es la firma de código/notarización, diferida
-por diseño al goal a largo plazo ([docs/GOAL.md](GOAL.md)). El detalle por
-fase, a continuación.
+paridad plena es el *primer arranque* en Windows y macOS (brecha 4): los
+one-liners de ambos SO descargan por CLI y esquivan el Mark-of-the-Web, y el
+Cask de macOS limpia además la cuarentena, pero el `.exe` de Windows y el
+`.dmg` de macOS **descargados por navegador** disparan la advertencia del SO
+respectivo (SmartScreen / Gatekeeper) por ser binarios sin firmar. No es una
+asimetría exclusiva de macOS: es **cross-SO** por naturaleza. Su fondo es la
+firma de código/notarización, diferida por diseño al goal a largo plazo
+([docs/GOAL.md](GOAL.md)). El detalle por fase, a continuación.
 
 ## Fase 1 — Instalación
 
@@ -94,12 +97,16 @@ Las tres brechas de esta fase quedaron **cerradas**:
 
 ### Qué falta para la paridad
 
-4. **[MITIGADA, fondo diferido]** La solución de fondo es la **firma de
-   código/notarización**, registrada como goal a largo plazo (`docs/GOAL.md`).
-   El one-liner `install-macos.sh` (brecha 1) y el Cask limpian la cuarentena y
-   eliminan la fricción de Gatekeeper para quien los use, igualando la
-   experiencia de Windows; solo el `.dmg` descargado por navegador sigue
-   disparándolo. Es la **única brecha que permanece abierta** en este registro.
+4. **[MITIGADA, fondo diferido, cross-SO]** La solución de fondo es la **firma
+   de código/notarización** (goal a largo plazo, `docs/GOAL.md`): firma
+   Authenticode en Windows (SmartScreen) y notarización en macOS (Gatekeeper).
+   Los one-liners de ambos SO descargan por CLI y esquivan el Mark-of-the-Web, y
+   el Cask de macOS limpia además la cuarentena; pero el `.exe` de Windows y el
+   `.dmg` de macOS **descargados por navegador** disparan la advertencia del SO
+   respectivo, porque ambos binarios son sin firmar. No es una asimetría
+   exclusiva de macOS: Windows tiene el mismo comportamiento con SmartScreen. Es
+   la **única brecha que permanece abierta** en este registro, y es cross-SO por
+   naturaleza.
 
 ## Fase 3 — Uso
 
@@ -183,10 +190,12 @@ binario:
 | 7 | Desinstalación en 3 pasos manuales, sin desinstalador | Linux | ✅ Cerrada (v0.5.0) | `setup --uninstall` |
 | 2 | El Cask no figura en el README (sección "una línea" excluye macOS) | macOS | ✅ Cerrada (v0.5.0) | README con las tres plataformas + Cask |
 | 3 | Vía `.dmg` exige `sudo` (única instalación con admin) | macOS | ✅ Cerrada (v0.5.0) | `.command` per-user en `~/.local/bin` |
-| 4 | Gatekeeper en `.dmg` de navegador (vs. SmartScreen evitado en Windows) | macOS | ⚠️ Abierta (diferida) | Mitigada por one-liner y Cask; fondo = firma (goal a largo plazo) |
+| 4 | Binarios sin firmar disparan la advertencia del SO al descargarse por navegador (SmartScreen en Windows, Gatekeeper en macOS) | Windows + macOS | ⚠️ Abierta (diferida, cross-SO) | Mitigada por los one-liners (CLI sin MOTW) y el Cask; fondo = firma/notarización (goal a largo plazo) |
 
 Con v0.5.0 quedan cerradas las seis brechas accionables (1-3, 5-7). La **única
-brecha abierta es la 4** (Gatekeeper), mitigada por el one-liner y el Cask y con
-su fondo —la firma de código/notarización— diferido por diseño al goal a largo
-plazo de [docs/GOAL.md](GOAL.md). Ningún cierre rompió compatibilidad ni
-re-publicó artefactos existentes: todos se materializan en el release v0.5.0.
+brecha abierta es la 4**, que es **cross-SO** (SmartScreen en Windows y Gatekeeper
+en macOS sobre binarios sin firmar descargados por navegador), mitigada por los
+one-liners y el Cask y con su fondo —la firma de código/notarización— diferido
+por diseño al goal a largo plazo de [docs/GOAL.md](GOAL.md). Ningún cierre rompió
+compatibilidad ni re-publicó artefactos existentes: todos se materializan en el
+release v0.5.0.

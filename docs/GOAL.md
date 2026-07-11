@@ -220,8 +220,9 @@ E2E" más abajo). -->
     nivel de código/scripts/tests en v0.5.0 (one-liner macOS `install-macos.sh`,
     `.command` sin `sudo`, limpieza de AppImages en `install.sh`, `setup
     --uninstall`, `zap` del Cask completo, README con las tres plataformas). Solo
-    la brecha 4 (Gatekeeper) permanece abierta, diferida por diseño a la firma de
-    código del goal a largo plazo. La marca de este criterio queda pendiente
+    la brecha 4 (SmartScreen/Gatekeeper, binarios sin firmar, cross-SO) permanece
+    abierta, diferida por diseño a la firma de código del goal a largo plazo. La
+    marca de este criterio queda pendiente
     únicamente de la validación por feedback de usuarios reales en Linux y macOS
     (ver "Decisión de validación E2E" más abajo)
 
@@ -301,14 +302,16 @@ validación E2E" arriba):
   código/scripts/tests las brechas accionables de [docs/PARITY.md](PARITY.md)
   (one-liner macOS, `.command` sin `sudo`, limpieza de AppImages, `setup
   --uninstall`, `zap` del Cask completo, README con las tres plataformas); solo
-  la brecha 4 (Gatekeeper) sigue diferida a la firma de código
+  la brecha 4 (SmartScreen/Gatekeeper, binarios sin firmar, cross-SO) sigue
+  diferida a la firma de código
 - Tests pytest (305 tests: timing, protocolo, daemon, CLI, voces, rutas, caché de modelo, audio, Cask y utilidades de build), más los smoke-tests de instaladores (bats Linux/macOS y Pester Windows) en CI
 - Documentación sincronizada
 
 **Trabajo pendiente del goal inmediato**: las brechas de paridad entre SO
 registradas en [docs/PARITY.md](PARITY.md) quedaron cerradas a nivel de
-código/scripts/tests en v0.5.0 (solo la brecha 4, Gatekeeper, sigue diferida a
-la firma del goal a largo plazo). Lo pendiente es la **marca de los criterios de
+código/scripts/tests en v0.5.0 (solo la brecha 4, SmartScreen/Gatekeeper,
+cross-SO, sigue diferida a la firma del goal a largo plazo). Lo pendiente es la
+**marca de los criterios de
 aceptación 10, 1-3 y 9 por validación de feedback de usuarios reales** en Linux
 y macOS (la validación E2E automatizable ya corre en CI; ver "Decisión de
 validación E2E").
