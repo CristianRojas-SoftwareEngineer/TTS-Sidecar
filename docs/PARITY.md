@@ -15,10 +15,10 @@ Fecha de corte: **v0.5.0**. Al cerrar una brecha, actualizar la tabla y la secci
 | Primer arranque sin advertencia de reputación | ⚠️ one-liner esquiva MOTW; `.exe` de navegador dispara SmartScreen | ✅ (no aplica) | ⚠️ one-liner/Cask limpian cuarentena; `.dmg` de navegador dispara Gatekeeper | Parcial (brecha 4: firma, cross-SO) |
 | Uso (CLI, daemon, voces, contratos `--json`) | ✅ | ✅ | ✅ | **Sí** |
 | Actualización sin residuo ni trampa | ✅ Inno reemplaza en sitio | ✅ re-ejecutar one-liner limpia AppImages viejos | ✅ `brew upgrade --cask` / re-ejecutar one-liner | **Sí** |
-| Desinstalación integrada y con residuo cero | ✅ desinstalador del SO + `cleanup` | ✅ `setup --uninstall` (un paso) | ✅ `.command` sin `sudo` + `cleanup`; `brew uninstall --zap` completo | **Sí** |
+| Desinstalación integrada y con residuo cero | ✅ desinstalador del SO + `cleanup` | ✅ `setup --uninstall` (un paso) | ⚠️ Cask: `brew uninstall --zap` (un paso); one-liner: 3 pasos (`.command` + Papelera + `cleanup`), sin `setup --uninstall` | Parcial (macOS one-liner) |
 | Cobertura de arquitecturas | x86_64 | x86_64 + aarch64 | arm64 | Limitación de toolchain (aceptada) |
 
-**Conclusión**: con v0.5.0 la paridad es **completa** en instalación, uso, actualización y desinstalación en los tres SO. La única fase que no alcanza paridad plena es el *primer arranque* en Windows y macOS (brecha 4): los one-liners de ambos SO descargan por CLI y esquivan el Mark-of-the-Web, y el Cask de macOS limpia además la cuarentena, pero el `.exe` de Windows y el `.dmg` de macOS **descargados por navegador** disparan la advertencia del SO respectivo (SmartScreen / Gatekeeper) por ser binarios sin firmar. No es una asimetría exclusiva de macOS: es **cross-SO** por naturaleza. Su fondo es la firma de código/notarización, diferida por diseño al goal a largo plazo ([docs/GOAL.md](GOAL.md)). El detalle por fase, a continuación.
+**Conclusión**: con v0.5.0 la paridad es **completa** en instalación, uso y actualización en los tres SO, y en desinstalación salvo la vía one-liner de macOS. Quedan dos fases que no alcanzan paridad plena: el *primer arranque* en Windows y macOS (brecha 4, cross-SO, por binarios sin firmar) y la *desinstalación de un comando* en la vía one-liner de macOS (brecha 8). En desinstalación, Linux tiene `setup --uninstall` de un paso y macOS vía Cask tiene `brew uninstall --cask --zap`, pero la vía one-liner de macOS aún exige tres pasos manuales y carece de `setup --uninstall`. El fondo de la brecha 4 es la firma de código/notarización, diferida por diseño al goal a largo plazo ([docs/GOAL.md](GOAL.md)). El detalle por fase, a continuación.
 
 ## Fase 1 — Instalación
 
@@ -84,12 +84,13 @@ El contrato (`USAGE.md` §"Desinstalación completa") es: datos primero (`cleanu
 
 - **Windows**: desinstalador integrado al SO (Configuración → Aplicaciones), sin admin, revierte el PATH de HKCU automáticamente. **Dos pasos.**
 - **Linux**: `tts-sidecar setup --uninstall` lo hace en **un paso** (cerrado en v0.5.0): quita el symlink de PATH, borra `~/.local/opt/tts-sidecar/` y encadena `cleanup --all`. (`setup --remove-path` se conserva como reversión fina del symlink.)
-- **macOS**: `.command` de desinstalación (ahora **sin `sudo`**, symlink per-user) + arrastrar a la Papelera + `cleanup --all`; o `brew uninstall --cask --zap`, cuya stanza `zap trash:` ya lista los **dos** repos del modelo (`Chatterbox-Multilingual-es-mx-latam` y el base `chatterbox`), cerrada en v0.5.0. Se propaga al tap en el release vía `publish-metadata`.
+- **macOS**: dos vías con experiencia distinta. Vía **Cask**: `brew uninstall --cask --zap` en **un paso** (app + symlink + los dos repos del modelo). Vía **one-liner / `.dmg`**: **tres pasos manuales** — ejecutar el `.command` de desinstalación (quita el symlink per-user, sin `sudo`), arrastrar el `.app` a la Papelera y correr `tts-sidecar cleanup --all`; `setup --uninstall` **no existe en macOS** (su guard de SO lo limita a Linux, `cli.py:687`).
 
 ### Qué falta para la paridad
 
 6. **[CERRADA]** El `zap` del Cask incluye el repo base del modelo (`~/.cache/huggingface/hub/models--ResembleAI--chatterbox`) además del multilingüe — corrección en `_CASK_TEMPLATE` de `scripts/render_cask.py`, cubierta por test; se propaga al tap con el release v0.5.0 vía `publish-metadata`.
 7. **[CERRADA]** `tts-sidecar setup --uninstall` desinstala Linux en un paso: quita el symlink, borra `~/.local/opt/tts-sidecar/` y encadena `cleanup --all` (con confirmación o `--yes`), con contrato `--json` y tests pytest.
+8. **[ABIERTA]** La desinstalación de un comando solo existe en Linux (`setup --uninstall`) y en macOS vía Cask (`brew uninstall --cask --zap`); la vía one-liner de macOS aún requiere tres pasos manuales (`.command` + Papelera + `cleanup --all`) porque `setup --uninstall` tiene un guard de SO que lo limita a Linux (`cli.py:687`). Solución recomendada (pendiente de implementación): hacer `setup --uninstall` multiplataforma — macOS con self-removal del `.app` (en `~/Applications` o `/Applications`) + symlink + `cleanup --all`; Windows invocando el desinstalador de Inno vía registro + `cleanup --all` — espejando la instalación one-line de cada SO.
 
 ## Registro de brechas (orden de prioridad)
 
@@ -99,9 +100,10 @@ El contrato (`USAGE.md` §"Desinstalación completa") es: datos primero (`cleanu
 | 6 | `zap` del Cask no borra el repo base del modelo | macOS | ✅ Cerrada (v0.5.0) | Repo base añadido a `_CASK_TEMPLATE` |
 | 5 | `install.sh` acumula AppImages viejos al actualizar | Linux | ✅ Cerrada (v0.5.0) | Limpieza de versiones en `install.sh` |
 | 7 | Desinstalación en 3 pasos manuales, sin desinstalador | Linux | ✅ Cerrada (v0.5.0) | `setup --uninstall` |
+| 8 | Desinstalación de un comando solo en Linux/Cask; vía one-liner de macOS exige 3 pasos manuales (sin `setup --uninstall`) | macOS | ⚠️ Abierta | Mitigada en Cask; solución = `setup --uninstall` multiplataforma (pendiente) |
 | 2 | El Cask no figura en el README (sección "una línea" excluye macOS) | macOS | ✅ Cerrada (v0.5.0) | README con las tres plataformas + Cask |
 | 3 | Vía `.dmg` exige `sudo` (única instalación con admin) | macOS | ✅ Cerrada (v0.5.0) | `.command` per-user en `~/.local/bin` |
 | 4 | Binarios sin firmar disparan la advertencia del SO al descargarse por navegador (SmartScreen en Windows, Gatekeeper en macOS) | Windows + macOS | ⚠️ Abierta (diferida, cross-SO) | Mitigada por los one-liners (CLI sin MOTW) y el Cask; fondo = firma/notarización (goal a largo plazo) |
 
-Con v0.5.0 quedan cerradas las seis brechas accionables (1-3, 5-7). La **única brecha abierta es la 4**, que es **cross-SO** (SmartScreen en Windows y Gatekeeper en macOS sobre binarios sin firmar descargados por navegador), mitigada por los one-liners y el Cask y con su fondo —la firma de código/notarización— diferido por diseño al goal a largo plazo de [docs/GOAL.md](GOAL.md). Ningún cierre rompió compatibilidad ni re-publicó artefactos existentes: todos se materializan en el release v0.5.0.
+Con v0.5.0 quedan cerradas las seis brechas accionables originales (1-3, 5-7). Hay **dos brechas abiertas**: la **4** (primer arranque, cross-SO; fondo = firma/notarización, goal a largo plazo) y la **8** (desinstalación de un comando en la vía one-liner de macOS; solución recomendada = `setup --uninstall` multiplataforma, pendiente). Ambas están mitigadas en su síntoma pero no resueltas en código: la 4 la esquivan los one-liners y el Cask, y la 8 la resuelve el Cask en macOS aunque no la vía one-liner. Ningún cierre rompió compatibilidad ni re-publicó artefactos existentes: todos se materializan en el release v0.5.0.
 
