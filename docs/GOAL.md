@@ -2,26 +2,12 @@
 
 ## Introducción
 
-Este documento es la **especificación ideal** de `tts-sidecar`: describe el
-producto meta que guía todo el desarrollo — un sistema de síntesis de voz
-**100% local**, con clonación de voz en **español latinoamericano**,
-consumible por línea de comandos desde cualquier lenguaje, y con una
-experiencia de usuario **equivalente en Windows, Linux y macOS**.
+Este documento es la **especificación ideal** de `tts-sidecar`: describe el producto meta que guía todo el desarrollo — un sistema de síntesis de voz **100% local**, con clonación de voz en **español latinoamericano**, consumible por línea de comandos desde cualquier lenguaje, y con una experiencia de usuario **equivalente en Windows, Linux y macOS**.
 
-Es la fuente de verdad contra la que se evalúa cualquier cambio: si una
-propuesta acerca el proyecto a lo aquí especificado, avanza el goal; si no,
-queda fuera de alcance. Para mantener esa función sin frenar el desarrollo,
-el documento se declara en **dos partes**:
+Es la fuente de verdad contra la que se evalúa cualquier cambio: si una propuesta acerca el proyecto a lo aquí especificado, avanza el goal; si no, queda fuera de alcance. Para mantener esa función sin frenar el desarrollo, el documento se declara en **dos partes**:
 
-- **[Goal inmediato](#goal-inmediato)** — la especificación y el diseño del
-  objetivo completo, redactados como el ideal que se sigue **como si ya
-  estuviese implementado**. Todo cambio sin impedimentos se trabaja contra
-  esta parte, de forma inmediata.
-- **[Goal a largo plazo](#goal-a-largo-plazo)** — las especificaciones **no
-  comprometidas** para el goal actual, separadas para no frenar el desarrollo
-  que no tiene impedimentos. Cada spec diferida lleva su justificación y su
-  condición de entrada; al cumplirse la condición, se promueve al goal
-  inmediato.
+- **[Goal inmediato](#goal-inmediato)** — la especificación y el diseño del objetivo completo, redactados como el ideal que se sigue **como si ya estuviese implementado**. Todo cambio sin impedimentos se trabaja contra esta parte, de forma inmediata.
+- **[Goal a largo plazo](#goal-a-largo-plazo)** — las especificaciones **no comprometidas** para el goal actual, separadas para no frenar el desarrollo que no tiene impedimentos. Cada spec diferida lleva su justificación y su condición de entrada; al cumplirse la condición, se promueve al goal inmediato.
 
 ## Tabla de contenidos
 
@@ -47,75 +33,42 @@ el documento se declara en **dos partes**:
 
 ## Objetivo
 
-Obtener un sistema TTS **100% local** con audio nativo por sistema operativo,
-para transformar texto a audio en **español latino** de la mejor calidad
-disponible, distribuido bajo **licencia GPL-3.0-or-later** (con dependencias y
-modelo bajo licencias permisivas compatibles).
+Obtener un sistema TTS **100% local** con audio nativo por sistema operativo, para transformar texto a audio en **español latino** de la mejor calidad disponible, distribuido bajo **licencia GPL-3.0-or-later** (con dependencias y modelo bajo licencias permisivas compatibles).
 
-Motor TTS: **Chatterbox Multilingual V3** (ResembleAI) — 23+ idiomas,
-clonación de voz, licencia MIT.
+Motor TTS: **Chatterbox Multilingual V3** (ResembleAI) — 23+ idiomas, clonación de voz, licencia MIT.
 
-**El sistema debe ser consumible via línea de comandos** para que cualquier
-aplicación en cualquier lenguaje de programación pueda invocarlo (Python,
-JavaScript/Node, Rust, Go, Java, C#, etc.)
+**El sistema debe ser consumible via línea de comandos** para que cualquier aplicación en cualquier lenguaje de programación pueda invocarlo (Python, JavaScript/Node, Rust, Go, Java, C#, etc.)
 
-**La experiencia del usuario final debe ser equivalente en Windows, Linux y
-macOS**: instalar, usar, actualizar y desinstalar con la misma cantidad de
-fricción, privilegios y residuo en los tres SO. Las diferencias tecnológicas
-idiomáticas por SO (Inno Setup, AppImage, `.dmg`/Cask) son aceptables; las
-diferencias de experiencia no. El estado de esta equivalencia y las brechas
-pendientes se registran en [docs/PARITY.md](PARITY.md).
+**La experiencia del usuario final debe ser equivalente en Windows, Linux y macOS**: instalar, usar, actualizar y desinstalar con la misma cantidad de fricción, privilegios y residuo en los tres SO. Las diferencias tecnológicas idiomáticas por SO (Inno Setup, AppImage, `.dmg`/Cask) son aceptables; las diferencias de experiencia no. El estado de esta equivalencia y las brechas pendientes se registran en [docs/PARITY.md](PARITY.md).
 
 ## Alcance
 
-Implementar y validar la síntesis en español latinoamericano con voz propia
-del usuario usando Chatterbox Multilingual V3, distribuida con **equivalencia
-funcional completa** entre Windows, Linux y macOS: el cierre de las brechas
-registradas en [docs/PARITY.md](PARITY.md) es parte del alcance del goal
-inmediato.
+Implementar y validar la síntesis en español latinoamericano con voz propia del usuario usando Chatterbox Multilingual V3, distribuida con **equivalencia funcional completa** entre Windows, Linux y macOS: el cierre de las brechas registradas en [docs/PARITY.md](PARITY.md) es parte del alcance del goal inmediato.
 
 ## Restricciones
 
 - **100% local**: Sin APIs externas ni conexiones a internet para síntesis
-- **Instalador único por SO (canal nativo)**: Un archivo ejecutable por
-  plataforma; el canal PyPI complementario (ver
-  [docs/DISTRIBUTION.md](DISTRIBUTION.md)) no está sujeto a esta restricción
-- **Sin dependencias externas (canal nativo)**: El usuario final no necesita
-  instalar nada más; el canal PyPI requiere Python 3.13+ y, en Linux,
-  `libportaudio2` del sistema
-- **Licencia**: El código propio se distribuye bajo GPL-3.0-or-later; todas
-  las dependencias y el modelo usados deben tener licencias compatibles con
-  GPLv3 (permisivas — MIT/BSD/Apache/ISC/PSF — o copyleft compatible, como
-  LGPL-2.1+/MPL-2.0)
+- **Instalador único por SO (canal nativo)**: Un archivo ejecutable por plataforma; el canal PyPI complementario (ver [docs/DISTRIBUTION.md](DISTRIBUTION.md)) no está sujeto a esta restricción
+- **Sin dependencias externas (canal nativo)**: El usuario final no necesita instalar nada más; el canal PyPI requiere Python 3.13+ y, en Linux, `libportaudio2` del sistema
+- **Licencia**: El código propio se distribuye bajo GPL-3.0-or-later; todas las dependencias y el modelo usados deben tener licencias compatibles con GPLv3 (permisivas — MIT/BSD/Apache/ISC/PSF — o copyleft compatible, como LGPL-2.1+/MPL-2.0)
 
 ## Especificación
 
 ### Requisitos del instalador (canal nativo)
 
-Estos requisitos aplican al **canal nativo** (binarios PyInstaller por SO),
-que sigue siendo el canal recomendado para usuarios sin Python instalado:
+Estos requisitos aplican al **canal nativo** (binarios PyInstaller por SO), que sigue siendo el canal recomendado para usuarios sin Python instalado:
 
 - **Un solo instalador por SO**: Windows (.exe), Linux (.AppImage/.bin), macOS (.app)
 - **Cero dependencias externas**: El usuario final no instala Python, Node, Rust ni nada más
 - **Descarga + instalación + configuración** en un solo paso
 - **Audio nativo**: playback usando APIs nativas de cada SO
-- **Paridad de ciclo de vida entre SO**: instalación de una línea sin
-  privilegios de administrador, modelo provisionado al terminar, actualización
-  sin residuo y desinstalación con residuo cero, en los tres sistemas
-  operativos por igual (ver [docs/PARITY.md](PARITY.md))
+- **Paridad de ciclo de vida entre SO**: instalación de una línea sin privilegios de administrador, modelo provisionado al terminar, actualización sin residuo y desinstalación con residuo cero, en los tres sistemas operativos por igual (ver [docs/PARITY.md](PARITY.md))
 
-El proyecto distribuye además un **canal PyPI** complementario
-(`uv tool install tts-sidecar` / `pipx install tts-sidecar`) para audiencia
-técnica con Python 3.13+ ya instalado, que no está sujeto a estos requisitos
-(sí requiere Python, y en Linux la librería del sistema `libportaudio2`). Ver
-[docs/DISTRIBUTION.md](DISTRIBUTION.md) para la matriz de trade-offs completa
-entre ambos canales.
+El proyecto distribuye además un **canal PyPI** complementario (`uv tool install tts-sidecar` / `pipx install tts-sidecar`) para audiencia técnica con Python 3.13+ ya instalado, que no está sujeto a estos requisitos (sí requiere Python, y en Linux la librería del sistema `libportaudio2`). Ver [docs/DISTRIBUTION.md](DISTRIBUTION.md) para la matriz de trade-offs completa entre ambos canales.
 
 ### Paridad de experiencia entre sistemas operativos
 
-El ideal de paridad que persigue el goal inmediato, por fase del ciclo de
-vida (el estado real y el registro de brechas viven en
-[docs/PARITY.md](PARITY.md)):
+El ideal de paridad que persigue el goal inmediato, por fase del ciclo de vida (el estado real y el registro de brechas viven en [docs/PARITY.md](PARITY.md)):
 
 | Fase | Ideal en los 3 SO |
 |---|---|
@@ -128,11 +81,7 @@ vida (el estado real y el registro de brechas viven en
 
 ### Comandos CLI objetivo (invocable desde cualquier lenguaje)
 
-Los comandos están ordenados en secuencia de dependencia: cada paso solo
-requiere que los anteriores hayan funcionado. El daemon es el camino principal
-de uso: carga el modelo una sola vez y lo mantiene en memoria, eliminando el
-overhead de carga en cada invocación. Por eso su ciclo de vida envuelve toda la
-sesión: se arranca antes de sintetizar y se detiene al final.
+Los comandos están ordenados en secuencia de dependencia: cada paso solo requiere que los anteriores hayan funcionado. El daemon es el camino principal de uso: carga el modelo una sola vez y lo mantiene en memoria, eliminando el overhead de carga en cada invocación. Por eso su ciclo de vida envuelve toda la sesión: se arranca antes de sintetizar y se detiene al final.
 
 ```bash
 # 1. Provisión (primera vez - chequeos + descarga el modelo si falta)
@@ -200,11 +149,7 @@ TTS-Sidecar/
 
 ## Criterios de aceptación
 
-<!-- Los criterios 1-3 y 9 son claims de ejecución por SO: el pipeline de build
-(CI + scripts/build_*.py) produce los instaladores y un smoke test automatizado
-del binario congelado (`tts-sidecar version`), pero la validación end-to-end
-sobre cada SO es por diseño externa al pipeline (ver "Decisión de validación
-E2E" más abajo). -->
+<!-- Los criterios 1-3 y 9 son claims de ejecución por SO: el pipeline de build (CI + scripts/build_*.py) produce los instaladores y un smoke test automatizado del binario congelado (`tts-sidecar version`), pero la validación end-to-end sobre cada SO es por diseño externa al pipeline (ver "Decisión de validación E2E" más abajo). -->
 
 1. [ ] El instalador de Windows (.exe) funciona en Windows 10/11 sin dependencias (validación E2E por SO, ver "Decisión de validación E2E" más abajo)
 2. [ ] El instalador de Linux funciona en distribuciones principales (validación E2E por SO, ver "Decisión de validación E2E" más abajo)
@@ -215,44 +160,18 @@ E2E" más abajo). -->
 7. [x] El español latinoamericano suena natural y con buena prosodia
 8. [x] La síntesis funciona sin conexión a internet (modelo en local)
 9. [ ] El instalador incluye todo lo necesario (no requiere instalaciones adicionales) (validación E2E por SO, ver "Decisión de validación E2E" más abajo)
-10. [ ] **Equivalencia funcional completa entre los 3 SO**: todas las brechas
-    accionables del registro de [docs/PARITY.md](PARITY.md) están cerradas a
-    nivel de código/scripts/tests en v0.5.0 (one-liner macOS `install-macos.sh`,
-    `.command` sin `sudo`, limpieza de AppImages en `install.sh`, `setup
-    --uninstall`, `zap` del Cask completo, README con las tres plataformas). Solo
-    la brecha 4 (SmartScreen/Gatekeeper, binarios sin firmar, cross-SO) permanece
-    abierta, diferida por diseño a la firma de código del goal a largo plazo. La
-    marca de este criterio queda pendiente
-    únicamente de la validación por feedback de usuarios reales en Linux y macOS
-    (ver "Decisión de validación E2E" más abajo)
+10. [ ] **Equivalencia funcional completa entre los 3 SO**: todas las brechas accionables del registro de [docs/PARITY.md](PARITY.md) están cerradas a nivel de código/scripts/tests en v0.5.0 (one-liner macOS `install-macos.sh`, `.command` sin `sudo`, limpieza de AppImages en `install.sh`, `setup --uninstall`, `zap` del Cask completo, README con las tres plataformas). Solo la brecha 4 (SmartScreen/Gatekeeper, binarios sin firmar, cross-SO) permanece abierta, diferida por diseño a la firma de código del goal a largo plazo. La marca de este criterio queda pendiente únicamente de la validación por feedback de usuarios reales en Linux y macOS (ver "Decisión de validación E2E" más abajo)
 
 ### Decisión de validación E2E
 
-La validación end-to-end de los instaladores (instalar → `setup` → `speak` real
-→ desinstalar) **no se ejecuta dentro del pipeline de CI** por una decisión
-consciente de diseño: requiere cuota de runner significativa (carga del modelo
-Chatterbox + descarga de ~2 GB de pesos + síntesis real con audio) y
-reproducirla en cada push no aporta señal proporcional a su coste. El pipeline
-sí ejecuta un **smoke test automatizado** del binario congelado (`tts-sidecar
-version`, exit 0) en los cuatro jobs de build, que detecta empaquetados rotos
-(metadata faltante, `--collect-all` incompleto) sin pagar el coste del modelo.
+La validación end-to-end de los instaladores (instalar → `setup` → `speak` real → desinstalar) **no se ejecuta dentro del pipeline de CI** por una decisión consciente de diseño: requiere cuota de runner significativa (carga del modelo Chatterbox + descarga de ~2 GB de pesos + síntesis real con audio) y reproducirla en cada push no aporta señal proporcional a su coste. El pipeline sí ejecuta un **smoke test automatizado** del binario congelado (`tts-sidecar version`, exit 0) en los cuatro jobs de build, que detecta empaquetados rotos (metadata faltante, `--collect-all` incompleto) sin pagar el coste del modelo.
 
 Fuera del pipeline, la validación se reparte así:
 
-- **Windows**: la realiza el propietario manualmente sobre su equipo local,
-  instalando el artefacto de cada release, ejecutando el recorrido
-  `setup` → `speak` → desinstalar, y registrando el resultado.
-- **Linux y macOS**: dependen de **feedback de usuarios reales** que prueben la
-  instalación y ejecución en sus equipos. Ese feedback (positivo o negativo) es
-  la entrada de issues que cierra el circuito y guía correcciones específicas
-  por plataforma.
+- **Windows**: la realiza el propietario manualmente sobre su equipo local, instalando el artefacto de cada release, ejecutando el recorrido `setup` → `speak` → desinstalar, y registrando el resultado.
+- **Linux y macOS**: dependen de **feedback de usuarios reales** que prueben la instalación y ejecución en sus equipos. Ese feedback (positivo o negativo) es la entrada de issues que cierra el circuito y guía correcciones específicas por plataforma.
 
-Por tanto, los criterios 1-3 y 9 no son "pendientes" en el sentido de tareas
-olvidadas: son el **borde externo** del proceso de calidad, donde el propietario
-más el feedback de la comunidad reemplazan a un runner de CI que no podría
-ejercitar la matriz de hardware/SO real. Cualquier issue reportado en estos
-criterios se incorpora al ciclo de desarrollo como bug prioritario y motiva
-fixes versionados.
+Por tanto, los criterios 1-3 y 9 no son "pendientes" en el sentido de tareas olvidadas: son el **borde externo** del proceso de calidad, donde el propietario más el feedback de la comunidad reemplazan a un runner de CI que no podría ejercitar la matriz de hardware/SO real. Cualquier issue reportado en estos criterios se incorpora al ciclo de desarrollo como bug prioritario y motiva fixes versionados.
 
 ## Condición de finalización
 
@@ -264,8 +183,7 @@ La implementación está completa únicamente cuando:
 - [x] El español latinoamericano suena natural
 - [x] Hay scripts de build e instalador por cada SO (Windows, Linux, macOS) en el pipeline de CI
 - [ ] Los instaladores funcionan sin ninguna dependencia externa (validación E2E por SO, ver "Decisión de validación E2E" arriba: smoke test automatizado en CI + validación manual Windows del propietario + feedback de usuarios reales en Linux y macOS)
-- [ ] La experiencia de instalación, uso, actualización y desinstalación es
-  equivalente en los 3 SO: [docs/PARITY.md](PARITY.md) sin brechas abiertas
+- [ ] La experiencia de instalación, uso, actualización y desinstalación es equivalente en los 3 SO: [docs/PARITY.md](PARITY.md) sin brechas abiertas
 - [x] **README.md** refleja la nueva arquitectura con Chatterbox
 - [x] **docs/DESIGN.md** corresponde al estado implementado
 - [x] El daemon mode está implementado y funciona correctamente
@@ -274,9 +192,7 @@ La implementación está completa únicamente cuando:
 
 ## Estado actual
 
-**Implementado y verificable en el repo** (la validación end-to-end de los
-instaladores por SO es externa al pipeline por diseño; ver "Decisión de
-validación E2E" arriba):
+**Implementado y verificable en el repo** (la validación end-to-end de los instaladores por SO es externa al pipeline por diseño; ver "Decisión de validación E2E" arriba):
 
 - Motor Chatterbox Multilingual V3 implementado (Python)
 - Sistema de audio playback nativo por SO (pycaw/winsound/sounddevice/afplay)
@@ -284,79 +200,38 @@ validación E2E" arriba):
 - Optimizaciones de síntesis (n_cfm=4, max_new_tokens=500)
 - Bypass del watermark PerthNet: el audio generado no lleva marca de agua (ver «Uso ético y responsable» en README/USAGE)
 - Scripts de build PyInstaller por SO (Windows/Linux/macOS)
-- **Canal PyPI** (`uv tool install tts-sidecar` / `pipx install tts-sidecar`),
-  publicado automáticamente en cada tag `v*` junto al canal nativo (ver
-  [docs/DISTRIBUTION.md](DISTRIBUTION.md))
+- **Canal PyPI** (`uv tool install tts-sidecar` / `pipx install tts-sidecar`), publicado automáticamente en cada tag `v*` junto al canal nativo (ver [docs/DISTRIBUTION.md](DISTRIBUTION.md))
 - Descarga automática del modelo Chatterbox desde HuggingFace
 - CLI completa con todos los comandos
-- **Instalación auto-hospedada de una línea por SO** (Linux y Cask de macOS en
-  v0.3.0; Windows en v0.4.0; one-liner macOS `install-macos.sh` en v0.5.0):
-  `install.sh` (`curl | sh`) en Linux, `install-macos.sh` (`curl | sh`, sin
-  Homebrew ni `sudo`) y el Cask de Homebrew propio en macOS, e `install.ps1`
-  (`irm | iex`) en Windows (instalador Inno Setup per-user, sin UAC; entró en
-  alcance al refutarse la premisa de SmartScreen — la descarga por CLI no aplica
-  el Mark-of-the-Web). Todos los canales publican de forma autónoma, sin
-  aprobación ni pull request a terceros. Ver
-  [docs/SELF-HOSTED-INSTALL.md](SELF-HOSTED-INSTALL.md)
-- **Paridad de experiencia entre los 3 SO** (v0.5.0): cerradas a nivel de
-  código/scripts/tests las brechas accionables de [docs/PARITY.md](PARITY.md)
-  (one-liner macOS, `.command` sin `sudo`, limpieza de AppImages, `setup
-  --uninstall`, `zap` del Cask completo, README con las tres plataformas); solo
-  la brecha 4 (SmartScreen/Gatekeeper, binarios sin firmar, cross-SO) sigue
-  diferida a la firma de código
+- **Instalación auto-hospedada de una línea por SO** (Linux y Cask de macOS en v0.3.0; Windows en v0.4.0; one-liner macOS `install-macos.sh` en v0.5.0): `install.sh` (`curl | sh`) en Linux, `install-macos.sh` (`curl | sh`, sin Homebrew ni `sudo`) y el Cask de Homebrew propio en macOS, e `install.ps1` (`irm | iex`) en Windows (instalador Inno Setup per-user, sin UAC; entró en alcance al refutarse la premisa de SmartScreen — la descarga por CLI no aplica el Mark-of-the-Web). Todos los canales publican de forma autónoma, sin aprobación ni pull request a terceros. Ver [docs/SELF-HOSTED-INSTALL.md](SELF-HOSTED-INSTALL.md)
+- **Paridad de experiencia entre los 3 SO** (v0.5.0): cerradas a nivel de código/scripts/tests las brechas accionables de [docs/PARITY.md](PARITY.md) (one-liner macOS, `.command` sin `sudo`, limpieza de AppImages, `setup --uninstall`, `zap` del Cask completo, README con las tres plataformas); solo la brecha 4 (SmartScreen/Gatekeeper, binarios sin firmar, cross-SO) sigue diferida a la firma de código
 - Tests pytest (305 tests: timing, protocolo, daemon, CLI, voces, rutas, caché de modelo, audio, Cask y utilidades de build), más los smoke-tests de instaladores (bats Linux/macOS y Pester Windows) en CI
 - Documentación sincronizada
 
-**Trabajo pendiente del goal inmediato**: las brechas de paridad entre SO
-registradas en [docs/PARITY.md](PARITY.md) quedaron cerradas a nivel de
-código/scripts/tests en v0.5.0 (solo la brecha 4, SmartScreen/Gatekeeper,
-cross-SO, sigue diferida a la firma del goal a largo plazo). Lo pendiente es la
-**marca de los criterios de
-aceptación 10, 1-3 y 9 por validación de feedback de usuarios reales** en Linux
-y macOS (la validación E2E automatizable ya corre en CI; ver "Decisión de
-validación E2E").
+**Trabajo pendiente del goal inmediato**: las brechas de paridad entre SO registradas en [docs/PARITY.md](PARITY.md) quedaron cerradas a nivel de código/scripts/tests en v0.5.0 (solo la brecha 4, SmartScreen/Gatekeeper, cross-SO, sigue diferida a la firma del goal a largo plazo). Lo pendiente es la **marca de los criterios de aceptación 10, 1-3 y 9 por validación de feedback de usuarios reales** en Linux y macOS (la validación E2E automatizable ya corre en CI; ver "Decisión de validación E2E").
 
 ---
 
 # Goal a largo plazo
 
-Especificaciones **no comprometidas** para el goal inmediato. No se trabajan
-ahora — cada una registra por qué se difiere y qué condición la promueve al
-goal inmediato.
+Especificaciones **no comprometidas** para el goal inmediato. No se trabajan ahora — cada una registra por qué se difiere y qué condición la promueve al goal inmediato.
 
 ## Firma de código Windows (SignPath) y notarización Apple (macOS)
 
-**Motivación**: los binarios del canal nativo no están firmados, por lo que
-Windows SmartScreen y macOS Gatekeeper bloquean el primer arranque cuando el
-artefacto se descarga por navegador (ver `SECURITY.md` §"Artefactos sin
-firmar" y `docs/BUILD.md` §"Limitación conocida: firma de código y
-notarización"). Los instaladores de una línea y el canal PyPI ya mitigan esta
-fricción (descarga por CLI sin Mark-of-the-Web / launcher generado
-localmente), pero no la eliminan para la descarga directa desde el navegador.
+**Motivación**: los binarios del canal nativo no están firmados, por lo que Windows SmartScreen y macOS Gatekeeper bloquean el primer arranque cuando el artefacto se descarga por navegador (ver `SECURITY.md` §"Artefactos sin firmar" y `docs/BUILD.md` §"Limitación conocida: firma de código y notarización"). Los instaladores de una línea y el canal PyPI ya mitigan esta fricción (descarga por CLI sin Mark-of-the-Web / launcher generado localmente), pero no la eliminan para la descarga directa desde el navegador.
 
-**Justificación del diferimiento**: la firma es un gate que solo vale la pena
-cuando el proyecto/producto esté **cristalizado y completo** — idealmente sin
-bugs y con funcionalidad completa y equivalente entre los 3 sistemas
-operativos ([docs/PARITY.md](PARITY.md) sin brechas abiertas). El producto aún
-está en desarrollo: firmar ahora significaría re-tramitar la confianza externa
-(aprobación de SignPath OSS, cuenta Apple Developer de pago) sobre artefactos
-que siguen cambiando de forma. Solo entonces se iniciará el proceso de firma.
+**Justificación del diferimiento**: la firma es un gate que solo vale la pena cuando el proyecto/producto esté **cristalizado y completo** — idealmente sin bugs y con funcionalidad completa y equivalente entre los 3 sistemas operativos ([docs/PARITY.md](PARITY.md) sin brechas abiertas). El producto aún está en desarrollo: firmar ahora significaría re-tramitar la confianza externa (aprobación de SignPath OSS, cuenta Apple Developer de pago) sobre artefactos que siguen cambiando de forma. Solo entonces se iniciará el proceso de firma.
 
 **Especificación diferida**:
 
-- **Windows**: firma Authenticode vía [SignPath Foundation](https://signpath.org/)
-  (firma gratuita para proyectos open source), integrada al job de CI que
-  produce el instalador `.exe`.
-- **macOS**: notarización con una cuenta Apple Developer ID, integrada al job
-  de CI que produce el `.dmg`.
+- **Windows**: firma Authenticode vía [SignPath Foundation](https://signpath.org/) (firma gratuita para proyectos open source), integrada al job de CI que produce el instalador `.exe`.
+- **macOS**: notarización con una cuenta Apple Developer ID, integrada al job de CI que produce el `.dmg`.
 
 **Condiciones de entrada** (promueven esta spec al goal inmediato):
 
-- El goal inmediato está cumplido: producto cristalizado, con equivalencia
-  funcional completa entre los 3 SO ([docs/PARITY.md](PARITY.md) cerrado).
+- El goal inmediato está cumplido: producto cristalizado, con equivalencia funcional completa entre los 3 SO ([docs/PARITY.md](PARITY.md) cerrado).
 - Windows: aprobación del proyecto por el programa SignPath OSS.
 - macOS: alta de una cuenta Apple Developer (de pago).
 
-**Criterio de cierre**: los instaladores de Windows y macOS generados por CI
-arrancan sin disparar SmartScreen ni Gatekeeper en una instalación limpia,
-incluso descargados por navegador.
+**Criterio de cierre**: los instaladores de Windows y macOS generados por CI arrancan sin disparar SmartScreen ni Gatekeeper en una instalación limpia, incluso descargados por navegador.
+
