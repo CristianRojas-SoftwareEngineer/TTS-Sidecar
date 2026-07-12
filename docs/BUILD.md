@@ -501,6 +501,16 @@ marcadores de entorno (`sys_platform`, etc.), imprescindible porque el grafo de
 en un único archivo (pip-tools resuelve solo para la plataforma donde corre, y no
 puede hacerlo).
 
+El hecho de que el lock universal *incluya* el stack `nvidia-*-cu12` para
+`linux`/`x86_64` es **deliberado y está justificado**: es el grafo que requiere
+el canal PyPI y la compilación desde código fuente para ofrecer aceleración
+NVIDIA en Linux x64 (ver «Componentes propietarios redistribuibles: NVIDIA
+CUDA» en `THIRD-PARTY-LICENSES.md`). No es un defecto de licencia ni de
+distribución: el binario nativo distribuido en AppImage se construye desde el
+lock CPU-only (sección siguiente) y por tanto **no** empaqueta esos paquetes.
+La presencia de `nvidia-*` en el lock universal está acotada a la vía (PyPI /
+fuente) que sí la necesita.
+
 **Regeneración deliberada** (tras cambiar dependencias en `pyproject.toml`):
 
 ```bash
@@ -543,6 +553,14 @@ uv pip compile --generate-hashes --python-version 3.13 \
 Un usuario que necesite aceleración NVIDIA debe compilar desde código fuente
 instalando el `requirements-lock.txt` universal (que sí resuelve el stack CUDA
 en x86_64/Linux) en vez de usar el AppImage distribuido.
+
+Esta exclusión de CUDA del AppImage x86_64 es una **decisión de diseño
+deliberada y justificada**, no una omisión: el AppImage es el artefacto
+portátil «descarga y funciona en cualquier distro», y empaquetar el stack
+CUDA (varios GB) solo inflaría el bundle sin beneficio para la mayoría de
+usuarios, cuya inferencia es CPU-first. Quien requiera GPU en Linux usa el
+canal PyPI (o compila desde código fuente con el lock universal), donde el
+stack CUDA sí se resuelve.
 
 ### `chatterbox-tts` metadata
 

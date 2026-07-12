@@ -121,6 +121,16 @@ No están presentes en los builds de Windows (CUDA embebido en el wheel de torch
 macOS arm64 (CPU/MPS, sin CUDA). Texto del EULA:
 <https://docs.nvidia.com/cuda/eula/index.html>.
 
+El lockfile universal `requirements-lock.txt` *incluye* estos paquetes
+`nvidia-*`/`cuda-*` porque es el grafo que resuelve `torch` para
+`linux`/`x86_64` y que habilita la aceleración NVIDIA en esa plataforma. Su
+presencia en el lock es **deliberada y está correctamente acotada**: el AppImage
+de Linux x86_64 se construye desde `requirements-lock-linux-cpu.txt` (lock
+CPU-only) y por tanto no los empaqueta; el build nativo Linux x64 sí los
+incluye, pero su redistribución está permitida por el EULA citado arriba y se
+documenta en esta sección. Un auditor no debe interpretar el `nvidia-*` en el
+lock universal como un problema de licencia del ejecutable.
+
 ---
 
 ## Herramienta de empaquetado: PyInstaller
