@@ -767,6 +767,62 @@ class TestSetupAudioAdvisory:
         assert "[FAIL] Audio library" in capsys.readouterr().out
 
 
+class TestCheckAvx2:
+    """S1-11: chequeo best-effort de AVX2, por arquitectura y SO. Nunca FAIL:
+    PASS/WARN donde hay detección (Linux, macOS Intel) y SKIP informativo donde
+    no la hay (Windows, ARM)."""
+
+    def test_non_x86_reports_not_applicable(self, monkeypatch):
+        import platform as platform_mod
+        import tts_sidecar.cli as cli
+
+        monkeypatch.setattr(platform_mod, "machine", lambda: "arm64")
+        status, name, detail = cli._check_avx2()
+        assert (status, name) == ("SKIP", "CPU AVX2")
+        assert "no aplica" in detail
+
+    def test_windows_degrades_to_informative_skip(self, monkeypatch):
+        import platform as platform_mod
+        import tts_sidecar.cli as cli
+
+        monkeypatch.setattr(platform_mod, "machine", lambda: "AMD64")
+        monkeypatch.setattr(sys, "platform", "win32")
+        status, name, detail = cli._check_avx2()
+        assert status == "SKIP"
+        assert "Windows" in detail
+
+    def _fake_cpuinfo(self, monkeypatch, tmp_path, flags_line):
+        import tts_sidecar.cli as cli
+        from pathlib import Path as RealPath
+
+        fake = tmp_path / "cpuinfo"
+        fake.write_text(flags_line, encoding="utf-8")
+        monkeypatch.setattr(
+            cli, "Path",
+            lambda p="": RealPath(fake) if str(p) == "/proc/cpuinfo" else RealPath(p),
+        )
+
+    def test_linux_with_avx2_flag_passes(self, monkeypatch, tmp_path):
+        import platform as platform_mod
+        import tts_sidecar.cli as cli
+
+        monkeypatch.setattr(platform_mod, "machine", lambda: "x86_64")
+        monkeypatch.setattr(sys, "platform", "linux")
+        self._fake_cpuinfo(monkeypatch, tmp_path, "flags\t\t: fpu avx avx2 sse4_2\n")
+        assert cli._check_avx2()[0] == "PASS"
+
+    def test_linux_without_avx2_flag_warns(self, monkeypatch, tmp_path):
+        import platform as platform_mod
+        import tts_sidecar.cli as cli
+
+        monkeypatch.setattr(platform_mod, "machine", lambda: "x86_64")
+        monkeypatch.setattr(sys, "platform", "linux")
+        self._fake_cpuinfo(monkeypatch, tmp_path, "flags\t\t: fpu avx sse4_2\n")
+        status, _, detail = cli._check_avx2()
+        assert status == "WARN"
+        assert "PyTorch" in detail
+
+
 class TestInterruptHandling:
     """R-02: Ctrl+C termina con código 130 y una línea a stderr, sin traceback."""
 

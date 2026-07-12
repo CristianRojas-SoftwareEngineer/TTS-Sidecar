@@ -193,6 +193,32 @@ def is_model_cached(model: str = "es-mx-latam") -> bool:
     return True
 
 
+def purge_incomplete_downloads() -> int:
+    """Borra los blobs '*.incomplete' de las cachés del proyecto; devuelve bytes liberados.
+
+    huggingface_hub deja '<hash>.incomplete' en blobs/ cuando una descarga se
+    interrumpe, y solo los reutiliza para reanudar esa misma descarga. Tras una
+    provisión exitosa todos los archivos necesarios están completos, así que
+    cualquier .incomplete restante es basura huérfana que nadie limpia (S1-03).
+    Se purga únicamente dentro de las carpetas del proyecto (model_cache_dirs),
+    nunca la caché completa de HuggingFace; un unlink fallido (archivo en uso,
+    permisos) se ignora para no bloquear la provisión.
+    """
+    freed = 0
+    for cache_dir in model_cache_dirs():
+        blobs = cache_dir / "blobs"
+        if not blobs.is_dir():
+            continue
+        for leftover in blobs.glob("*.incomplete"):
+            try:
+                size = leftover.stat().st_size
+                leftover.unlink()
+                freed += size
+            except OSError:
+                continue
+    return freed
+
+
 def model_cache_dirs() -> list[Path]:
     """Carpetas de caché de HuggingFace propias del proyecto (existan o no).
 

@@ -399,8 +399,11 @@ def cmd_voice_remove(args):
         # reportaba el mismo mensaje que un nombre de voz inválido.
         print(
             f"Error al eliminar la voz '{args.name}': uno de sus archivos parece "
-            "estar en uso (por ejemplo, por el daemon u otro proceso). "
-            f"Ciérralo y vuelve a intentarlo. Detalle: {e}",
+            "estar en uso. En Windows los bloqueos típicos son el daemon "
+            "('tts-sidecar daemon stop' lo cierra), un reproductor de audio con el "
+            ".wav abierto, el panel de vista previa del Explorador de Windows sobre "
+            "la carpeta de la voz, o un antivirus escaneando el archivo. Cierra el "
+            f"proceso que lo retiene y vuelve a intentarlo. Detalle: {e}",
             file=sys.stderr,
         )
         sys.exit(EXIT_ERROR)
@@ -522,6 +525,52 @@ def _environment_checks() -> list[tuple[str, str, str]]:
     return checks
 
 
+def _check_avx2() -> tuple[str, str, str]:
+    """Chequeo best-effort de AVX2 para doctor (S1-11).
+
+    Solo aplica a x86-64: en ARM (Apple Silicon, aarch64) PyTorch usa NEON y el
+    chequeo se reporta como no aplicable. La detección evita dependencias
+    nuevas: /proc/cpuinfo en Linux y sysctl en macOS Intel. Windows no expone
+    los flags de CPU por una vía estándar de stdlib, así que allí se degrada a
+    una nota informativa que remite al requisito documentado en USAGE.md.
+    """
+    machine = platform.machine().lower()
+    if machine not in ("x86_64", "amd64"):
+        return ("SKIP", "CPU AVX2", f"no aplica en {platform.machine()} (solo x86-64)")
+
+    try:
+        if sys.platform.startswith("linux"):
+            flags = Path("/proc/cpuinfo").read_text(encoding="utf-8", errors="replace")
+            if "avx2" in flags:
+                return ("PASS", "CPU AVX2", "soportado")
+            return (
+                "WARN", "CPU AVX2",
+                "no detectado en /proc/cpuinfo: PyTorch puede fallar al cargar "
+                "en esta CPU (requisito documentado en USAGE.md)",
+            )
+        if sys.platform == "darwin":
+            import subprocess
+            out = subprocess.run(
+                ["sysctl", "-n", "machdep.cpu.leaf7_features"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if out.returncode == 0 and "AVX2" in out.stdout.upper():
+                return ("PASS", "CPU AVX2", "soportado")
+            return (
+                "WARN", "CPU AVX2",
+                "no detectado (machdep.cpu.leaf7_features): PyTorch puede fallar "
+                "al cargar en esta CPU (requisito documentado en USAGE.md)",
+            )
+    except Exception as e:
+        return ("SKIP", "CPU AVX2", f"no se pudo determinar ({e})")
+
+    return (
+        "SKIP", "CPU AVX2",
+        "no verificable automáticamente en Windows; se requiere CPU x86-64 con "
+        "AVX2 (~2015 en adelante, ver USAGE.md)",
+    )
+
+
 def cmd_doctor(args):
     """Ejecuta los chequeos de diagnóstico."""
     from . import voices
@@ -565,6 +614,13 @@ def cmd_doctor(args):
     except Exception as e:
         # psutil no disponible o error de lectura: se omite sin penalizar.
         checks.append(("SKIP", "RAM", f"no se pudo determinar ({e})"))
+
+    # Chequea AVX2 (advisory, S1-11): PyTorch lo requiere en x86-64 y falla en
+    # runtime sin diagnóstico en CPUs pre-2015. Detección best-effort por SO
+    # (sin dependencia nueva): /proc/cpuinfo en Linux, sysctl en macOS Intel;
+    # en Windows no hay vía estándar y el chequeo se degrada a una nota
+    # informativa. Como la RAM, es un WARN: nunca altera el exit code.
+    checks.append(_check_avx2())
 
     # Solo FAIL cuenta como fallo: WARN/SKIP no penalizan el exit code.
     checks_failed = sum(1 for status, _, _ in checks if status == "FAIL")
@@ -649,6 +705,11 @@ def _integrate_linux_path():
         print(f"[WARN] {link.parent} no está en el PATH de esta sesión.", file=sys.stderr)
         print('Añade esta línea a tu shell profile (~/.bashrc, ~/.zshrc, ...):', file=sys.stderr)
         print('    export PATH="$HOME/.local/bin:$PATH"', file=sys.stderr)
+        print(
+            "Después recarga el shell para que surta efecto: `exec $SHELL` "
+            "(o abre una terminal nueva).",
+            file=sys.stderr,
+        )
 
 
 def _remove_linux_path() -> bool:
@@ -1019,6 +1080,62 @@ def _uninstall_windows(args):
         }))
 
 
+def _describe_provision_failure(e: Exception) -> str:
+    """Mensaje [FAIL] accionable según la causa del fallo de provisión (S1-01).
+
+    Clasifica en tres familias observables sin depender del texto de la
+    excepción: credenciales/acceso (HTTP 401/403, repos gated de HuggingFace),
+    red (DNS, timeout, conexión) y disco (sin espacio, permisos). El orden de
+    los isinstance importa: RequestException hereda de OSError, así que las
+    familias HTTP/red se descartan antes de diagnosticar disco.
+    """
+    import errno
+
+    try:
+        from huggingface_hub.errors import GatedRepoError, HfHubHTTPError
+        if isinstance(e, GatedRepoError):
+            return (
+                "[FAIL] La provisión falló por acceso: el repo del modelo requiere "
+                "autorización (gated). Acepta las condiciones en HuggingFace o define "
+                f"un HF_TOKEN con acceso y reintenta 'tts-sidecar setup'. Detalle: {e}"
+            )
+        if isinstance(e, HfHubHTTPError):
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            if status in (401, 403):
+                return (
+                    f"[FAIL] La provisión falló por credenciales (HTTP {status}): el "
+                    "token HF_TOKEN falta, expiró o no tiene acceso al repo del modelo. "
+                    f"Revísalo y reintenta 'tts-sidecar setup'. Detalle: {e}"
+                )
+    except ImportError:
+        pass
+
+    try:
+        import requests
+        if isinstance(e, requests.exceptions.RequestException):
+            return (
+                "[FAIL] La provisión falló por un problema de red: verifica tu conexión "
+                "(o el proxy/firewall) y reintenta 'tts-sidecar setup'. "
+                f"Detalle: {e}"
+            )
+    except ImportError:
+        pass
+
+    if isinstance(e, PermissionError):
+        return (
+            "[FAIL] La provisión falló por permisos de escritura en la caché del "
+            "modelo (~/.cache/huggingface o HF_HOME). Corrige los permisos y "
+            f"reintenta 'tts-sidecar setup'. Detalle: {e}"
+        )
+    if isinstance(e, OSError) and e.errno == errno.ENOSPC:
+        return (
+            "[FAIL] La provisión falló por falta de espacio en disco. Libera espacio "
+            f"y reintenta 'tts-sidecar setup'. Detalle: {e}"
+        )
+
+    return f"[FAIL] La provisión falló: {e}"
+
+
 def cmd_setup(args):
     """Provisiona el runtime: corre los chequeos de entorno y descarga el modelo si falta.
 
@@ -1123,9 +1240,25 @@ def cmd_setup(args):
                     "cache_dir": model_dir,
                 }))
 
+        def _purge_incomplete():
+            """Limpia los '*.incomplete' huérfanos tras una provisión completa (S1-03).
+
+            Solo se invoca con el modelo ya íntegro en caché: en ese punto ningún
+            .incomplete es una descarga reanudable, son parciales huérfanos.
+            """
+            from .model_cache import purge_incomplete_downloads
+            freed = purge_incomplete_downloads()
+            if freed:
+                print(
+                    f"[PASS] Limpieza: {freed / 1_048_576:.1f} MB de descargas "
+                    "parciales (.incomplete) huérfanas eliminadas.",
+                    file=sys.stderr,
+                )
+
         if is_model_cached("es-mx-latam"):
             print(f"\n[PASS] El modelo 'es-mx-latam' ya está en caché en: {model_dir}", file=sys.stderr)
             print("Provisión completa. No hay nada que descargar.", file=sys.stderr)
+            _purge_incomplete()
             _emit_setup_json(already_cached=True, downloaded=False)
             return
 
@@ -1182,10 +1315,11 @@ def cmd_setup(args):
 
         print("\n[PASS] ¡Modelo descargado correctamente!", file=sys.stderr)
         print(f"  Ubicación: {model_dir}", file=sys.stderr)
+        _purge_incomplete()
         _emit_setup_json(already_cached=False, downloaded=True)
 
     except Exception as e:
-        print(f"[FAIL] La provisión falló: {e}", file=sys.stderr)
+        print(_describe_provision_failure(e), file=sys.stderr)
         sys.exit(EXIT_ERROR)
 
 

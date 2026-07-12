@@ -737,9 +737,11 @@ La síntesis corre en CPU por defecto (sin GPU). Requisitos orientativos:
 
 - **CPU**: x86-64 (o ARM64) moderna con soporte **AVX2**. La mayoría de los
   procesadores de escritorio/portátil desde ~2015 lo tienen; en CPUs muy antiguas
-  sin AVX2, PyTorch puede fallar al cargar o correr mucho más lento. *(AVX2 no se
-  detecta automáticamente porque el chequeo es frágil entre plataformas; si tu CPU
-  es de antes de 2015, verifícalo en las especificaciones del fabricante.)*
+  sin AVX2, PyTorch puede fallar al cargar o correr mucho más lento. *(`doctor`
+  lo detecta best-effort: en Linux por `/proc/cpuinfo` y en macOS Intel por
+  `sysctl`, con `[WARN]` si falta; en Windows no hay vía estándar de detección y
+  el chequeo se reporta como `[SKIP]` informativo — si tu CPU es de antes de
+  2015, verifícalo en las especificaciones del fabricante. En ARM64 no aplica.)*
 - **RAM**: **8 GB recomendados**, **4 GB mínimo**. Con menos memoria la síntesis
   funciona pero puede paginar (ralentizarse) en textos largos. `doctor` emite un
   `[WARN]` de RAM por debajo de 8 GB (no bloquea nada).
