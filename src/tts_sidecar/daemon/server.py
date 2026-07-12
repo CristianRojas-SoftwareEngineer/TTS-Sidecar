@@ -92,7 +92,7 @@ async def health_check():
 # cruzarían voces.
 _synthesis_lock = threading.Lock()
 
-# Control de admisión (S3-05): sin tope, una ráfaga de invocaciones concurrentes
+# Control de admisión: sin tope, una ráfaga de invocaciones concurrentes
 # lanza un thread worker por petición que se apila esperando _synthesis_lock,
 # saturando el proceso bajo el GIL. El semáforo acota la admisión a 1 síntesis
 # activa + hasta 3 en espera; la N+1 se rechaza con 503 antes de crear thread.

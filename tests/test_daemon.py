@@ -59,7 +59,7 @@ class TestServerConcurrency:
 
 
 class TestServerAdmissionControl:
-    """S3-05: el semáforo de admisión acota las síntesis concurrentes admitidas."""
+    """El semáforo de admisión acota las síntesis concurrentes admitidas."""
 
     def test_rejects_concurrent_request_when_saturated(self, tmp_path, monkeypatch):
         """Con el cupo agotado, una petición concurrente recibe 503 de inmediato."""
@@ -948,7 +948,7 @@ class TestServePortInUse:
 
 
 class TestDaemonMemoryClear:
-    """S3-04: el daemon libera la caché CUDA y fuerza GC tras cada síntesis."""
+    """El daemon libera la caché CUDA y fuerza GC tras cada síntesis."""
 
     def test_clear_model_memory_called_after_synthesis(self, tmp_path, monkeypatch):
         """Tras un POST /synthesize exitoso, _clear_model_memory se invoca exactamente una vez."""
