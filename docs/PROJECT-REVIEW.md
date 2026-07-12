@@ -10,60 +10,64 @@ Se auditaron las diez dimensiones de preparación para release de `tts-sidecar` 
 **Conteo por prioridad:** 0 P0 · 6 P1 · 22 P2 · 19 P3.
 
 
-| ID    | Título                                                                | Severidad        | Prioridad | Área/plataforma             | Decisión requerida |
-| ----- | --------------------------------------------------------------------- | ---------------- | --------- | --------------------------- | ------------------ |
-| S3-01 | Ctrl+C en `setup`/descarga devuelve exit 1 en vez de 130              | S3 — Alto        | P1        | CLI / contrato programático | No                 |
-| S3-02 | Ventana de carrera en `daemon start` (doble arranque)                 | S3 — Alto        | P1        | Daemon                      | No                 |
-| S3-03 | Bind del puerto 8765 sin manejo de `OSError`                          | S3 — Alto        | P1        | Daemon                      | No                 |
-| S3-04 | Sin gestión de memoria del modelo en uso prolongado                   | S3 — Alto        | P2        | Daemon / CUDA               | No                 |
-| S3-05 | Sin límite de concurrencia en `/synthesize`                           | S3 — Alto        | P2        | Daemon                      | Sí                 |
-| S3-06 | Oferta de código fuente GPL no explícita en el release                | S3 — Alto        | P1        | Licencias / release         | No                 |
-| S3-07 | Smoke test del binario congelado limitado a `version`                 | S3 — Alto        | P1        | CI / DevOps                 | No                 |
-| S2-01 | `/shutdown` sin autenticación (loopback, riesgo aceptado)             | S2 — Medio       | P3        | Daemon / seguridad          | Sí                 |
-| S2-02 | Binario nativo de macOS solo `arm64` (sin Intel)                      | S2 — Medio       | P2        | Compatibilidad / macOS      | Sí                 |
-| S2-03 | `setup --force-update` no documentado en `USAGE.md`                   | S2 — Medio       | P1        | Documentación               | No                 |
-| S1-01 | Error de descarga genérico sin diferenciar red/disco/credenciales     | S1 — Bajo        | P2        | CLI                         | No                 |
-| S1-02 | `voice remove` con mensaje genérico ante `PermissionError`            | S1 — Bajo        | P3        | CLI / Windows               | No                 |
-| S1-03 | Los `.incomplete` de HuggingFace no se limpian solos                  | S1 — Bajo        | P3        | Estado en disco             | No                 |
-| S1-04 | Red de seguridad de `ve.safetensors` no ofrece `setup`                | S1 — Bajo        | P3        | Estado en disco             | No                 |
-| S1-05 | Detección de daemon huérfano por cmdline, no por PID file             | S1 — Bajo        | P2        | Daemon                      | No                 |
-| S1-06 | Timeout de síntesis fijo (5 min) sin reintentos                       | S1 — Bajo        | P3        | Daemon                      | No                 |
-| S1-07 | Contención de audio paths no protege symlinks multiusuario            | S1 — Bajo        | P3        | Daemon / seguridad          | No                 |
-| S1-08 | Braille del spinner puede corromperse en cp437                        | S1 — Bajo        | P3        | Contrato / Windows          | No                 |
-| S1-09 | `WARN` en `doctor --json` no documentado                              | S1 — Bajo        | P2        | Contrato / docs             | No                 |
-| S1-10 | Estado `"unknown"` del daemon no documentado                          | S1 — Bajo        | P2        | Contrato / docs             | No                 |
-| S1-11 | AVX2 requerido pero no auto-detectado por `doctor`                    | S1 — Bajo        | P2        | Compatibilidad / CPU        | No                 |
-| S1-12 | Advisory de RAM no verificado                                         | S1 — Bajo        | P2        | Compatibilidad              | No                 |
-| S1-13 | Sin matriz de SO mínimos probados                                     | S1 — Bajo        | P2        | Compatibilidad / macOS      | No                 |
-| S1-14 | glibc < 2.35 solo advierte; el AppImage falla en runtime              | S1 — Bajo        | P2        | UX instalación / Linux      | No                 |
-| S1-15 | Aviso de PATH estático en zsh sin recarga                             | S1 — Bajo        | P3        | UX instalación / macOS      | No                 |
-| S1-16 | PATH de Windows requiere terminal nueva sin indicarlo                 | S1 — Bajo        | P3        | UX instalación / Windows    | No                 |
-| S1-17 | Migración per-machine→per-user no detectada (PATH duplicado)          | S1 — Bajo        | P2        | UX instalación / Windows    | No                 |
-| S1-18 | Mac Intel sin alternativa sugerida en el instalador                   | S1 — Bajo        | P3        | UX instalación / macOS      | No                 |
-| S1-19 | Branches de error de `ensure_runtime_dependencies` sin test           | S1 — Bajo        | P2        | Testing / Linux             | No                 |
-| S1-20 | Timeout de `fetch_pinned_asset` no testeado                           | S1 — Bajo        | P2        | Testing                     | No                 |
-| S1-21 | `RequestException` del daemon no testeada                             | S1 — Bajo        | P2        | Testing                     | No                 |
-| S1-22 | Tests de symlink se saltan en Windows sin Developer Mode              | S1 — Bajo        | P3        | Testing / Windows           | No                 |
-| S1-23 | ARM64 Linux sin suite dedicada                                        | S1 — Bajo        | P2        | Testing / aarch64           | No                 |
-| S1-24 | Pascal Script de desinstalación sin test unitario                     | S1 — Bajo        | P2        | Testing / Windows           | No                 |
-| S1-25 | Branch `except Exception` del worker no cubierto                      | S1 — Bajo        | P2        | Testing / Daemon            | No                 |
-| S1-26 | `CLAUDE.md` dice 296 tests (real: 314)                                | S1 — Bajo        | P3        | Documentación               | No                 |
-| S1-27 | Sin plantilla de issue de bug                                         | S1 — Bajo        | P2        | Documentación / governance  | No                 |
-| S1-28 | `CONTRIBUTING.md` omite el smoke-test de Windows                      | S1 — Bajo        | P3        | Documentación               | No                 |
-| S1-29 | Atribución de PerthNet/`resemble-perth` débil                         | S1 — Bajo        | P2        | Licencias                   | No                 |
-| S1-30 | `pytest` pineado pero no sus plugins                                  | S1 — Bajo        | P2        | Cadena de suministro / CI   | No                 |
-| S1-31 | Installers mockeados; `docs/SELF-HOSTED-INSTALL.md` inexistente       | S1 — Bajo        | P2        | CI / docs                   | No                 |
-| S1-32 | ARM64 Linux sin test dedicado (decisión consciente)                   | S1 — Bajo        | P3        | CI / aarch64                | No                 |
-| S1-33 | Runbook de falsos positivos solo para Defender                        | S1 — Bajo        | P3        | Documentación / seguridad   | No                 |
-| S0-01 | `bootstrap.apply()` corre antes del `reconfigure` UTF-8 (riesgo nulo) | S0 — Informativo | P3        | Contrato                    | No                 |
-| S0-02 | `--force-update` sin log del tamaño liberado                          | S0 — Informativo | P3        | Observabilidad              | No                 |
-| S0-03 | AppImage Linux sin CUDA (documentado)                                 | S0 — Informativo | P3        | Compatibilidad / Linux      | No                 |
-| S0-04 | Lock universal con `nvidia-*` distinguido del binario (sin acción)    | S0 — Informativo | P3        | Licencias                   | No                 |
+### Índice de hallazgos
+
+El índice siguiente lista los 47 hallazgos ordenados por ID, con su severidad, prioridad, área/plataforma, si requieren decisión del propietario y su estado de resolución. El detalle de cada uno aparece en [Hallazgos por severidad](#hallazgos-por-severidad).
+
+| ID    | Título                                                                | Severidad        | Prioridad | Área/plataforma             | Decisión requerida | Estado |
+| ----- | --------------------------------------------------------------------- | ---------------- | --------- | --------------------------- | ------------------ |--------- |
+| S3-01 | Ctrl+C en `setup`/descarga devuelve exit 1 en vez de 130              | S3 — Alto        | P1        | CLI / contrato programático | No                 | Pendiente |
+| S3-02 | Ventana de carrera en `daemon start` (doble arranque)                 | S3 — Alto        | P1        | Daemon                      | No                 | Pendiente |
+| S3-03 | Bind del puerto 8765 sin manejo de `OSError`                          | S3 — Alto        | P1        | Daemon                      | No                 | Pendiente |
+| S3-04 | Sin gestión de memoria del modelo en uso prolongado                   | S3 — Alto        | P2        | Daemon / CUDA               | No                 | Pendiente |
+| S3-05 | Sin límite de concurrencia en `/synthesize`                           | S3 — Alto        | P2        | Daemon                      | Sí                 | Pendiente |
+| S3-06 | Oferta de código fuente GPL no explícita en el release                | S3 — Alto        | P1        | Licencias / release         | No                 | Pendiente |
+| S3-07 | Smoke test del binario congelado limitado a `version`                 | S3 — Alto        | P1        | CI / DevOps                 | No                 | Pendiente |
+| S2-01 | `/shutdown` sin autenticación (loopback, riesgo aceptado)             | S2 — Medio       | P3        | Daemon / seguridad          | Sí                 | Pendiente |
+| S2-02 | Binario nativo de macOS solo `arm64` (sin Intel)                      | S2 — Medio       | P2        | Compatibilidad / macOS      | Sí                 | Pendiente |
+| S2-03 | `setup --force-update` no documentado en `USAGE.md`                   | S2 — Medio       | P1        | Documentación               | No                 | Pendiente |
+| S1-01 | Error de descarga genérico sin diferenciar red/disco/credenciales     | S1 — Bajo        | P2        | CLI                         | No                 | Pendiente |
+| S1-02 | `voice remove` con mensaje genérico ante `PermissionError`            | S1 — Bajo        | P3        | CLI / Windows               | No                 | Pendiente |
+| S1-03 | Los `.incomplete` de HuggingFace no se limpian solos                  | S1 — Bajo        | P3        | Estado en disco             | No                 | Pendiente |
+| S1-04 | Red de seguridad de `ve.safetensors` no ofrece `setup`                | S1 — Bajo        | P3        | Estado en disco             | No                 | Pendiente |
+| S1-05 | Detección de daemon huérfano por cmdline, no por PID file             | S1 — Bajo        | P2        | Daemon                      | No                 | Pendiente |
+| S1-06 | Timeout de síntesis fijo (5 min) sin reintentos                       | S1 — Bajo        | P3        | Daemon                      | No                 | Pendiente |
+| S1-07 | Contención de audio paths no protege symlinks multiusuario            | S1 — Bajo        | P3        | Daemon / seguridad          | No                 | Pendiente |
+| S1-08 | Braille del spinner puede corromperse en cp437                        | S1 — Bajo        | P3        | Contrato / Windows          | No                 | Pendiente |
+| S1-09 | `WARN` en `doctor --json` no documentado                              | S1 — Bajo        | P2        | Contrato / docs             | No                 | Pendiente |
+| S1-10 | Estado `"unknown"` del daemon no documentado                          | S1 — Bajo        | P2        | Contrato / docs             | No                 | Pendiente |
+| S1-11 | AVX2 requerido pero no auto-detectado por `doctor`                    | S1 — Bajo        | P2        | Compatibilidad / CPU        | No                 | Pendiente |
+| S1-12 | Advisory de RAM no verificado                                         | S1 — Bajo        | P2        | Compatibilidad              | No                 | Pendiente |
+| S1-13 | Sin matriz de SO mínimos probados                                     | S1 — Bajo        | P2        | Compatibilidad / macOS      | No                 | Pendiente |
+| S1-14 | glibc < 2.35 solo advierte; el AppImage falla en runtime              | S1 — Bajo        | P2        | UX instalación / Linux      | No                 | Pendiente |
+| S1-15 | Aviso de PATH estático en zsh sin recarga                             | S1 — Bajo        | P3        | UX instalación / macOS      | No                 | Pendiente |
+| S1-16 | PATH de Windows requiere terminal nueva sin indicarlo                 | S1 — Bajo        | P3        | UX instalación / Windows    | No                 | Pendiente |
+| S1-17 | Migración per-machine→per-user no detectada (PATH duplicado)          | S1 — Bajo        | P2        | UX instalación / Windows    | No                 | Pendiente |
+| S1-18 | Mac Intel sin alternativa sugerida en el instalador                   | S1 — Bajo        | P3        | UX instalación / macOS      | No                 | Pendiente |
+| S1-19 | Branches de error de `ensure_runtime_dependencies` sin test           | S1 — Bajo        | P2        | Testing / Linux             | No                 | Pendiente |
+| S1-20 | Timeout de `fetch_pinned_asset` no testeado                           | S1 — Bajo        | P2        | Testing                     | No                 | Pendiente |
+| S1-21 | `RequestException` del daemon no testeada                             | S1 — Bajo        | P2        | Testing                     | No                 | Pendiente |
+| S1-22 | Tests de symlink se saltan en Windows sin Developer Mode              | S1 — Bajo        | P3        | Testing / Windows           | No                 | Pendiente |
+| S1-23 | ARM64 Linux sin suite dedicada                                        | S1 — Bajo        | P2        | Testing / aarch64           | No                 | Pendiente |
+| S1-24 | Pascal Script de desinstalación sin test unitario                     | S1 — Bajo        | P2        | Testing / Windows           | No                 | Pendiente |
+| S1-25 | Branch `except Exception` del worker no cubierto                      | S1 — Bajo        | P2        | Testing / Daemon            | No                 | Pendiente |
+| S1-26 | `CLAUDE.md` dice 296 tests (real: 314)                                | S1 — Bajo        | P3        | Documentación               | No                 | Pendiente |
+| S1-27 | Sin plantilla de issue de bug                                         | S1 — Bajo        | P2        | Documentación / governance  | No                 | Pendiente |
+| S1-28 | `CONTRIBUTING.md` omite el smoke-test de Windows                      | S1 — Bajo        | P3        | Documentación               | No                 | Pendiente |
+| S1-29 | Atribución de PerthNet/`resemble-perth` débil                         | S1 — Bajo        | P2        | Licencias                   | No                 | Pendiente |
+| S1-30 | `pytest` pineado pero no sus plugins                                  | S1 — Bajo        | P2        | Cadena de suministro / CI   | No                 | Pendiente |
+| S1-31 | Installers mockeados; `docs/SELF-HOSTED-INSTALL.md` inexistente       | S1 — Bajo        | P2        | CI / docs                   | No                 | Pendiente |
+| S1-32 | ARM64 Linux sin test dedicado (decisión consciente)                   | S1 — Bajo        | P3        | CI / aarch64                | No                 | Pendiente |
+| S1-33 | Runbook de falsos positivos solo para Defender                        | S1 — Bajo        | P3        | Documentación / seguridad   | No                 | Pendiente |
+| S0-01 | `bootstrap.apply()` corre antes del `reconfigure` UTF-8 (riesgo nulo) | S0 — Informativo | P3        | Contrato                    | No                 | Pendiente |
+| S0-02 | `--force-update` sin log del tamaño liberado                          | S0 — Informativo | P3        | Observabilidad              | No                 | Pendiente |
+| S0-03 | AppImage Linux sin CUDA (documentado)                                 | S0 — Informativo | P3        | Compatibilidad / Linux      | No                 | Pendiente |
+| S0-04 | Lock universal con `nvidia-*` distinguido del binario (sin acción)    | S0 — Informativo | P3        | Licencias                   | No                 | Pendiente |
 
 
 
 
-## Verificación de evidencia (2026-07-11)
+### Verificación de evidencia (2026-07-11)
 
 Pasada de re-lectura del código en HEAD (`48c6d8a`) tras elegir «Verificar/documentar más» en la compuerta de cierre. Objetivo: confirmar que las citas `file:line` de los 7 hallazgos **S3** siguen vigentes y no derivaron. Resultado:
 
@@ -76,6 +80,8 @@ Pasada de re-lectura del código en HEAD (`48c6d8a`) tras elegir «Verificar/doc
 La severidad (S3) y la prioridad (P1/P2) de los tres hallazgos corregidos **no cambian**: la impacto sigue siendo alta; solo se precisó el mecanismo exacto. El resto de hallazgos S1/S0 conserva sus citas del audit legacy (no re-verificadas línea a línea en esta pasada).
 
 ## Hallazgos por severidad
+
+Cada hallazgo se detalla a continuación, agrupado por nivel de severidad (de S3 a S0).
 
 
 
@@ -229,302 +235,487 @@ La severidad (S3) y la prioridad (P1/P2) de los tres hallazgos corregidos **no c
 
 ### S1 — Bajos
 
+Los 33 hallazgos de baja severidad se agrupan por área (en divisores en negrita) para facilitar la navegación; sus campos siguen el mismo esquema que S3/S2/S0.
 
+**CLI**
 
 #### S1-01 — Error de descarga genérico sin diferenciar causa
 
-- **Categoría / Área**: Reliability / CLI · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Reliability
+- **Área/plataforma**: CLI
 - **Evidencia**: `cli.py:1170-1172`
-- **Causa/Impacto**: cualquier fallo de descarga cae en el handler genérico (`[FAIL] La provisión falló: <exception>`) sin diferenciar red/disco/credenciales, degradando el diagnóstico.
-- **Corrección**: clasificar la excepción y emitir mensajes accionables por causa. *(migra D1-R02)*
+- **Confianza**: Alta
+- **Causa**: cualquier fallo de descarga cae en el handler genérico (`[FAIL] La provisión falló: <exception>`) sin diferenciar red/disco/credenciales.
+- **Impacto**: El diagnóstico se degrada al no distinguir la causa real del fallo.
+- **Corrección(es) propuesta(s)**: clasificar la excepción y emitir mensajes accionables por causa. *(migra D1-R02)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
 
 #### S1-02 — `voice remove` con mensaje genérico ante `PermissionError`
 
-- **Categoría / Área**: Reliability / CLI · Windows · **Prioridad**: P3 · **Decisión requerida**: No
+- **Categoría**: Reliability
+- **Área/plataforma**: CLI · Windows
 - **Evidencia**: `cli.py:387-398`
-- **Causa/Impacto**: detecta `PermissionError` y sugiere cerrar el daemon, pero el mensaje es genérico y no cubre todos los casos de archivo en uso en Windows.
-- **Corrección**: enriquecer el mensaje con los casos de bloqueo de archivo típicos de Windows. *(migra D1-R03)*
+- **Confianza**: Alta
+- **Causa**: el manejo detecta `PermissionError` y sugiere cerrar el daemon, pero el mensaje es genérico.
+- **Impacto**: No cubre todos los casos de archivo en uso en Windows, dejando al usuario sin guía completa.
+- **Corrección(es) propuesta(s)**: enriquecer el mensaje con los casos de bloqueo de archivo típicos de Windows. *(migra D1-R03)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
 
 
+
+**Estado en disco**
 
 #### S1-03 — Los `.incomplete` de HuggingFace no se limpian solos
 
-- **Categoría / Área**: Reliability / Estado en disco · **Prioridad**: P3 · **Decisión requerida**: No
+- **Categoría**: Reliability
+- **Área/plataforma**: Estado en disco
 - **Evidencia**: `model_cache.py:64-88`
-- **Causa/Impacto**: un modelo parcialmente descargado se detecta como «no cacheado» y se redescarga, pero no hay limpieza automática de los `.incomplete`.
-- **Corrección**: limpiar los `.incomplete` huérfanos antes de redescargar. *(migra D1-R04)*
+- **Confianza**: Alta
+- **Causa**: un modelo parcialmente descargado se detecta como «no cacheado» y se redescarga.
+- **Impacto**: los `.incomplete` de HuggingFace no se limpian solos, acumulando basura en disco.
+- **Corrección(es) propuesta(s)**: limpiar los `.incomplete` huérfanos antes de redescargar. *(migra D1-R04)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
 
 
 
 #### S1-04 — Red de seguridad de `ve.safetensors` no ofrece `setup`
 
-- **Categoría / Área**: Reliability / Estado en disco · **Prioridad**: P3 · **Decisión requerida**: No
+- **Categoría**: Reliability
+- **Área/plataforma**: Estado en disco
 - **Evidencia**: `engine.py:475-488`
-- **Causa/Impacto**: la red de seguridad redescarga `ve.safetensors` si falta y avisa que la caché está «podada», pero no ofrece ejecutar `setup` automáticamente.
-- **Corrección**: sugerir/ofrecer `setup` cuando se detecta caché podada. *(migra D4-R02)*
+- **Confianza**: Alta
+- **Causa**: la red de seguridad redescarga `ve.safetensors` si falta y avisa que la caché está «podada».
+- **Impacto**: no ofrece ejecutar `setup` automáticamente, dejando al usuario sin un camino claro de recuperación.
+- **Corrección(es) propuesta(s)**: sugerir/ofrecer `setup` cuando se detecta caché podada. *(migra D4-R02)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
 
 
+
+**Daemon**
 
 #### S1-05 — Detección de daemon huérfano por cmdline, no por PID file
 
-- **Categoría / Área**: Reliability / Daemon · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Reliability
+- **Área/plataforma**: Daemon
 - **Evidencia**: `daemon.py:244-268`
-- **Causa/Impacto**: la detección de huérfano depende de cmdline; un zombie puede reportarse como «arrancando» (exit 5) sin poder forzar su terminación.
-- **Corrección**: complementar con PID file para desambiguar zombies. *(migra D3-R06)*
+- **Confianza**: Alta
+- **Causa**: la detección de daemon huérfano depende de cmdline, no de un PID file.
+- **Impacto**: un zombie puede reportarse como «arrancando» (exit 5) sin poder forzar su terminación.
+- **Corrección(es) propuesta(s)**: complementar con PID file para desambiguar zombies. *(migra D3-R06)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
 
 #### S1-06 — Timeout de síntesis fijo (5 min) sin reintentos
 
-- **Categoría / Área**: Reliability / Daemon · **Prioridad**: P3 · **Decisión requerida**: No
+- **Categoría**: Reliability
+- **Área/plataforma**: Daemon
 - **Evidencia**: `ipc.py:34` (`REQUEST_TIMEOUT = 300.0`)
-- **Causa/Impacto**: una síntesis colgada espera 5 min antes de fallar, sin reintentos.
-- **Corrección**: timeout configurable y/o reintento acotado. *(migra D3-R07)*
+- **Confianza**: Alta
+- **Causa**: el timeout de síntesis es fijo (5 min) y no hay reintentos.
+- **Impacto**: una síntesis colgada espera 5 min antes de fallar, retrasando al consumidor.
+- **Corrección(es) propuesta(s)**: timeout configurable y/o reintento acotado. *(migra D3-R07)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
 
 
 
 #### S1-07 — Contención de audio paths no protege symlinks multiusuario
 
-- **Categoría / Área**: Security / Daemon · **Prioridad**: P3 · **Decisión requerida**: No
+- **Categoría**: Security
+- **Área/plataforma**: Daemon
 - **Evidencia**: `server.py:114-121`
-- **Causa/Impacto**: la validación con `realpath`+contención no protege contra symlinks multiusuario (caso improbable dado el diseño single-user).
-- **Corrección**: endurecer la resolución de symlinks si el modelo de amenaza lo justifica. *(migra D3-R08)*
+- **Confianza**: Alta
+- **Causa**: la validación de audio paths con `realpath`+contención no considera symlinks multiusuario.
+- **Impacto**: en un escenario multiusuario (improbable por el diseño single-user), la contención podría ser eludida.
+- **Corrección(es) propuesta(s)**: endurecer la resolución de symlinks si el modelo de amenaza lo justifica. *(migra D3-R08)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
 
 
+
+**Contrato**
 
 #### S1-08 — Braille del spinner puede corromperse en cp437
 
-- **Categoría / Área**: UX / Contrato · Windows · **Prioridad**: P3 · **Decisión requerida**: No
+- **Categoría**: UX
+- **Área/plataforma**: Contrato · Windows
 - **Evidencia**: `timing.py:187-196`
-- **Causa/Impacto**: el `Spinner` solo desactiva braille en codepages no-UTF; en consola Windows con OEM cp437 los caracteres pueden corromperse antes de evaluar `_enabled`.
-- **Corrección**: detectar cp437 y degradar a ASCII antes de emitir. *(migra D2-R02)*
+- **Confianza**: Alta
+- **Causa**: el `Spinner` solo desactiva braille en codepages no-UTF; en consola Windows con OEM cp437 evalúa `_enabled` tras emitir.
+- **Impacto**: los caracteres braille pueden corromperse antes de desactivarse, mostrando basura en cp437.
+- **Corrección(es) propuesta(s)**: detectar cp437 y degradar a ASCII antes de emitir. *(migra D2-R02)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
 
 
 
 #### S1-09 — `WARN` en `doctor --json` no documentado
 
-- **Categoría / Área**: Documentation / Contrato · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Documentation
+- **Área/plataforma**: Contrato
 - **Evidencia**: `cli.py:447-590`; `USAGE.md` documenta solo `PASS/FAIL/SKIP`
-- **Causa/Impacto**: `doctor --json` usa `status: "WARN"`; el esquema es válido (exit 0 mientras `failed=0`) pero no está declarado, y un integrador puede recibir un valor no documentado.
-- **Corrección**: documentar `WARN` en el contrato de `doctor --json`. *(migra D2-R04)*
+- **Confianza**: Alta
+- **Causa**: `doctor --json` emite `status: "WARN"` pero el esquema de salida no lo declara.
+- **Impacto**: un integrador puede recibir un valor no documentado y fallar al parsear la respuesta.
+- **Corrección(es) propuesta(s)**: documentar `WARN` en el contrato de `doctor --json`. *(migra D2-R04)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
 
 #### S1-10 — Estado `"unknown"` del daemon no documentado
 
-- **Categoría / Área**: Documentation / Contrato · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Documentation
+- **Área/plataforma**: Contrato
 - **Evidencia**: `USAGE.md:211-216` (documenta `"healthy"`/`"initializing"`); `cli.py:1355` puede emitir `"unknown"`
-- **Causa/Impacto**: integradores programáticos podrían recibir un valor no documentado.
-- **Corrección**: documentar `"unknown"` como estado posible. *(migra D8-R05)*
+- **Confianza**: Alta
+- **Causa**: `cli.py:1355` puede emitir el estado `"unknown"` del daemon, pero `USAGE.md` solo documenta `"healthy"`/`"initializing"`.
+- **Impacto**: integradores programáticos podrían recibir un valor no documentado y no manejarlo.
+- **Corrección(es) propuesta(s)**: documentar `"unknown"` como estado posible. *(migra D8-R05)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
+
+**Compatibilidad**
 
 #### S1-11 — AVX2 requerido pero no auto-detectado por `doctor`
 
-- **Categoría / Área**: Reliability / CPU · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Reliability
+- **Área/plataforma**: CPU
 - **Evidencia**: `USAGE.md:737-741`; sin auto-detección en `doctor`
-- **Causa/Impacto**: PyTorch puede fallar en runtime en CPU antigua (~pre-2015) sin diagnóstico previo.
-- **Corrección**: detectar AVX2 en `doctor` y advertir. *(migra D5-R02)*
+- **Confianza**: Alta
+- **Causa**: AVX2 es requerido pero `doctor` no lo auto-detecta.
+- **Impacto**: PyTorch puede fallar en runtime en CPU antigua (~pre-2015) sin diagnóstico previo.
+- **Corrección(es) propuesta(s)**: detectar AVX2 en `doctor` y advertir. *(migra D5-R02)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
 
 #### S1-12 — Advisory de RAM no verificado
 
-- **Categoría / Área**: Reliability / Compatibilidad · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Reliability
+- **Área/plataforma**: Compatibilidad
 - **Evidencia**: `USAGE.md:743-745`; `cli.py:57`
-- **Causa/Impacto**: el advisory de 8GB (`WARN` a 4GB) no se verifica; máquinas con <4GB no tienen guarda.
-- **Corrección**: verificar RAM disponible en `doctor`. *(migra D5-R03)*
+- **Confianza**: Alta
+- **Causa**: el advisory de RAM (8GB; `WARN` a 4GB) no se verifica en `doctor`.
+- **Impacto**: máquinas con <4GB no tienen ninguna guarda ni aviso.
+- **Corrección(es) propuesta(s)**: verificar RAM disponible en `doctor`. *(migra D5-R03)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
 
 #### S1-13 — Sin matriz de SO mínimos probados
 
-- **Categoría / Área**: Testing / Compatibilidad · macOS · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Testing
+- **Área/plataforma**: Compatibilidad · macOS
 - **Evidencia**: `build_macos.py:340-359` (`LSMinimumSystemVersion` derivado del SDK)
-- **Causa/Impacto**: coherente con el deployment target, pero no hay matriz de SO mínimos efectivamente probados.
-- **Corrección**: definir y probar una matriz mínima de SO. *(migra D5-R05)*
+- **Confianza**: Alta
+- **Causa**: no se define ni prueba una matriz de SO mínimos, aunque el deployment target es coherente.
+- **Impacto**: no hay evidencia de los SO mínimos efectivamente probados para el release.
+- **Corrección(es) propuesta(s)**: definir y probar una matriz mínima de SO. *(migra D5-R05)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
+
+**UX instalación**
 
 #### S1-14 — glibc < 2.35 solo advierte; el AppImage falla en runtime
 
-- **Categoría / Área**: Reliability / UX instalación · Linux · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Reliability
+- **Área/plataforma**: UX instalación · Linux
 - **Evidencia**: `install.sh:69-73`
-- **Causa/Impacto**: en glibc < 2.35 (p. ej. Ubuntu 20.04) solo advierte; el AppImage falla en runtime sin alternativa inmediata.
-- **Corrección**: bloquear o encaminar a PyPI/fuente cuando glibc es insuficiente. *(migra D6-R01)*
+- **Confianza**: Alta
+- **Causa**: en glibc < 2.35 (p. ej. Ubuntu 20.04) el instalador solo advierte.
+- **Impacto**: el AppImage falla en runtime sin ofrecer una alternativa inmediata.
+- **Corrección(es) propuesta(s)**: bloquear o encaminar a PyPI/fuente cuando glibc es insuficiente. *(migra D6-R01)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
 
 #### S1-15 — Aviso de PATH estático en zsh sin recarga
 
-- **Categoría / Área**: UX instalación / macOS · **Prioridad**: P3 · **Decisión requerida**: No
+- **Categoría**: UX instalación
+- **Área/plataforma**: macOS
 - **Evidencia**: `install.sh:148-153`
-- **Causa/Impacto**: si `~/.local/bin` no está en PATH (zsh por defecto en macOS), el aviso es estático sin recarga del shell.
-- **Corrección**: instruir la recarga (`exec zsh`/`source`) o abrir shell nuevo. *(migra D6-R02)*
+- **Confianza**: Alta
+- **Causa**: el aviso de PATH estático en zsh no indica recargar el shell.
+- **Impacto**: el usuario puede seguir sin el binario en PATH hasta reiniciar la sesión manualmente.
+- **Corrección(es) propuesta(s)**: instruir la recarga (`exec zsh`/`source`) o abrir shell nuevo. *(migra D6-R02)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
 
 
 
 #### S1-16 — PATH de Windows requiere terminal nueva sin indicarlo
 
-- **Categoría / Área**: UX instalación / Windows · **Prioridad**: P3 · **Decisión requerida**: No
+- **Categoría**: UX instalación
+- **Área/plataforma**: Windows
 - **Evidencia**: `install.ps1:112-118`
-- **Causa/Impacto**: `Update-SessionPath` actualiza la sesión pero requiere terminal nueva; no hay indicación post-instalación.
-- **Corrección**: mensaje post-instalación indicando abrir terminal nueva. *(migra D6-R03)*
+- **Confianza**: Alta
+- **Causa**: `Update-SessionPath` actualiza la sesión pero requiere abrir una terminal nueva.
+- **Impacto**: no hay indicación post-instalación, y el comando no funciona hasta abrir terminal nueva.
+- **Corrección(es) propuesta(s)**: mensaje post-instalación indicando abrir terminal nueva. *(migra D6-R03)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
 
 
 
 #### S1-17 — Migración per-machine→per-user no detectada (PATH duplicado)
 
-- **Categoría / Área**: UX instalación / Windows · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: UX instalación
+- **Área/plataforma**: Windows
 - **Evidencia**: `install.ps1:191-193`
-- **Causa/Impacto**: la migración pre-0.4.0 no se detecta; puede quedar PATH duplicado.
-- **Corrección**: detectar y limpiar la entrada per-machine previa. *(migra D6-R04)*
+- **Confianza**: Alta
+- **Causa**: la migración per-machine→per-user de pre-0.4.0 no se detecta.
+- **Impacto**: puede quedar una entrada PATH duplicada (per-machine) sin limpiar.
+- **Corrección(es) propuesta(s)**: detectar y limpiar la entrada per-machine previa. *(migra D6-R04)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
 
 #### S1-18 — Mac Intel sin alternativa sugerida en el instalador
 
-- **Categoría / Área**: UX instalación / macOS · **Prioridad**: P3 · **Decisión requerida**: No
+- **Categoría**: UX instalación
+- **Área/plataforma**: macOS
 - **Evidencia**: `install-macos.sh:52-54`
-- **Causa/Impacto**: el mensaje indica la limitación de Mac Intel sin sugerir alternativa (compilar desde fuente / PyPI). Relacionado con S2-02.
-- **Corrección**: sugerir explícitamente PyPI/compilación desde fuente. *(migra D6-R05)*
+- **Confianza**: Alta
+- **Causa**: el instalador de Mac Intel indica la limitación pero no sugiere alternativa.
+- **Impacto**: usuarios de Mac Intel no ven la vía de PyPI o compilación desde fuente. Relacionado con S2-02.
+- **Corrección(es) propuesta(s)**: sugerir explícitamente PyPI/compilación desde fuente. *(migra D6-R05)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
 
 
+
+**Testing**
 
 #### S1-19 — Branches de error de `ensure_runtime_dependencies` sin test
 
-- **Categoría / Área**: Testing / Linux · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Testing
+- **Área/plataforma**: Linux
 - **Evidencia**: `build_linux.py:103-120`; `tests/test_build_linux.py`
-- **Causa/Impacto**: las ramas `CalledProcessError`/`TimeoutExpired` no tienen cobertura.
-- **Corrección**: añadir tests de esas ramas de fallo. *(migra D7-R01)*
+- **Confianza**: Alta
+- **Causa**: las ramas `CalledProcessError`/`TimeoutExpired` de `ensure_runtime_dependencies` no tienen cobertura de test.
+- **Impacto**: regresiones en esas ramas de fallo podrían pasar desapercibidas.
+- **Corrección(es) propuesta(s)**: añadir tests de esas ramas de fallo. *(migra D7-R01)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
 
 #### S1-20 — Timeout de `fetch_pinned_asset` no testeado
 
-- **Categoría / Área**: Testing · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Testing
+- **Área/plataforma**: —
 - **Evidencia**: `scripts/build_utils.py:169`
-- **Causa/Impacto**: el timeout de red expirado no se testea (solo éxito y checksum erróneo).
-- **Corrección**: test del timeout expirado. *(migra D7-R02)*
+- **Confianza**: Alta
+- **Causa**: el timeout de red expirado de `fetch_pinned_asset` no se testea.
+- **Impacto**: solo se cubren éxito y checksum erróneo; el caso de timeout queda sin validar.
+- **Corrección(es) propuesta(s)**: test del timeout expirado. *(migra D7-R02)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
 
 #### S1-21 — `RequestException` del daemon no testeada
 
-- **Categoría / Área**: Testing / Daemon · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Testing
+- **Área/plataforma**: Daemon
 - **Evidencia**: `daemon.py:155-156,192-193`
-- **Causa/Impacto**: las excepciones `RequestException` en `/shutdown` y `status()` no se testean.
-- **Corrección**: cubrir las ramas de `RequestException`. *(migra D7-R03)*
+- **Confianza**: Alta
+- **Causa**: las excepciones `RequestException` del daemon en `/shutdown` y `status()` no se testean.
+- **Impacto**: regresiones en el manejo de esas excepciones no se detectarían.
+- **Corrección(es) propuesta(s)**: cubrir las ramas de `RequestException`. *(migra D7-R03)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
 
 #### S1-22 — Tests de symlink se saltan en Windows sin Developer Mode
 
-- **Categoría / Área**: Testing / Windows · **Prioridad**: P3 · **Decisión requerida**: No
+- **Categoría**: Testing
+- **Área/plataforma**: Windows
 - **Evidencia**: `tests/test_cli.py:522-530` (12 tests de `TestSetupLinuxPath`)
-- **Causa/Impacto**: sin Developer Mode los tests de symlink se saltan, reduciendo cobertura efectiva en Windows.
-- **Corrección**: documentar el prerequisito y/o alternativa de cobertura. *(migra D7-R04)*
+- **Confianza**: Alta
+- **Causa**: sin Developer Mode en Windows, los tests de symlink se saltan.
+- **Impacto**: se reduce la cobertura efectiva de esos tests en Windows.
+- **Corrección(es) propuesta(s)**: documentar el prerequisito y/o alternativa de cobertura. *(migra D7-R04)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
 
 
 
 #### S1-23 — ARM64 Linux sin suite dedicada
 
-- **Categoría / Área**: Testing / aarch64 · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Testing
+- **Área/plataforma**: aarch64
 - **Evidencia**: `.circleci/config.yml:643-646`
-- **Causa/Impacto**: solo el smoke `version` valida el stack aarch64; sin suite dedicada. Relacionado con S1-32.
-- **Corrección**: suite mínima en aarch64. *(migra D7-R05)*
+- **Confianza**: Alta
+- **Causa**: solo el smoke `version` valida el stack aarch64; no hay suite dedicada.
+- **Impacto**: un bug específico de aarch64 podría pasar desapercibido. Relacionado con S1-32.
+- **Corrección(es) propuesta(s)**: suite mínima en aarch64. *(migra D7-R05)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
 
 #### S1-24 — Pascal Script de desinstalación sin test unitario
 
-- **Categoría / Área**: Testing / Windows · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Testing
+- **Área/plataforma**: Windows
 - **Evidencia**: `scripts/create_installer_windows.py:145-167`
-- **Causa/Impacto**: `CurUninstallStepChanged` solo tiene validación Ruby estática, sin test unitario.
-- **Corrección**: test de la lógica de desinstalación. *(migra D7-R06)*
+- **Confianza**: Alta
+- **Causa**: `CurUninstallStepChanged` del Pascal Script solo tiene validación Ruby estática.
+- **Impacto**: la lógica de desinstalación no tiene test unitario que respalde sus cambios.
+- **Corrección(es) propuesta(s)**: test de la lógica de desinstalación. *(migra D7-R06)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
 
 #### S1-25 — Branch `except Exception` del worker no cubierto
 
-- **Categoría / Área**: Testing / Daemon · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Testing
+- **Área/plataforma**: Daemon
 - **Evidencia**: `daemon/server.py:167-173`
-- **Causa/Impacto**: el branch `except Exception` del worker no se cubre explícitamente (solo `RuntimeError`).
-- **Corrección**: test del branch genérico del worker. *(migra D7-R07)*
+- **Confianza**: Alta
+- **Causa**: el branch `except Exception` del worker no se cubre explícitamente (solo `RuntimeError`).
+- **Impacto**: regresiones en ese branch genérico no se detectarían en los tests.
+- **Corrección(es) propuesta(s)**: test del branch genérico del worker. *(migra D7-R07)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
+
+**Documentación**
 
 #### S1-26 — `CLAUDE.md` dice 296 tests (real: 314)
 
-- **Categoría / Área**: Documentation · **Prioridad**: P3 · **Decisión requerida**: No
+- **Categoría**: Documentation
+- **Área/plataforma**: —
 - **Evidencia**: `CLAUDE.md` (sección «tests/») dice «296 tests»; el conteo real es 314 (`docs/GOAL.md:220` correcto)
-- **Causa/Impacto**: el conteo en `CLAUDE.md` está desactualizado; inexactitud documental menor.
-- **Corrección**: actualizar el conteo en `CLAUDE.md`. *(migra D8-R01)*
+- **Confianza**: Alta
+- **Causa**: `CLAUDE.md` dice «296 tests» pero el conteo real es 314.
+- **Impacto**: inexactitud documental menor que puede confundir a quien lea.
+- **Corrección(es) propuesta(s)**: actualizar el conteo en `CLAUDE.md`. *(migra D8-R01)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
 
 
 
 #### S1-27 — Sin plantilla de issue de bug
 
-- **Categoría / Área**: Documentation / governance · **Prioridad**: P2 · **Decisión requerida**: No
+- **Categoría**: Documentation
+- **Área/plataforma**: governance
 - **Evidencia**: solo existe `.github/PULL_REQUEST_TEMPLATE.md`
-- **Causa/Impacto**: no hay plantilla de issue de bug, brecha de governance de release.
-- **Corrección**: añadir plantilla de issue de bug. *(migra D8-R03)*
+- **Confianza**: Alta
+- **Causa**: solo existe `.github/PULL_REQUEST_TEMPLATE.md`; no hay plantilla de issue de bug.
+- **Impacto**: brecha de governance de release al no estandarizar reportes de bug.
+- **Corrección(es) propuesta(s)**: añadir plantilla de issue de bug. *(migra D8-R03)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
 
 
 
 #### S1-28 — `CONTRIBUTING.md` omite el smoke-test de Windows
 
-- **Categoría / Área**: Documentation · **Prioridad**: P3 · **Decisión requerida**: No
+- **Categoría**: Documentation
+- **Área/plataforma**: —
 - **Evidencia**: `CONTRIBUTING.md` no menciona `test-installer-windows` (`install.ps1`)
-- **Causa/Impacto**: completitud documental para contribuidores.
-- **Corrección**: documentar el smoke-test de Windows en `CONTRIBUTING.md`. *(migra D8-R04)*
-
-
-
-#### S1-29 — Atribución de PerthNet/`resemble-perth` débil
-
-- **Categoría / Área**: Licensing · **Prioridad**: P2 · **Decisión requerida**: No
-- **Evidencia**: `THIRD-PARTY-LICENSES.md:29-33,264`
-- **Causa/Impacto**: la atribución de PerthNet (MIT) es débil; el bypass está documentado pero el componente carece de sección de atribución clara.
-- **Corrección**: añadir sección de atribución explícita para `resemble-perth`. *(migra D9-R02)*
-
-
-
-#### S1-30 — `pytest` pineado pero no sus plugins
-
-- **Categoría / Área**: Cadena de suministro / CI · **Prioridad**: P2 · **Decisión requerida**: No
-- **Evidencia**: `.circleci/config.yml:74,153` (`pytest==9.1.1`, sin pin de `pytest-xdist`/otros)
-- **Causa/Impacto**: si se añaden plugins sin pin, la suite podría romperse por drift.
-- **Corrección**: pinear los plugins de pytest. *(migra D10-R02)*
-
-
-
-#### S1-31 — Installers mockeados; `docs/SELF-HOSTED-INSTALL.md` inexistente
-
-- **Categoría / Área**: CI / Documentation · **Prioridad**: P2 · **Decisión requerida**: No
-- **Evidencia**: `.circleci/config.yml:253-277,304-327` (mock de `curl`/`sha256sum`/`hdiutil`); `docs/BUILD.md:210` referencia `docs/SELF-HOSTED-INSTALL.md`, ausente del árbol
-- **Causa/Impacto**: los smoke-tests de `install.sh`/`install-macos.sh` no ejercen el flujo real, y hay una referencia a un documento inexistente (enlace roto).
-- **Corrección**: crear `docs/SELF-HOSTED-INSTALL.md` (o corregir la referencia) y valorar un smoke-test menos mockeado. *(migra D10-R03)*
-
-
-
-#### S1-32 — ARM64 Linux sin test dedicado (decisión consciente)
-
-- **Categoría / Área**: CI / aarch64 · **Prioridad**: P3 · **Decisión requerida**: No
-- **Evidencia**: `.circleci/config.yml:669-673`
-- **Causa/Impacto**: sin test dedicado (decisión consciente porque la suite mockea el engine); un bug específico de aarch64 podría pasar desapercibido. Relacionado con S1-23.
-- **Corrección**: valorar un test dedicado aarch64. *(migra D10-R04)*
+- **Confianza**: Alta
+- **Causa**: `CONTRIBUTING.md` omite el smoke-test de Windows (`install.ps1`).
+- **Impacto**: falta de completitud documental para quien quiera contribuir en Windows.
+- **Corrección(es) propuesta(s)**: documentar el smoke-test de Windows en `CONTRIBUTING.md`. *(migra D8-R04)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
 
 
 
 #### S1-33 — Runbook de falsos positivos solo para Defender
 
-- **Categoría / Área**: Documentation / seguridad · **Prioridad**: P3 · **Decisión requerida**: No
+- **Categoría**: Documentation
+- **Área/plataforma**: seguridad
 - **Evidencia**: `SECURITY.md:124-156`
-- **Causa/Impacto**: documenta el runbook de Defender pero no cómo reportar falsos positivos a otros AV (ClamAV, Gatekeeper).
-- **Corrección**: extender el runbook a otros AV. *(migra D10-R05)*
+- **Confianza**: Alta
+- **Causa**: el runbook de falsos positivos solo cubre Defender.
+- **Impacto**: no documenta cómo reportar falsos positivos a otros AV (ClamAV, Gatekeeper).
+- **Corrección(es) propuesta(s)**: extender el runbook a otros AV. *(migra D10-R05)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
+
+
+
+**Licencias**
+
+#### S1-29 — Atribución de PerthNet/`resemble-perth` débil
+
+- **Categoría**: Licensing
+- **Área/plataforma**: —
+- **Evidencia**: `THIRD-PARTY-LICENSES.md:29-33,264`
+- **Confianza**: Alta
+- **Causa**: la atribución de PerthNet (`resemble-perth`, MIT) es débil y carece de sección de atribución clara.
+- **Impacto**: riesgo de cumplimiento de licencias por atribución insuficiente del componente.
+- **Corrección(es) propuesta(s)**: añadir sección de atribución explícita para `resemble-perth`. *(migra D9-R02)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
+
+
+
+**Cadena de suministro / CI**
+
+#### S1-30 — `pytest` pineado pero no sus plugins
+
+- **Categoría**: Cadena de suministro
+- **Área/plataforma**: CI
+- **Evidencia**: `.circleci/config.yml:74,153` (`pytest==9.1.1`, sin pin de `pytest-xdist`/otros)
+- **Confianza**: Alta
+- **Causa**: `pytest` está pineado pero no sus plugins.
+- **Impacto**: si se añaden plugins sin pin, la suite podría romperse por drift de versiones.
+- **Corrección(es) propuesta(s)**: pinear los plugins de pytest. *(migra D10-R02)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
+
+
+
+#### S1-31 — Installers mockeados; `docs/SELF-HOSTED-INSTALL.md` inexistente
+
+- **Categoría**: CI
+- **Área/plataforma**: Documentation
+- **Evidencia**: `.circleci/config.yml:253-277,304-327` (mock de `curl`/`sha256sum`/`hdiutil`); `docs/BUILD.md:210` referencia `docs/SELF-HOSTED-INSTALL.md`, ausente del árbol
+- **Confianza**: Alta
+- **Causa**: los smoke-tests mockean `curl`/`sha256sum`/`hdiutil` y no ejercen el flujo real; además `docs/BUILD.md` referencia `docs/SELF-HOSTED-INSTALL.md`, ausente.
+- **Impacto**: el flujo real de instalación queda sin validar y hay un enlace roto en la documentación.
+- **Corrección(es) propuesta(s)**: crear `docs/SELF-HOSTED-INSTALL.md` (o corregir la referencia) y valorar un smoke-test menos mockeado. *(migra D10-R03)*
+- **Decisión requerida**: No
+- **Prioridad**: P2
+
+
+
+#### S1-32 — ARM64 Linux sin test dedicado (decisión consciente)
+
+- **Categoría**: CI
+- **Área/plataforma**: aarch64
+- **Evidencia**: `.circleci/config.yml:669-673`
+- **Confianza**: Alta
+- **Causa**: no hay test dedicado en aarch64 (decisión consciente: la suite mockea el engine).
+- **Impacto**: un bug específico de aarch64 podría pasar desapercibido. Relacionado con S1-23.
+- **Corrección(es) propuesta(s)**: valorar un test dedicado aarch64. *(migra D10-R04)*
+- **Decisión requerida**: No
+- **Prioridad**: P3
 
 
 
