@@ -68,9 +68,15 @@ jobs:
           # el venv ya poblado: así queda fuera del material cacheado y la caché de
           # venv la comparten test y build de esta plataforma. Reinstalarla cuesta
           # segundos (sin dependencias pesadas).
-          # Política de pins (S1-30): pytest va pineado a versión exacta; si algún
-          # día se añade un plugin (pytest-xdist, pytest-timeout, ...), pinearlo
-          # igual en los TRES jobs de test (Linux/Windows/macOS) para evitar drift.
+          # Política de pins (S1-30): pytest va pineado a versión exacta. Hoy el
+          # proyecto NO usa plugins de pytest, así que no hay nada más que fijar;
+          # esta política es deliberadamente solo documental (un guard automático
+          # de plugins sería sobreingeniería sin valor actual). Si en el futuro se
+          # añade un plugin (pytest-xdist, pytest-timeout, ...), la propuesta de
+          # diseño es: declararlo PINNADO en una única fuente de verdad (p.ej.
+          # PYTEST_PLUGINS) e instalarlo desde ahí, y añadir un guard en CI que
+          # falle si aparece un plugin pytest-* no declarado. Mantener los TRES
+          # jobs de test (Linux/Windows/macOS) alineados para evitar drift.
           name: Install pytest into venv (post-cache)
           command: |
             echo "[STEP] Install pytest into venv (post-cache) - INICIO"
@@ -149,8 +155,15 @@ jobs:
           # La herramienta de test (pytest) se instala DESPUÉS del save_cache, sobre
           # el venv ya poblado: así queda fuera del material cacheado y la caché de
           # venv la comparten test y build de esta plataforma.
-          # Política de pins (S1-30): pytest pineado a versión exacta; un plugin
-          # nuevo se pinea igual en los TRES jobs de test para evitar drift.
+          # Política de pins (S1-30): pytest va pineado a versión exacta. Hoy el
+          # proyecto NO usa plugins de pytest, así que no hay nada más que fijar;
+          # esta política es deliberadamente solo documental (un guard automático
+          # de plugins sería sobreingeniería sin valor actual). Si en el futuro se
+          # añade un plugin (pytest-xdist, pytest-timeout, ...), la propuesta de
+          # diseño es: declararlo PINNADO en una única fuente de verdad (p.ej.
+          # PYTEST_PLUGINS) e instalarlo desde ahí, y añadir un guard en CI que
+          # falle si aparece un plugin pytest-* no declarado. Mantener los TRES
+          # jobs de test (Linux/Windows/macOS) alineados para evitar drift.
           name: Install pytest into venv (post-cache)
           command: |
             Write-Host "[STEP] Install pytest into venv (post-cache) - INICIO"
@@ -243,8 +256,15 @@ jobs:
           # La herramienta de test (pytest) se instala DESPUÉS del save_cache, sobre
           # el venv ya poblado: así queda fuera del material cacheado y la caché de
           # venv la comparten test y build de esta plataforma.
-          # Política de pins (S1-30): pytest pineado a versión exacta; un plugin
-          # nuevo se pinea igual en los TRES jobs de test para evitar drift.
+          # Política de pins (S1-30): pytest va pineado a versión exacta. Hoy el
+          # proyecto NO usa plugins de pytest, así que no hay nada más que fijar;
+          # esta política es deliberadamente solo documental (un guard automático
+          # de plugins sería sobreingeniería sin valor actual). Si en el futuro se
+          # añade un plugin (pytest-xdist, pytest-timeout, ...), la propuesta de
+          # diseño es: declararlo PINNADO en una única fuente de verdad (p.ej.
+          # PYTEST_PLUGINS) e instalarlo desde ahí, y añadir un guard en CI que
+          # falle si aparece un plugin pytest-* no declarado. Mantener los TRES
+          # jobs de test (Linux/Windows/macOS) alineados para evitar drift.
           name: Install pytest into venv (post-cache)
           command: |
             echo "[STEP] Install pytest into venv (post-cache) - INICIO"
