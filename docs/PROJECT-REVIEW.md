@@ -4,15 +4,15 @@
 
 Se auditaron las diez dimensiones de preparación para release de `tts-sidecar` (robustez de CLI, contrato programático, daemon, estado en disco/modelo, compatibilidad multiplataforma, UX de instalación/desinstalación, calidad y cobertura de tests, documentación como producto, licencias/compliance, y cadena de suministro/CI), bajo lente de **release readiness** y perfil **preventivo**. El material probado son los 47 hallazgos con evidencia `file:line` del audit del `48c6d8a`.
 
-**Veredicto global: LISTO CON RESERVAS.** No hay hallazgos **S4 (Críticos)**: ninguno bloquea la publicación de v0.6.0. Persisten 7 hallazgos **S3 (Altos)** —concentrados en el endurecimiento del daemon, el contrato de cancelación programática, la oferta de fuente GPL en el release y la validación del binario congelado en CI— que deberían resolverse antes de la siguiente versión menor.
+**Veredicto global: LISTO CON RESERVAS.** No hay hallazgos **S4 (Críticos)**: ninguno bloquea la publicación de v0.6.0. Persiste **1 hallazgo S3 (Alto)**: el endurecimiento de concurrencia del daemon (`S3-05`).
 
-**Conteo por severidad:** 0 S4 · 7 S3 · 3 S2 · 33 S1 · 4 S0 (47 hallazgos).
-**Conteo por prioridad:** 0 P0 · 6 P1 · 22 P2 · 19 P3.
+**Conteo por severidad:** 0 S4 · 1 S3 · 3 S2 · 33 S1 · 4 S0 (37 hallazgos).
+**Conteo por prioridad:** 0 P0 · 0 P1 · 1 P2 · 33 P3.
 
 
 ### Índice de hallazgos
 
-El índice siguiente lista los 47 hallazgos ordenados por ID, con su severidad, prioridad, área/plataforma, si requieren decisión del propietario y su estado de resolución. El detalle de cada uno aparece en [Hallazgos por severidad](#hallazgos-por-severidad).
+El índice siguiente lista los 37 hallazgos ordenados por ID, con su severidad, prioridad, área/plataforma, si requieren decisión del propietario y su estado de resolución. El detalle de cada uno aparece en [Hallazgos por severidad](#hallazgos-por-severidad).
 
 | ID    | Título                                                                | Severidad        | Prioridad | Área/plataforma             | Decisión requerida | Estado |
 | ----- | --------------------------------------------------------------------- | ---------------- | --------- | --------------------------- | ------------------ |--------- |
