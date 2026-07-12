@@ -23,9 +23,9 @@ El índice siguiente lista los 47 hallazgos ordenados por ID, con su severidad, 
 | S3-05 | Sin límite de concurrencia en `/synthesize`                           | S3 — Alto        | P2        | Daemon                      | Sí                 | Pendiente |
 | S3-06 | Oferta de código fuente GPL no explícita en el release                | S3 — Alto        | P1        | Licencias / release         | No                 | Pendiente |
 | S3-07 | Smoke test del binario congelado limitado a `version`                 | S3 — Alto        | P1        | CI / DevOps                 | No                 | Pendiente |
-| S2-01 | `/shutdown` sin autenticación (loopback, riesgo aceptado)             | S2 — Medio       | P3        | Daemon / seguridad          | Sí                 | Pendiente |
+| S2-01 | `/shutdown` sin autenticación (loopback, riesgo aceptado)             | S2 — Medio       | P3        | Daemon / seguridad          | Sí                 | Resuelto  |
 | S2-02 | Binario nativo de macOS solo `arm64` (sin Intel)                      | S2 — Medio       | P2        | Compatibilidad / macOS      | Sí                 | Resuelto  |
-| S2-03 | `setup --force-update` no documentado en `USAGE.md`                   | S2 — Medio       | P1        | Documentación               | No                 | Pendiente |
+| S2-03 | `setup --force-update` no documentado en `USAGE.md`                   | S2 — Medio       | P1        | Documentación               | No                 | Resuelto  |
 | S1-01 | Error de descarga genérico sin diferenciar red/disco/credenciales     | S1 — Bajo        | P2        | CLI                         | No                 | Resuelto  |
 | S1-02 | `voice remove` con mensaje genérico ante `PermissionError`            | S1 — Bajo        | P3        | CLI / Windows               | No                 | Resuelto  |
 | S1-03 | Los `.incomplete` de HuggingFace no se limpian solos                  | S1 — Bajo        | P3        | Estado en disco             | No                 | Resuelto  |
@@ -759,9 +759,9 @@ Los 33 hallazgos de baja severidad se agrupan por área (en divisores en negrita
 
 No hay **P0**: sin hallazgos S4 y sin S3 que bloqueen el release de v0.6.0. Las fases agrupan los IDs por prioridad, dependencia y esfuerzo/impacto para alimentar la numeración de tareas de un plan posterior.
 
-- **Fase 1 — P1 (antes de la próxima versión menor; alto impacto / bajo esfuerzo):** `S3-01` (contrato de cancelación), `S3-02` y `S3-03` (arranque del daemon: carrera y bind), `S3-06` (oferta de fuente GPL en el release), `S3-07` (smoke test del binario congelado), `S2-03` (documentar `--force-update`).
+- **Fase 1 — P1 (antes de la próxima versión menor; alto impacto / bajo esfuerzo):** `S3-01` (contrato de cancelación), `S3-02` y `S3-03` (arranque del daemon: carrera y bind), `S3-06` (oferta de fuente GPL en el release), `S3-07` (smoke test del binario congelado). (Ya resuelto y fuera de esta fase: `S2-03` —documentar `--force-update` en `USAGE.md`, cerrado el 2026-07-12.)
 - **Fase 2 — P2 (agendadas):** endurecimiento del daemon `S3-04` (memoria) y `S3-05` (concurrencia); y `S1-05` (PID file), **diferido deliberadamente** para resolverse junto con `S3-02`: ambos se cierran con el mismo mecanismo (un PID/lock file del daemon) y hacerlo por separado duplicaría infraestructura. (Ya resueltos y fuera de esta fase: `S2-02` —macOS Intel, limitación aceptada—, `S1-23` —divergencia arm64 aceptada—, y el ciclo S1 del 2026-07-12: `S1-01`, `S1-09`, `S1-10`, `S1-11`, `S1-12`, `S1-13`, `S1-14`, `S1-17`, `S1-19`, `S1-20`, `S1-21`, `S1-24`, `S1-25`, `S1-27`, `S1-29`, `S1-30`, `S1-31`.)
-- **Fase 3 — P3 (backlog):** riesgo aceptado `S2-01` (`/shutdown`). (Ya resueltos y fuera del backlog: `S1-23` y `S1-32` —divergencia arm64 aceptada—, `S2-02` —macOS Intel, limitación aceptada—, `S1-33`, los informativos `S0-01`…`S0-04`, y el ciclo S1 del 2026-07-12: `S1-02`, `S1-03`, `S1-04`, `S1-06`, `S1-07`, `S1-08`, `S1-15`, `S1-16`, `S1-18`, `S1-22`, `S1-26`, `S1-28`.)
+- **Fase 3 — P3 (backlog):** sin pendientes. (Ya resueltos y fuera del backlog: riesgo aceptado `S2-01` —`/shutdown` sin token, aceptado formalmente el 2026-07-12 en `SECURITY.md`—, `S1-23` y `S1-32` —divergencia arm64 aceptada—, `S2-02` —macOS Intel, limitación aceptada—, `S1-33`, los informativos `S0-01`…`S0-04`, y el ciclo S1 del 2026-07-12: `S1-02`, `S1-03`, `S1-04`, `S1-06`, `S1-07`, `S1-08`, `S1-15`, `S1-16`, `S1-18`, `S1-22`, `S1-26`, `S1-28`.)
 
 
 
