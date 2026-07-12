@@ -80,9 +80,13 @@ class TestCorruptConditionals:
     def _engine_sin_modelo(self):
         """Instancia de ChatterboxEngine sin cargar el modelo real."""
         from tts_sidecar.engine import ChatterboxEngine
+        from tts_sidecar.conditionals import ConditionalsPreparer
 
         eng = ChatterboxEngine.__new__(ChatterboxEngine)
         eng.compute_backend = "cpu"
+        # Tras la extracción de ConditionalsPreparer (S3-01), el engine delega la
+        # carga de conditionals a este colaborador; lo inyectamos igual que __init__.
+        eng._conditionals_prep = ConditionalsPreparer()
         return eng
 
     def test_load_returns_false_with_corrupt_file(self, tmp_path):
