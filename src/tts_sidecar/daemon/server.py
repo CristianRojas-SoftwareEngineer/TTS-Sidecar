@@ -4,6 +4,7 @@ Expone endpoints HTTP para síntesis TTS con el modelo persistente en memoria.
 """
 
 import base64
+import gc
 import logging
 import os
 import queue
@@ -45,6 +46,27 @@ def set_start_time(timestamp: float):
     """Registra el timestamp de inicio del servidor."""
     global _start_time
     _start_time = timestamp
+
+
+def _clear_model_memory():
+    """Libera la caché CUDA fragmentada y fuerza GC tras cada síntesis.
+
+    Esta rutina es segura y multiplataforma:
+    - `torch.cuda.empty_cache()` es un no-op si no hay dispositivo CUDA disponible
+    - `gc.collect()` funciona universalmente (CPU/CUDA/MPS y todos los SO)
+    - El import de `torch` es diferido y está protegido por ImportError para
+      que la rutina sea inocua incluso si `torch` no está disponible
+
+    La limpieza se ejecuta en el hilo worker tras cada síntesis (éxito o error),
+    previniendo la fragmentación de memoria del daemon bajo uso prolongado en GPU.
+    """
+    try:
+        import torch
+        torch.cuda.empty_cache()
+    except ImportError:
+        pass  # torch no disponible: nada que limpiar
+    finally:
+        gc.collect()
 
 
 # Aplicación FastAPI
@@ -172,6 +194,7 @@ def synthesize(req: SynthesizeRequest) -> StreamingResponse:
                 logging.getLogger(__name__).error("synthesize: error interno: %s", e)
                 q.put(("error", {"detail": "Error interno de síntesis"}))
             finally:
+                _clear_model_memory()
                 q.put((SENTINEL, None))
 
         t = threading.Thread(target=worker, daemon=True)

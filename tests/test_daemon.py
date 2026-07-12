@@ -810,3 +810,73 @@ class TestServePortInUse:
         mock_run.assert_called_once()
         err = capsys.readouterr().err
         assert "no se pudo enlazar" in err
+
+
+class TestDaemonMemoryClear:
+    """S3-04: el daemon libera la caché CUDA y fuerza GC tras cada síntesis."""
+
+    def test_clear_model_memory_called_after_synthesis(self, tmp_path, monkeypatch):
+        """Tras un POST /synthesize exitoso, _clear_model_memory se invoca exactamente una vez."""
+        import json
+        from fastapi.testclient import TestClient
+        from tts_sidecar.daemon import server
+        from tts_sidecar import voices
+        from unittest.mock import patch, MagicMock
+
+        allowed_root = tmp_path / "voices_permitido"
+        allowed_root.mkdir()
+        wav = allowed_root / "voz.wav"
+        wav.write_bytes(b"RIFF\x00\x00\x00\x00WAVE")
+        monkeypatch.setattr(voices, "allowed_audio_dirs", lambda: [str(allowed_root)])
+
+        # Mock de la rutina de limpieza
+        mock_clear = MagicMock()
+
+        class FakeEngine:
+            _synthesis_timing = {}
+
+            def speak(self, **kwargs):
+                return b"RIFF" + b"\x00" * 40
+
+        old_engine = server._engine
+        server.set_engine(FakeEngine())
+        try:
+            with patch("tts_sidecar.daemon.server._clear_model_memory", mock_clear):
+                with TestClient(server.app) as client:
+                    resp = client.post(
+                        "/synthesize", json={"text": "hola", "speech_audio": str(wav)}
+                    )
+                    assert resp.status_code == 200
+
+            mock_clear.assert_called_once()
+        finally:
+            server.set_engine(old_engine)
+
+    def test_clear_model_memory_contract(self):
+        """_clear_model_memory llama torch.cuda.empty_cache() y gc.collect()."""
+        import sys
+        from unittest.mock import MagicMock, patch
+        from tts_sidecar.daemon import server
+
+        # Mock de torch y gc
+        mock_torch = MagicMock()
+        mock_gc = MagicMock()
+
+        with patch.dict(sys.modules, {"torch": mock_torch}):
+            with patch.object(server, "gc", mock_gc):
+                server._clear_model_memory()
+
+        mock_torch.cuda.empty_cache.assert_called_once()
+        mock_gc.collect.assert_called_once()
+
+    def test_clear_model_memory_handles_missing_torch(self):
+        """Si torch no está disponible, _clear_model_memory llama solo a gc.collect()."""
+        import sys
+        from unittest.mock import patch
+        from tts_sidecar.daemon import server
+
+        # Simular ausencia de torch
+        with patch.dict(sys.modules, {"torch": None}):
+            with patch.object(server, "gc") as mock_gc:
+                server._clear_model_memory()
+                mock_gc.collect.assert_called_once()

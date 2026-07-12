@@ -273,6 +273,7 @@ del watermark PerthNet y el timing por sub-etapa:
 | **Lifecycle** | start/stop/restart/status | Solo auto-start |
 | **Resiliencia** | Retry + auto-restart flag | Ninguna |
 | **torch.compile** | Compartido via proceso daemon | Memory-mapped files |
+| **Gestión de memoria** | Limpieza de caché CUDA + GC tras cada síntesis | Sin liberación (fragmentación bajo uso prolongado en CUDA) |
 
 ## Compatibilidad
 
