@@ -68,6 +68,9 @@ jobs:
           # el venv ya poblado: así queda fuera del material cacheado y la caché de
           # venv la comparten test y build de esta plataforma. Reinstalarla cuesta
           # segundos (sin dependencias pesadas).
+          # Política de pins (S1-30): pytest va pineado a versión exacta; si algún
+          # día se añade un plugin (pytest-xdist, pytest-timeout, ...), pinearlo
+          # igual en los TRES jobs de test (Linux/Windows/macOS) para evitar drift.
           name: Install pytest into venv (post-cache)
           command: |
             echo "[STEP] Install pytest into venv (post-cache) - INICIO"
@@ -146,6 +149,8 @@ jobs:
           # La herramienta de test (pytest) se instala DESPUÉS del save_cache, sobre
           # el venv ya poblado: así queda fuera del material cacheado y la caché de
           # venv la comparten test y build de esta plataforma.
+          # Política de pins (S1-30): pytest pineado a versión exacta; un plugin
+          # nuevo se pinea igual en los TRES jobs de test para evitar drift.
           name: Install pytest into venv (post-cache)
           command: |
             Write-Host "[STEP] Install pytest into venv (post-cache) - INICIO"
@@ -238,6 +243,8 @@ jobs:
           # La herramienta de test (pytest) se instala DESPUÉS del save_cache, sobre
           # el venv ya poblado: así queda fuera del material cacheado y la caché de
           # venv la comparten test y build de esta plataforma.
+          # Política de pins (S1-30): pytest pineado a versión exacta; un plugin
+          # nuevo se pinea igual en los TRES jobs de test para evitar drift.
           name: Install pytest into venv (post-cache)
           command: |
             echo "[STEP] Install pytest into venv (post-cache) - INICIO"
