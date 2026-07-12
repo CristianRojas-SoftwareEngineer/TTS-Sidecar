@@ -33,6 +33,50 @@ def test_desktop_entry_application_type_and_terminal():
     assert desktop.count("\n") >= 6  # al menos 6 líneas (clave=valor)
 
 
+class TestEnsureRuntimeDependencies:
+    """S1-19: las ramas de fallo de ensure_runtime_dependencies abortan el build
+    con SystemExit(1) en vez de propagar un traceback crudo."""
+
+    def test_missing_lockfile_aborts(self, tmp_path, monkeypatch):
+        import build_linux
+
+        monkeypatch.setattr(build_linux, "PROJECT_ROOT", tmp_path)
+        with pytest.raises(SystemExit) as exc:
+            build_linux.ensure_runtime_dependencies("x86_64")
+        assert exc.value.code == 1
+
+    def test_pip_failure_aborts(self, tmp_path, monkeypatch):
+        import subprocess
+        import build_linux
+
+        monkeypatch.setattr(build_linux, "PROJECT_ROOT", tmp_path)
+        (tmp_path / "requirements-lock-linux-cpu.txt").write_text("", encoding="utf-8")
+
+        def _falla(cmd, **kwargs):
+            raise subprocess.CalledProcessError(returncode=2, cmd=cmd)
+
+        monkeypatch.setattr(build_linux.subprocess, "run", _falla)
+        with pytest.raises(SystemExit) as exc:
+            build_linux.ensure_runtime_dependencies("x86_64")
+        assert exc.value.code == 1
+
+    def test_pip_timeout_aborts(self, tmp_path, monkeypatch):
+        import subprocess
+        import build_linux
+
+        monkeypatch.setattr(build_linux, "PROJECT_ROOT", tmp_path)
+        # arm64 usa el lock universal, no el CPU-only: se cubre de paso la selección.
+        (tmp_path / "requirements-lock.txt").write_text("", encoding="utf-8")
+
+        def _expira(cmd, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=cmd, timeout=1)
+
+        monkeypatch.setattr(build_linux.subprocess, "run", _expira)
+        with pytest.raises(SystemExit) as exc:
+            build_linux.ensure_runtime_dependencies("arm64")
+        assert exc.value.code == 1
+
+
 def test_appimage_failure_is_fatal(tmp_path, monkeypatch):
     """appimagetool con rc != 0 debe abortar el build con SystemExit(1),
     heredando la consola (sin capture_output) para que su output sea visible."""

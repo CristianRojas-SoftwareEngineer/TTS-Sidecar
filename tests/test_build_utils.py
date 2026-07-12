@@ -162,6 +162,21 @@ class TestFetchPinnedAsset:
         resultado = fetch_pinned_asset("https://example.invalid/asset.bin", self.SHA_OK, dest)
         assert resultado == dest
 
+    def test_network_timeout_propagates_without_partial_artifact(self, tmp_path, monkeypatch):
+        """S1-20: un timeout de red al descargar propaga la excepción (el build
+        aborta) y no deja un dest parcial que la rama de caché confunda después."""
+        import urllib.request
+
+        def _expira(*a, **k):
+            raise TimeoutError("timed out")
+
+        monkeypatch.setattr(urllib.request, "urlopen", _expira)
+        dest = tmp_path / "asset.bin"
+
+        with pytest.raises(TimeoutError):
+            fetch_pinned_asset("https://example.invalid/asset.bin", self.SHA_OK, dest)
+        assert not dest.exists()
+
 
 def test_bundle_size_mb_sums_nested_files(tmp_path):
     (tmp_path / "a.bin").write_bytes(b"x" * 1024)

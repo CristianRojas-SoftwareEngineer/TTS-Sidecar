@@ -56,6 +56,23 @@ def test_uninstall_trims_path_entry(iss):
     assert "RegWriteExpandStringValue(HKCU, 'Environment', 'Path', OrigPath);" in iss
 
 
+def test_uninstall_path_trim_logic_is_anchored(iss):
+    """S1-24: ancla línea a línea la lógica Pascal de recorte del PATH (lo más
+    cercano a un test unitario sin ejecutar Pascal): guard del paso de
+    desinstalación, búsqueda envuelta en ';' case-insensitive, no-op sin match
+    y las dos ramas de recorte (entrada al inicio vs. en medio/al final)."""
+    assert "if CurUninstallStep <> usUninstall then" in iss
+    assert (
+        "P := Pos(';' + Uppercase(AppDir) + ';', ';' + Uppercase(OrigPath) + ';');"
+        in iss
+    )
+    assert "if P = 0 then" in iss
+    # Rama inicio: recorta 'AppDir;' desde el comienzo (sin separador previo).
+    assert "Delete(OrigPath, 1, Length(AppDir) + 1)" in iss
+    # Rama medio/fin: recorta ';AppDir' incluyendo su separador previo.
+    assert "Delete(OrigPath, P - 1, Length(AppDir) + 1);" in iss
+
+
 def test_installer_is_per_user_no_admin(iss):
     # Instalación per-user: sin UAC (lowest) y bajo el perfil del usuario,
     # patrón {localappdata}\Programs convencional (p.ej. VS Code).
