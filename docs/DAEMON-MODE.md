@@ -183,6 +183,23 @@ tts-sidecar speak --text "Hola" --no-daemon
 > **reclama** en el siguiente `daemon start` al validar con psutil que su PID ya
 > no corresponde a un daemon vivo. Sin pidfile, `daemon stop` cae al escaneo de
 > procesos por cmdline (comportamiento previo, conservado como respaldo).
+>
+> La ruta depende del SO (es `data_root()` + `daemon.pid`, **no** del
+> directorio de instalación, así que es escribible aunque el binario esté en
+> `Program Files`, `Applications` o `site-packages`). El padre (`start`) y el
+> hijo (`serve`) resuelven la misma ruta porque el hijo hereda las variables de
+> entorno del padre:
+>
+> | Target de build | SO        | Ruta de `daemon.pid` |
+> | --------------- | --------- | -------------------- |
+> | `build-windows-x64` | Windows     | `%LOCALAPPDATA%\tts-sidecar\daemon.pid` (p. ej. `C:\Users\<user>\AppData\Local\tts-sidecar\daemon.pid`) |
+> | `build-linux-x64`   | Linux x64   | `$XDG_DATA_HOME/tts-sidecar/daemon.pid` o `~/.local/share/tts-sidecar/daemon.pid` |
+> | `build-linux-arm64` | Linux arm64 | `$XDG_DATA_HOME/tts-sidecar/daemon.pid` o `~/.local/share/tts-sidecar/daemon.pid` |
+> | `build-darwin-arm64`| macOS arm64 | `~/Library/Application Support/tts-sidecar/daemon.pid` |
+>
+> La arquitectura no cambia la plantilla de ruta (los dos targets Linux la
+> comparten), y los tres modos de ejecución (fuente, pip-install, congelado)
+> resuelven la misma ruta porque `data_root()` no depende de `__file__`.
 
 > **Indicador de progreso durante `speak`**: aunque la síntesis ocurre en el
 > proceso del daemon, su progreso **real** viaja al cliente por el stream NDJSON
