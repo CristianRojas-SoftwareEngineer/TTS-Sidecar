@@ -160,15 +160,29 @@ tts-sidecar speak --text "Hola" --no-daemon
 > según el hardware. `daemon start` bloquea internamente hasta confirmar
 > «Daemon listo» (o el timeout de 120 s) antes de devolver el control, así que
 > un script que lo invoca y espera esa confirmación no necesita hacer nada
-> especial. Durante esa ventana, `daemon stop` **detecta el arranque en curso**
-> (escaneo de procesos por cmdline, sin PID file): avisa por stderr que «el
-> daemon está arrancando y aún no acepta conexiones», **no mata el proceso** y
-> termina con exit **5**, para que un orquestador distinga «arrancando» de
-> «detenido» sin parsear texto — reintenta `daemon stop` cuando la carga
-> termine. `daemon status`, en cambio, sigue reportando «no está corriendo»
-> durante la ventana (su fuente es el health check): un orquestador que lance
-> `daemon start` en background debe esperar su confirmación (o sondear
+> especial. Durante esa ventana, `daemon stop` **detecta el arranque en curso**:
+> avisa por stderr que «el daemon está arrancando y aún no acepta conexiones»,
+> **no mata el proceso** y termina con exit **5**, para que un orquestador
+> distinga «arrancando» de «detenido» sin parsear texto — reintenta `daemon stop`
+> cuando la carga termine. `daemon status`, en cambio, sigue reportando «no está
+> corriendo» durante la ventana (su fuente es el health check): un orquestador
+> que lance `daemon start` en background debe esperar su confirmación (o sondear
 > `/health`) antes de asumir que el daemon está listo.
+
+> **PID/lock file del daemon (`<user-data-dir>/daemon.pid`)**: `daemon start`
+> crea este archivo de forma **atómica** (`os.open` con `O_CREAT|O_EXCL`) antes
+> de lanzar el subproceso, de modo que dos `daemon start` concurrentes no pueden
+> arrancar dos daemons —el segundo ve el lock vigente y no lanza nada— y persiste
+> el PID del daemon una vez lanzado. Ese PID es la **fuente autoritativa** para
+> `daemon stop` en la ventana de arranque: si registra un proceso vivo del
+> daemon, es un arranque en curso (aviso + exit 5, como arriba); si el PID ya
+> está muerto (un zombie que dejó el archivo tras un cierre abrupto), `daemon
+> stop` **limpia el pidfile** y reporta «no está corriendo» en vez de quedar
+> atascado en un exit 5 perpetuo. El daemon borra su propio pidfile al cerrar
+> (graceful o por señal); un lock obsoleto que sobreviva a un `SIGKILL` se
+> **reclama** en el siguiente `daemon start` al validar con psutil que su PID ya
+> no corresponde a un daemon vivo. Sin pidfile, `daemon stop` cae al escaneo de
+> procesos por cmdline (comportamiento previo, conservado como respaldo).
 
 > **Indicador de progreso durante `speak`**: aunque la síntesis ocurre en el
 > proceso del daemon, su progreso **real** viaja al cliente por el stream NDJSON
