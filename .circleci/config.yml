@@ -20,6 +20,13 @@ parameters:
     type: string
     default: "9.1.1"
     description: Versión de pytest instalada en los jobs de test.
+  pyenv_version:
+    type: string
+    default: "v2.5.3"
+    description: >
+      Versión fija de pyenv (tag git) instalada en los jobs macOS. Se clona
+      desde el tag en ~/.pyenv en vez de vía Homebrew, para un pin
+      determinista e independiente de la imagen de CI (S0-03).
 
 commands:
   smoke_test_frozen_bundle:
@@ -243,18 +250,18 @@ jobs:
           # output escaso (~10 min) en el primer miss; con cache restaurado,
           # `pyenv install -s` salta la compilación en segundos. La clave del
           # cache incluye la versión de Xcode: el CPython compilado depende del
-          # SDK del runner. `brew upgrade pyenv` es obligatorio antes de fijar
-          # un patch exacto: el pyenv preinstalado en la imagen puede no traer
-          # localmente la definición del patch más reciente (python-build es
-          # un snapshot vendido con el formula de Homebrew, no se actualiza solo).
-          # Excepción consciente de pin (R-14): Homebrew no soporta fijar una
-          # versión de pyenv, y la versión de pyenv no altera el artefacto —
-          # el CPython resultante ya está pineado (<< pipeline.parameters.python_version >>).
+          # SDK del runner. pyenv se instala desde un TAG GIT FIJO
+          # (<< pipeline.parameters.pyenv_version >>) clonado en ~/.pyenv, en
+          # vez de vía Homebrew: pin determinista e independiente de la imagen
+          # (S0-03). La caché ~/.pyenv/versions se conserva entre runs (solo se
+          # re-clona la herramienta pyenv, no los CPython instalados). El
+          # CPython resultante ya está pineado (<< pipeline.parameters.python_version >>),
+          # así que el artefacto es reproducible con independencia de la versión de pyenv.
           name: Set up Python 3.13 via pyenv (pinned << pipeline.parameters.python_version >>)
           no_output_timeout: 20m
           command: |
             echo "[STEP] Set up Python 3.13 via pyenv (pinned << pipeline.parameters.python_version >>) - INICIO"
-            brew update && brew upgrade pyenv
+            git clone https://github.com/pyenv/pyenv.git "$HOME/.pyenv" && cd "$HOME/.pyenv" && git checkout << pipeline.parameters.pyenv_version >> && export PYENV_ROOT="$HOME/.pyenv" && export PATH="$PYENV_ROOT/bin:$PATH"
             pyenv install -s << pipeline.parameters.python_version >>
             pyenv global << pipeline.parameters.python_version >>
             pyenv rehash
@@ -755,19 +762,18 @@ jobs:
           # compila CPython desde fuente con output escaso (~10 min) en el
           # primer miss; con cache restaurado, `pyenv install -s` salta la
           # compilación. La clave del cache incluye la versión de Xcode: el
-          # CPython compilado depende del SDK del runner. `brew upgrade pyenv`
-          # es obligatorio antes de fijar un patch exacto: el pyenv preinstalado
-          # en la imagen puede no traer localmente la definición del patch más
-          # reciente (python-build es un snapshot vendido con el formula de
-          # Homebrew, no se actualiza solo). Excepción consciente de pin (R-14):
-          # Homebrew no soporta fijar una versión de pyenv, y la versión de
-          # pyenv no altera el artefacto — el CPython resultante ya está
-          # pineado (<< pipeline.parameters.python_version >>).
+          # CPython compilado depende del SDK del runner. pyenv se instala
+          # desde un TAG GIT FIJO (<< pipeline.parameters.pyenv_version >>)
+          # clonado en ~/.pyenv, en vez de vía Homebrew: pin determinista e
+          # independiente de la imagen (S0-03). La caché ~/.pyenv/versions se
+          # conserva entre runs. El CPython resultante ya está pineado
+          # (<< pipeline.parameters.python_version >>), así que el artefacto
+          # es reproducible con independencia de la versión de pyenv.
           name: Set up Python 3.13 via pyenv (pinned << pipeline.parameters.python_version >>)
           no_output_timeout: 20m
           command: |
             echo "[STEP] Set up Python 3.13 via pyenv (pinned << pipeline.parameters.python_version >>) - INICIO"
-            brew update && brew upgrade pyenv
+            git clone https://github.com/pyenv/pyenv.git "$HOME/.pyenv" && cd "$HOME/.pyenv" && git checkout << pipeline.parameters.pyenv_version >> && export PYENV_ROOT="$HOME/.pyenv" && export PATH="$PYENV_ROOT/bin:$PATH"
             pyenv install -s << pipeline.parameters.python_version >>
             pyenv global << pipeline.parameters.python_version >>
             pyenv rehash
