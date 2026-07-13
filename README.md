@@ -105,7 +105,7 @@ Descarga el ejecutable para tu plataforma desde [Releases](https://github.com/Cr
 # ofrece una casilla para descargarlo (ejecuta 'tts-sidecar setup') al terminar.
 
 # Linux: descarga el AppImage de tu arquitectura, hazlo ejecutable y provisiona
-chmod +x tts-sidecar-<versión>-x86_64.AppImage    # o -aarch64.AppImage en ARM64
+chmod +x tts-sidecar-<versión>-x86_64.AppImage    # o -arm64.AppImage en ARM64
 ./tts-sidecar-<versión>-x86_64.AppImage setup
 # → setup también crea el symlink ~/.local/bin/tts-sidecar para invocarlo por nombre
 

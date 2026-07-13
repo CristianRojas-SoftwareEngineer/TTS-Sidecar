@@ -94,7 +94,7 @@ Una vez pushado el tag, el pipeline ejecuta sin intervención:
 2. **`publish-release`** (tras los 4 builds):
    - Recolecta los 4 artefactos del workspace (`attach_workspace`) — ya con su
      nombre de release: `tts-sidecar-X.Y.Z-x86_64-setup.exe`,
-     `tts-sidecar-X.Y.Z-x86_64.AppImage`, `tts-sidecar-X.Y.Z-aarch64.AppImage`,
+     `tts-sidecar-X.Y.Z-x86_64.AppImage`, `tts-sidecar-X.Y.Z-arm64.AppImage`,
      `tts-sidecar-X.Y.Z-arm64.dmg`.
    - Genera `SHA256SUMS.txt` con los checksums de los 4.
    - Extrae las notas de la sección `[X.Y.Z]` de `CHANGELOG.md`.

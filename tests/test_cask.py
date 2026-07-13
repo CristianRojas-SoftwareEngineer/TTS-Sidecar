@@ -23,7 +23,7 @@ DMG_SHA = _sha("dmg")
 SAMPLE_SUMS = f"""\
 {_sha("exe")}  tts-sidecar-1.2.3-x86_64-setup.exe
 {_sha("appimage-x86_64")}  tts-sidecar-1.2.3-x86_64.AppImage
-{_sha("appimage-aarch64")}  tts-sidecar-1.2.3-aarch64.AppImage
+{_sha("appimage-arm64")}  tts-sidecar-1.2.3-arm64.AppImage
 {DMG_SHA}  tts-sidecar-1.2.3-arm64.dmg
 """
 

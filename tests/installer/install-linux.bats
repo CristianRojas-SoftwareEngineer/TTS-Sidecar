@@ -41,7 +41,7 @@ EOF
 }
 
 # Instala un mock de `curl` que sirve un release con un único asset .AppImage
-# por arquitectura ($1 = "x86_64" o "aarch64") + SHA256SUMS.txt calculado
+# por arquitectura ($1 = "x86_64" o "arm64") + SHA256SUMS.txt calculado
 # sobre FAKE_APPIMAGE_CONTENT. $2 opcional: si es "corrupt", el checksum
 # publicado no coincide con el contenido real (para el caso de aborto).
 mock_curl() {
@@ -96,15 +96,15 @@ EOF
     [ -f "$HOME/.local/opt/tts-sidecar/tts-sidecar-1.0.0-x86_64.AppImage" ]
 }
 
-@test "selecciona el asset aarch64 cuando uname -m devuelve aarch64" {
+@test "selecciona el asset arm64 cuando uname -m devuelve aarch64" {
     mock_uname aarch64
-    mock_curl aarch64
+    mock_curl arm64
 
     run sh "$INSTALL_SH"
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"tts-sidecar-1.0.0-aarch64.AppImage"* ]]
-    [ -f "$HOME/.local/opt/tts-sidecar/tts-sidecar-1.0.0-aarch64.AppImage" ]
+    [[ "$output" == *"tts-sidecar-1.0.0-arm64.AppImage"* ]]
+    [ -f "$HOME/.local/opt/tts-sidecar/tts-sidecar-1.0.0-arm64.AppImage" ]
 }
 
 # Instala un mock de `ldd` cuyo `--version` reporta la glibc $1.

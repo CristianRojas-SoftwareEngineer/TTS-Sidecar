@@ -24,9 +24,13 @@ from build_utils import (
     BUILD_SUBPROCESS_TIMEOUT, PYINSTALLER_TIMEOUT,
 )
 
-# Mapea la arquitectura del CLI (--arch) al vocabulario `uname -m` que usan
-# los assets del tooling y el nombre del artefacto final.
-ARCH_MAP = {"x86_64": "x86_64", "arm64": "aarch64"}
+# Mapea la arquitectura del CLI (--arch) a la clave del tooling de upstream de
+# AppImage. AppImage impone el nombre "aarch64" para sus assets
+# (appimagetool-aarch64.AppImage / runtime-aarch64), por lo que aquí se conserva
+# "aarch64" como clave de APPIMAGE_TOOLING. Solo resuelve el tooling pineado:
+# el nombre del artefacto propio usa target_arch directamente (arm64/x86_64,
+# unificado con el flag --arch y con macOS/Windows). Ver docs/BUILD.md §2.
+APPIMAGE_TOOLING_ARCH = {"x86_64": "x86_64", "arm64": "aarch64"}
 
 
 def provision_appimage_tooling(appimage_arch):
@@ -121,14 +125,14 @@ def check_dependencies(target_arch="x86_64"):
         # appimagetool + runtime estático empaquetan el AppImage a partir del
         # bundle onedir; es tooling del empaquetador (opcional): sin él el
         # onedir sigue siendo usable y el stage AppImage degrada con warning.
-        if provision_appimage_tooling(ARCH_MAP.get(target_arch, "x86_64")) is None:
+        if provision_appimage_tooling(APPIMAGE_TOOLING_ARCH.get(target_arch, "x86_64")) is None:
             log("WARNING: el stage AppImage se omitirá si el tooling sigue sin estar disponible")
 
 
 def build_linux(target_arch="x86_64"):
     """Build Linux with PyInstaller --onedir and package as AppImage."""
-    arch_suffix = ARCH_MAP.get(target_arch, "x86_64")
-    appimage_arch = arch_suffix  # mismo mapeo; alias para mayor claridad en la sección AppImage
+    arch_suffix = target_arch  # sufijo de artefacto propio: arm64/x86_64 (unificado con --arch)
+    appimage_arch = APPIMAGE_TOOLING_ARCH.get(target_arch, "x86_64")  # clave de tooling de upstream (conserva aarch64)
 
     with BuildTimer():
         with StageTimer("Setup", "Preparando entorno de build"):
@@ -210,7 +214,7 @@ def build_linux(target_arch="x86_64"):
             # appimagetool escribe la ruta de salida directamente; el propio
             # appimagetool es un AppImage, así que --appimage-extract-and-run
             # evita requerir FUSE también en los executors del CI.
-            generated = DIST_DIR / f"tts-sidecar-{version}-{appimage_arch}.AppImage"
+            generated = DIST_DIR / f"tts-sidecar-{version}-{arch_suffix}.AppImage"
             env = os.environ.copy()
             env["ARCH"] = appimage_arch
             # Consola heredada (sin capture_output): el output de appimagetool es

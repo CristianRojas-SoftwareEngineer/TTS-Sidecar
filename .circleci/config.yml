@@ -729,7 +729,7 @@ jobs:
           command: |
             echo "[STEP] Stage versioned Linux ARM64 AppImage into workspace dir - INICIO"
             mkdir -p artifacts
-            cp dist/tts-sidecar-*-aarch64.AppImage artifacts/
+            cp dist/tts-sidecar-*-arm64.AppImage artifacts/
             echo "[STEP] Stage versioned Linux ARM64 AppImage into workspace dir - FIN"
       - run:
           # N-04: SHA-256 del artefacto ya staged en artifacts/, en el log del CI;
@@ -737,12 +737,12 @@ jobs:
           name: Emit SHA-256 of staged Linux ARM64 AppImage
           command: |
             echo "[STEP] Emit SHA-256 of staged Linux ARM64 AppImage - INICIO"
-            sha256sum artifacts/tts-sidecar-*-aarch64.AppImage
+            sha256sum artifacts/tts-sidecar-*-arm64.AppImage
             echo "[STEP] Emit SHA-256 of staged Linux ARM64 AppImage - FIN"
       - persist_to_workspace:
           root: artifacts
           paths:
-            - tts-sidecar-*-aarch64.AppImage
+            - tts-sidecar-*-arm64.AppImage
 
   build-darwin-arm64:
     macos:

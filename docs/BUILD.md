@@ -49,7 +49,7 @@ primer arranque del AppImage en cualquier distro.
 |------------|---------|-----------|
 | Windows x64 | `python scripts/build_windows.py --arch x86_64` | `dist/tts-sidecar-0.1.0-x86_64-setup.exe` (instalador) |
 | Linux x64 | `python scripts/build_linux.py --arch x86_64` | `dist/tts-sidecar-0.1.0-x86_64.AppImage` |
-| Linux ARM64 | `python scripts/build_linux.py --arch arm64` | `dist/tts-sidecar-0.1.0-aarch64.AppImage` |
+| Linux ARM64 | `python scripts/build_linux.py --arch arm64` | `dist/tts-sidecar-0.1.0-arm64.AppImage` |
 | macOS arm64 (Apple Silicon) | `python scripts/build_macos.py --arch arm64` | `dist/tts-sidecar-0.1.0-arm64.dmg` |
 
 > **Por qué Linux publica 2 arquitecturas y Windows/macOS solo 1.** Cada
@@ -62,7 +62,7 @@ primer arranque del AppImage en cualquier distro.
 > - **macOS → 1 (arm64)** por **imposibilidad técnica**: torch≥2.3 no publica
 >   wheels macOS x86_64, por lo que no es posible construir un binario Intel con
 >   el toolchain actual. El artefacto se nombra por su arquitectura real (arm64).
-> - **Linux → 2 (x86_64 + aarch64)** porque **ambas** arquitecturas cumplen las
+> - **Linux → 2 (x86_64 + arm64)** porque **ambas** arquitecturas cumplen las
 >   dos condiciones (usuarios reales y wheels disponibles).
 >
 > Los campos `os`/`cpu` de `package.json` no expresan la matriz por SO (el esquema
@@ -77,8 +77,27 @@ toolchain (torch, onnxruntime); ver el callout anterior.
 | SO | x86_64 | arm64 | Artefacto |
 |----|:---:|:---:|----------|
 | Windows | ✅ | ❌ | `*.exe` Inno (x64) |
-| Linux | ✅ | ✅ | AppImage x64 + AppImage aarch64 |
+| Linux | ✅ | ✅ | AppImage x64 + AppImage arm64 |
 | macOS | ❌ | ✅ | `.dmg` arm64 (Apple Silicon) |
+
+> **Convención de nombres de arquitectura (unificada).** Los artefactos
+> propios del proyecto usan el esquema `arm64`/`x86_64` en los tres SO, alineado
+> con el flag `--arch` de los scripts de build (ya unificado a `arm64`/`x86_64`)
+> y con la nomenclatura de macOS/Windows. El AppImage de Linux de ARM, que antes
+> se publicaba como `*-aarch64.AppImage`, pasó a `*-arm64.AppImage` (resuelto en
+> S0-04) para eliminar la única divergencia internamente controlable.
+>
+> **Divergencia `aarch64` deliberadamente fuera de alcance (no es una brecha).**
+> Tres cadenas `aarch64` se conservan por ser contratos externos o canónicos, no
+> convenciones de naming del proyecto:
+> - **URLs del tooling de AppImage** en `scripts/build_utils.py` (`appimagetool-aarch64.AppImage`,
+>   `runtime-aarch64`): AppImage impone esos nombres para sus assets de upstream; el
+>   mapeo vive en `APPIMAGE_TOOLING_ARCH` (`scripts/build_linux.py`) y solo resuelve el tooling.
+> - **Tag de plataforma pip PEP 600** `aarch64` en `requirements-lock.txt` (p. ej.
+>   `platform_machine == 'aarch64'`): canónico; pip/uv lo esperan así en Linux ARM.
+> - **Salida nativa de `uname -m`** en runtime (`src/tts_sidecar/cli.py`,
+>   `install-linux.sh`): es lo que devuelve Linux ARM y no debe cambiarse; el instalador
+>   lo traduce a `arm64` (sufijo de asset) conservando la rama `aarch64|arm64)`.
 
 **Arquitecturas faltantes y su justificación:**
 
@@ -330,7 +349,7 @@ Los tests (3) y los builds (4) no están desalineados: responden a **ejes distin
   validan la lógica Python (independiente de la arquitectura) más el código específico
   de cada SO (Windows: pycaw/COM, winsound, generación del `.iss`; macOS:
   afplay/sounddevice, rutas y señales POSIX; Linux: ALSA). Los builds son **por target
-  de distribución**, y Linux publica **dos** arquitecturas (x86_64 + aarch64). No es
+  de distribución**, y Linux publica **dos** arquitecturas (x86_64 + arm64). No es
   una asimetría arbitraria: son dos ejes ortogonales (SO × build-target).
 
 - **Por qué el runner de `test-linux` es x86_64.** Es el executor Docker más barato,
@@ -530,7 +549,7 @@ artefactos versionados:
 dist/
 ├── tts-sidecar-0.1.0-x86_64-setup.exe   # Windows (instalador Inno Setup)
 ├── tts-sidecar-0.1.0-x86_64.AppImage    # Linux x64
-├── tts-sidecar-0.1.0-aarch64.AppImage   # Linux ARM64
+├── tts-sidecar-0.1.0-arm64.AppImage   # Linux ARM64
 └── tts-sidecar-0.1.0-arm64.dmg          # macOS (Apple Silicon)
 ```
 

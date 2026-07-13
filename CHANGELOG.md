@@ -403,7 +403,7 @@ estado con el que nace el producto.
   (`--model`/`--voices`/`--all`/`--dry-run`, confirmación interactiva, `--yes`
   y EOF tratado como cancelación limpia para uso programático).
 - **Distribución por SO**: instalador de Windows (Inno Setup, PATH + casilla de
-  `setup`), AppImages de Linux x86_64/aarch64 (runtime estático, sin `libfuse2`;
+  `setup`), AppImages de Linux x86_64/arm64 (runtime estático, sin `libfuse2`;
   requiere glibc ≥ 2.35, documentado con troubleshooting) y `.dmg` de macOS
   arm64 con scripts de instalación/desinstalación y `LSMinimumSystemVersion`
   derivada dinámicamente del toolchain.

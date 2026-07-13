@@ -53,7 +53,7 @@ Conteo por severidad: **0 S4, 2 S3, 18 S2, 18 S1, 5 S0** (43 hallazgos consolida
 | S0-01 | `bundle_size_mb()` no referenciada externamente | S0 — Informativo | P3 | build / Calidad | No | Resuelto |
 | S0-02 | Estrategia de lockfile CPU-only de Linux no documentada | S0 — Informativo | P3 | build / Dependencias | No | Resuelto |
 | S0-03 | `pyenv` sin pin de versión (decisión consciente) | S0 — Informativo | P3 | CI / DevOps | No | Resuelto |
-| S0-04 | Naming inconsistente de arquitectura en artefactos (aarch64/arm64/x86_64) | S0 — Informativo | P3 | build / Mantenibilidad | No | Pendiente |
+| S0-04 | Naming inconsistente de arquitectura en artefactos (aarch64/arm64/x86_64) | S0 — Informativo | P3 | build / Mantenibilidad | No | Resuelto |
 | S0-05 | TOCTOU en validación de audio del daemon — verificado ya mitigado | S0 — Informativo | P3 | daemon / Seguridad | No | Resuelto |
 
 ## Hallazgos por severidad
@@ -724,15 +724,16 @@ Nota: el conteo de tests **no** es una discrepancia. `pytest --collect-only` rec
 
 #### S0-04 — Naming inconsistente de arquitectura en artefactos
 - **Categoría**: Mantenibilidad
-- **Área/plataforma**: `scripts/build_linux.py:231` (`aarch64`), `.circleci/config.yml:373` (`x86_64`), macOS usa `arm64`
-- **Evidencia**: Linux usa `aarch64` (estilo `uname -m`), Windows `x86_64`, macOS `arm64`.
-- **Confianza**: Media
-- **Impacto**: Confusión cosmética para el usuario final.
-- **Corrección**: Documentar la convención por SO; no unificar forzosamente.
-- **Decisión requerida**: No (no-acción salvo documentación). El framing es **documentar-vs-unificar**:
-  - **Documentar la convención por SO (recomendada)**: dejar cada naming como está y explicar en `docs/` que cada SO sigue su convención nativa (`uname -m` en Linux, el estilo de cada instalador en Windows/macOS). *Pro*: respeta las expectativas de cada plataforma (un usuario Linux espera `aarch64`, uno macOS `arm64`); cero riesgo de romper nombres de artefacto que scripts/instaladores externos ya consumen. *Contra*: el naming sigue siendo heterogéneo entre artefactos.
-  - **Unificar a un esquema único** (p. ej. todos `arm64`/`x86_64`): *Pro*: consistencia visual entre artefactos. *Contra*: rompe la convención nativa de cada SO y potencialmente enlaces/scripts que ya dependen del nombre actual (`aarch64` en las AppImage de Linux); cambio con riesgo desproporcionado para un problema cosmético. **No recomendada.**
-  - **Trampa del parche barato**: renombrar artefactos "para que se vean iguales" sin auditar quién consume esos nombres (installers one-liner, cask, release assets) → enlaces rotos.
+- **Área/plataforma**: `scripts/build_linux.py` (sufijo del AppImage), `install-linux.sh`, `.circleci/config.yml`, tests, docs.
+- **Evidencia original**: Linux publicaba el AppImage de ARM como `*-aarch64.AppImage` (estilo `uname -m`), mientras macOS/Windows ya usaban `arm64`/`x86_64` y el flag `--arch` de los tres scripts de build ya estaba unificado a `arm64`/`x86_64`. Era la única divergencia de *naming de artefacto propio* internamente controlable.
+- **Confianza**: Alta (verificado por lectura de código: `ARCH_MAP` en `build_linux.py` era el único acoplamiento; macOS/Windows ya unificados).
+- **Impacto**: Confusión cosmética para el usuario final / mantenedores.
+- **Estado**: **Resuelto (2026-07-13).** Se homogenizó el sufijo del AppImage de Linux de `aarch64` a `arm64`, desacoplando el mapeo de tooling de upstream (que conserva `aarch64`, nombre impuesto por AppImage) del nombre de artefacto propio. Se actualizaron en lockstep las consumidoras internas: `scripts/build_linux.py` (Tarea 1), `install-linux.sh` (Tarea 2), `.circleci/config.yml` (Tarea 3), `tests/installer/install-linux.bats` + `tests/test_cask.py` (Tarea 4) y la documentación de referencia + callout de divergencia en `docs/BUILD.md` (Tarea 5). El renombrado sale en un único release con todas sus consumidoras ya apuntando al nuevo nombre, de modo que no quedan enlaces rotos.
+- **Alcance de la homogenización (lo que se dejó deliberadamente sin unificar):** tres cadenas `aarch64` son contratos externos o canónicos, no convenciones de naming del proyecto, y se conservan documentadas en `docs/BUILD.md` §2:
+  - **URLs del tooling de AppImage** en `scripts/build_utils.py` (`appimagetool-aarch64.AppImage`, `runtime-aarch64`): AppImage impone esos nombres para sus assets de upstream. El mapeo vive en `APPIMAGE_TOOLING_ARCH` (`scripts/build_linux.py`) y solo resuelve el tooling pineado; no nombra el artefacto.
+  - **Tag de plataforma pip PEP 600** `aarch64` en `requirements-lock.txt` (p. ej. `platform_machine == 'aarch64'`): canónico; pip/uv lo esperan así en Linux ARM.
+  - **Salida nativa de `uname -m`** en runtime (`src/tts_sidecar/cli.py`, `install-linux.sh`): es lo que devuelve Linux ARM y no debe cambiarse; el instalador lo traduce a `arm64` (sufijo de asset) conservando la rama `aarch64|arm64`.
+- **Decisión requerida**: No. La divergencia restante es documentada y justificada, no una brecha; una futura auditoría la lee como decisión consciente (ver callout en `docs/BUILD.md` §2).
 - **Prioridad**: P3
 
 #### S0-05 — TOCTOU en validación de audio del daemon — verificado ya mitigado

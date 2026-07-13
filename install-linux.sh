@@ -41,17 +41,17 @@ require_cmd mkdir
 
 # --- Selección de arquitectura -------------------------------------------
 # Mapea uname -m al sufijo de arquitectura de los assets del release
-# (build-linux-x64 → *-x86_64.AppImage, build-linux-arm64 → *-aarch64.AppImage).
+# (build-linux-x64 → *-x86_64.AppImage, build-linux-arm64 → *-arm64.AppImage).
 machine="$(uname -m)"
 case "$machine" in
     x86_64|amd64)
         ASSET_ARCH="x86_64"
         ;;
     aarch64|arm64)
-        ASSET_ARCH="aarch64"
+        ASSET_ARCH="arm64"
         ;;
     *)
-        fail "arquitectura no soportada: $machine (tts-sidecar publica x86_64 y aarch64 para Linux)"
+        fail "arquitectura no soportada: $machine (tts-sidecar publica x86_64 y arm64 para Linux)"
         ;;
 esac
 log "Arquitectura detectada: $machine -> $ASSET_ARCH"
