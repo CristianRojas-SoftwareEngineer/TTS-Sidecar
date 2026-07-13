@@ -15,7 +15,7 @@ Conteo por severidad: **0 S4, 2 S3, 18 S2, 18 S1, 5 S0** (43 hallazgos consolida
 | S3-01 | Funcionalidad central del engine sin tests (gestión de voces, carga de modelo, conditionals) | S3 — Alto | P1 | engine / Testing | No | Resuelto |
 | S3-02 | Límite de seguridad del sandbox del daemon sin tests directos | S3 — Alto | P1 | daemon / Testing-Security | No | Resuelto |
 | S2-01 | Acoplamiento del servidor al engine vía globals, sin DI | S2 — Medio | P2 | daemon / Arquitectura | Sí | Resuelto |
-| S2-02 | Excepciones silenciadas sin logging en rutas críticas | S2 — Medio | P1 | engine/audio/timing/daemon / Fiabilidad | Sí | Pendiente |
+| S2-02 | Excepciones silenciadas sin logging en rutas críticas | S2 — Medio | P1 | engine/audio/timing/daemon / Fiabilidad | Sí | Resuelto |
 | S2-03 | Modelo no liberado en shutdown del daemon | S2 — Medio | P2 | daemon / Fiabilidad | No | Resuelto |
 | S2-04 | Worker del daemon no cancelable al desconectar el cliente | S2 — Medio | P2 | daemon / Escalabilidad | Sí | Pendiente |
 | S2-05 | `ipc.py` no reutiliza los modelos de `protocol.py` | S2 — Medio | P2 | daemon / Calidad de código | Sí | Pendiente |
@@ -134,6 +134,12 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
     - *Trade-off*: balancea costo y robustez, pero requiere el criterio humano para clasificar cada sitio.
   - **Trampa del parche barato**: el reemplazo masivo de la opción A aplicado a todo, incluidos los sitios críticos. Añade ruido y "cierra" el hallazgo sin arreglar ni un solo swallow incorrecto.
   - **Qué se necesita del humano**: (1) la política de logging (nivel por defecto, si se incluye `exc_info`); (2) la lista de sitios donde el error debe **propagarse** en vez de registrarse-y-seguir.
+- **Remediación (Resuelto)** — decisión humana: **opción C (híbrido)**. Se adoptó como mecanismo sistémico el patrón ya presente en `daemon/server.py` desde S2-01: un `logger = logging.getLogger(__name__)` por módulo, con **política por defecto `logger.debug(..., exc_info=True)`** (nivel debug para no ensuciar la salida normal; `exc_info` siempre, para que la degradación sea diagnosticable). Clasificación aplicada:
+  - **Inocuos → logging debug con traza**: callbacks de progreso (`engine.py` `_emit_progress`, `_token_counting_iter`) y el shim de tqdm del T3 (`_install_token_progress_shim`); config de PyTorch (`_configure_torch_for_platform`: mkldnn/oneDNN, `set_flush_denormal`) y detección de compute backend (cuda/mps) en `engine.py`; enumeración de dispositivos de audio (`audio.py`, ramas pycaw y sounddevice); operaciones best-effort de gestión de procesos del daemon (`daemon.py`: `_get_pid_from_port`, `_find_starting_daemon`, `_is_own_daemon_process`, `_kill_pid`, `_pid_alive_daemon`) y el handler genérico de `serve()` (`run.py`, que ya emitía mensaje a stderr; ahora añade traza a debug).
+  - **Triage con tipado (propagar lo inesperado)**: el `except Exception: continue` por-proceso de `_find_starting_daemon` se estrechó a `except psutil.Error` — un proceso desaparecido/zombie/sin permiso es esperado y se salta; cualquier otro error burbujea al handler externo (que ahora sí lo registra).
+  - **Silencio deliberado (documentado, no tocado)**: los guardas del propio I/O de stderr en `timing.py` (`_stream_is_tty`, `_clear_line`) permanecen mudos con comentario explicativo — loguear ahí escribiría al mismo stream que acaba de fallar; y el `except Exception: … raise` de `daemon.py:111` (arranque del subproceso) ya **propaga**, así que no es un swallow. Los `except` ya tipados (`_pick_frames`, `except OSError` de pidfiles) se dejaron intactos.
+  - **Trampa evitada**: no se aplicó el reemplazo mecánico ciego de la opción A a los sitios críticos; cada sitio se clasificó, y algunos se dejaron deliberadamente silenciosos con justificación en vez de añadir ruido.
+  - **Tests**: `test_engine_progress.py::TestSilentExceptionLogging` (callbacks rotos: se tragan y registran debug con traza) y `test_audio.py` (el fallo de enumeración registra debug con traza además de degradar). Suite: **451 passed**.
 
 #### S2-03 — Modelo no liberado en shutdown del daemon
 - **Categoría**: Fiabilidad / Fuga de recursos

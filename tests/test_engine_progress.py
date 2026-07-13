@@ -136,6 +136,47 @@ class TestTokenCountingIter:
         assert eventos == []
 
 
+class TestSilentExceptionLogging:
+    """S2-02: los swallows inocuos dejan traza a nivel debug sin propagar.
+
+    Antes eran `except Exception: pass` mudos; ahora emiten `logger.debug(...,
+    exc_info=True)` para que la degradación sea diagnosticable, conservando la
+    supresión (un callback roto no aborta la síntesis).
+    """
+
+    def test_emit_progress_swallows_and_logs(self, tmp_path, caplog):
+        import logging
+
+        eng = _engine_stub(tmp_path)
+
+        def boom(ev):
+            raise RuntimeError("cb roto")
+
+        eng._active_progress_cb = boom
+        with caplog.at_level(logging.DEBUG, logger="tts_sidecar.engine"):
+            eng._emit_progress(stage="tts")  # no debe lanzar
+
+        matching = [r for r in caplog.records if "callback de progreso" in r.message.lower()]
+        assert matching, "el swallow debe registrar un debug"
+        assert any(r.exc_info for r in matching), "debe incluir la traza (exc_info)"
+
+    def test_token_counting_raising_cb_swallowed_and_logged(self, caplog):
+        import logging
+        from tts_sidecar.engine import ChatterboxEngine
+
+        def boom(ev):
+            raise RuntimeError("cb roto")
+
+        with caplog.at_level(logging.DEBUG, logger="tts_sidecar.engine"):
+            salida = list(ChatterboxEngine._token_counting_iter(range(100), boom))
+
+        # La iteración no se interrumpe pese al callback roto.
+        assert salida == list(range(100))
+        assert any(
+            "tokens" in r.message.lower() and r.exc_info for r in caplog.records
+        ), "el callback roto de tokens debe registrar un debug con traza"
+
+
 class TestTokenShimInstall:
     def test_shim_wraps_sampling_tqdm(self, monkeypatch):
         """Instalado el shim, un tqdm(desc='Sampling') con callback activo cuenta

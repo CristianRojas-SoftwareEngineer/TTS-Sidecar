@@ -26,6 +26,7 @@ import os
 # detached), así que no se pierde nada. setdefault respeta un valor externo previo.
 os.environ.setdefault("TQDM_DISABLE", "1")
 
+import logging
 import platform
 import threading
 import wave
@@ -48,6 +49,8 @@ from .model_cache import (
 from .timing import StageTimer, SynthesisMetrics, log
 from .model_loader import ModelLoader
 from .conditionals import ConditionalsPreparer
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Configuración de PyTorch según la plataforma para inferencia en CPU
@@ -80,7 +83,7 @@ def _configure_torch_for_platform():
         try:
             torch.backends.mkldnn.enabled = True
         except Exception:
-            pass
+            logger.debug("No se pudo habilitar oneDNN (mkldnn) en Linux", exc_info=True)
 
     elif system == "Darwin":
         # Mac: framework Accelerate (nativo)
@@ -93,13 +96,13 @@ def _configure_torch_for_platform():
         torch.backends.mkldnn.enabled = True
         torch.backends.mkldnn.verbose(0)
     except Exception:
-        pass  # MKL-DNN no disponible
+        logger.debug("MKL-DNN no disponible; se omite la optimización", exc_info=True)
 
     # Desactiva el flushing de denormales para cómputo más rápido en CPU modernas
     try:
         torch.set_flush_denormal(True)
     except Exception:
-        pass
+        logger.debug("torch.set_flush_denormal no disponible; se omite", exc_info=True)
 
     return optimal_threads
 
@@ -167,12 +170,12 @@ class ChatterboxEngine:
             if torch.cuda.is_available():
                 return "cuda"
         except Exception:
-            pass
+            logger.debug("La prueba de disponibilidad de CUDA falló; se descarta el backend", exc_info=True)
         try:
             if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 return "mps"
         except Exception:
-            pass
+            logger.debug("La prueba de disponibilidad de MPS falló; se descarta el backend", exc_info=True)
         return "cpu"
 
     @classmethod
@@ -270,7 +273,7 @@ class ChatterboxEngine:
         try:
             cb({"event": "progress", **fields})
         except Exception:
-            pass
+            logger.debug("El callback de progreso lanzó; se ignora (best-effort)", exc_info=True)
 
     def _apply_synthesis_optimizations(self):
         """
@@ -373,7 +376,7 @@ class ChatterboxEngine:
             _t3_mod.tqdm = progress_tqdm
         except Exception:
             # Layout inesperado: degradar a solo eventos de etapa.
-            pass
+            logger.debug("No se pudo instalar el shim de tqdm del T3; solo eventos de etapa", exc_info=True)
 
     @staticmethod
     def _token_counting_iter(iterable, cb):
@@ -395,7 +398,7 @@ class ChatterboxEngine:
                 try:
                     cb({"event": "progress", "stage": "t3", "tokens": count})
                 except Exception:
-                    pass
+                    logger.debug("El callback de progreso de tokens lanzó; se ignora (best-effort)", exc_info=True)
             yield item
 
     def _download_model(self, model_name: str, models_dir: Optional[str] = None) -> Path:

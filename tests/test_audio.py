@@ -69,11 +69,21 @@ class TestGetAudioDevicesWindows:
 
 class TestGetAudioDevicesLinuxMacOS:
     @patch("platform.system", return_value="Linux")
-    def test_non_import_error_failure_degrades_to_fallback(self, _system):
-        """Un PortAudioError en tiempo de enumeración no debe crashear 'devices'."""
+    def test_non_import_error_failure_degrades_to_fallback(self, _system, caplog):
+        """Un PortAudioError en tiempo de enumeración no debe crashear 'devices'.
+
+        S2-02: además de degradar, el fallo queda registrado a nivel debug con
+        traza, en vez de tragarse en silencio.
+        """
+        import logging
+
         sd_mock = MagicMock()
         sd_mock.query_devices.side_effect = OSError("PortAudio error")
         with patch.dict(sys.modules, {"sounddevice": sd_mock}):
-            devices, degraded = get_audio_devices_with_status()
+            with caplog.at_level(logging.DEBUG, logger="tts_sidecar.audio"):
+                devices, degraded = get_audio_devices_with_status()
         assert degraded is True
         assert devices == [{"id": 0, "name": "Default", "latency": 0.1}]
+        assert any(
+            "enumeración" in r.message.lower() and r.exc_info for r in caplog.records
+        ), "el fallo de enumeración debe registrar un debug con traza"

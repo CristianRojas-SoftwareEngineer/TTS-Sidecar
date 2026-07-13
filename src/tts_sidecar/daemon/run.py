@@ -11,6 +11,7 @@ bootstrap.apply()
 import argparse
 import atexit
 import errno
+import logging
 import os
 import signal
 import sys
@@ -22,6 +23,8 @@ from .server import app, DaemonState
 from .ipc import DEFAULT_PORT
 from ..cli import EXIT_ERROR
 from ..timing import StageTimer, log
+
+logger = logging.getLogger(__name__)
 
 
 # Código de salida dedicado cuando el bind del puerto falla por estar ya en
@@ -152,7 +155,10 @@ def serve(port: int = DEFAULT_PORT, auto_restart: bool = False, max_retries: int
         except KeyboardInterrupt:
             break
         except Exception as e:
+            # Mensaje legible por el usuario (stderr) + traza completa a debug
+            # para diagnóstico sin ensuciar la salida normal del daemon.
             log(f"Daemon: error: {e}")
+            logger.debug("Daemon: excepción no controlada en serve()", exc_info=True)
 
         if not auto_restart:
             break

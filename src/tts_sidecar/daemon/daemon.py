@@ -3,6 +3,7 @@ Gestor del ciclo de vida del daemon de tts-sidecar.
 Maneja los comandos start/stop/restart/status.
 """
 
+import logging
 import os
 import platform
 import signal
@@ -17,6 +18,8 @@ import requests
 
 from .. import paths
 from .ipc import DEFAULT_PORT
+
+logger = logging.getLogger(__name__)
 
 
 class DaemonManager:
@@ -266,7 +269,7 @@ class DaemonManager:
                 ):
                     return conn.pid
         except Exception:
-            pass
+            logger.debug("No se pudo detectar el daemon por puerto (psutil.net_connections)", exc_info=True)
         return None
 
     @staticmethod
@@ -288,12 +291,14 @@ class DaemonManager:
                     continue
                 try:
                     cmdline = " ".join(proc.cmdline())
-                except Exception:
+                except psutil.Error:
+                    # Proceso desaparecido/zombie/sin permiso: esperado en un
+                    # escaneo; un error inesperado burbujea al handler externo.
                     continue
                 if any(marker in cmdline for marker in markers):
                     return proc
         except Exception:
-            pass
+            logger.debug("Escaneo de daemon en arranque (psutil.process_iter) falló", exc_info=True)
         return None
 
     @staticmethod
@@ -306,6 +311,9 @@ class DaemonManager:
         try:
             cmdline = " ".join(proc.cmdline())
         except Exception:
+            # Fail-closed: si no se puede leer el cmdline, no se asume que sea
+            # nuestro daemon (evita terminar un proceso ajeno).
+            logger.debug("No se pudo leer el cmdline del proceso; se trata como ajeno", exc_info=True)
             return False
         markers = ("tts_sidecar.daemon", "tts-sidecar", "daemon serve")
         return any(marker in cmdline for marker in markers)
@@ -333,7 +341,7 @@ class DaemonManager:
             except psutil.TimeoutExpired:
                 proc.kill()
         except Exception:
-            pass
+            logger.debug("No se pudo terminar el proceso del daemon por PID", exc_info=True)
 
     # -- PID/lock file del daemon (serializa el arranque y persiste el PID) --
 
@@ -363,6 +371,7 @@ class DaemonManager:
 
             return DaemonManager._is_own_daemon_process(psutil.Process(pid))
         except Exception:
+            logger.debug("No se pudo verificar si el PID corresponde a un daemon vivo", exc_info=True)
             return False
 
     def _acquire_start_lock(self) -> bool:

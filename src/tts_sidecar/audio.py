@@ -6,6 +6,7 @@ Usa APIs nativas de cada SO para un rendimiento óptimo.
 import warnings
 warnings.filterwarnings("ignore", message="pkg_resources is deprecated")
 
+import logging
 import platform
 import sys
 import wave
@@ -13,6 +14,8 @@ import io
 from typing import Optional
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # Divisor de normalización PCM int16 -> float32 en [-1, 1). 2**15: el rango
 # entero de int16 es [-32768, 32767] (asimétrico); dividir por 32768.0 (no por
@@ -192,6 +195,7 @@ def get_audio_devices_with_status() -> tuple[list[dict], bool]:
         except Exception:
             # No solo ImportError: un fallo COM de pycaw (sesiones RDP, hosts
             # sin audio) también debe degradar al fallback, no crashear.
+            logger.debug("Enumeración de dispositivos de audio (pycaw) falló; se usa el fallback", exc_info=True)
             return [{"id": 0, "name": "Default", "latency": 0.1}], True
 
     elif system in ("Darwin", "Linux"):
@@ -208,6 +212,7 @@ def get_audio_devices_with_status() -> tuple[list[dict], bool]:
             # No solo ImportError: un fallo de PortAudio en tiempo de
             # enumeración (sin backend ALSA/CoreAudio, host sin audio) también
             # debe degradar al fallback, no crashear, igual que en Windows.
+            logger.debug("Enumeración de dispositivos de audio (sounddevice) falló; se usa el fallback", exc_info=True)
             return [{"id": 0, "name": "Default", "latency": 0.1}], True
 
     return [{"id": 0, "name": "Default", "latency": 0.1}], True
