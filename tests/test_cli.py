@@ -1984,6 +1984,46 @@ class TestBootstrap:
         assert os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] == "1"
         assert os.environ["TOKENIZERS_PARALLELISM"] == "false"
 
+    def test_apply_reconfigures_streams_to_utf8(self, monkeypatch):
+        """S2-14: la reconfiguración UTF-8 de stdout/stderr, antes en el nivel de
+        módulo de cli.py, es parte de la capa única bootstrap.apply(), de modo
+        que las tres vías de entrada (pip/bin/-m) y el daemon heredan el mismo
+        contrato de codificación."""
+        bootstrap = self._reset(monkeypatch)
+
+        class FakeStream:
+            def __init__(self):
+                self.encoding_set = None
+
+            def reconfigure(self, encoding=None, **kwargs):
+                self.encoding_set = encoding
+
+        out, err = FakeStream(), FakeStream()
+        monkeypatch.setattr(sys, "stdout", out)
+        monkeypatch.setattr(sys, "stderr", err)
+
+        bootstrap.apply()
+
+        assert out.encoding_set == "utf-8"
+        assert err.encoding_set == "utf-8"
+
+    def test_apply_survives_unreconfigurable_stream(self, monkeypatch):
+        """Un stream cuyo reconfigure lanza (ya leído/cerrado) no aborta el
+        arranque: apply() sigue fijando las env vars."""
+        bootstrap = self._reset(monkeypatch)
+        monkeypatch.delenv("TOKENIZERS_PARALLELISM", raising=False)
+
+        class HostileStream:
+            def reconfigure(self, encoding=None, **kwargs):
+                raise ValueError("no se puede cambiar el encoding")
+
+        monkeypatch.setattr(sys, "stdout", HostileStream())
+        monkeypatch.setattr(sys, "stderr", HostileStream())
+
+        bootstrap.apply()  # no debe propagar
+
+        assert os.environ["TOKENIZERS_PARALLELISM"] == "false"
+
     def test_installs_pkg_resources_mock_with_valid_spec_when_absent(self, monkeypatch):
         bootstrap = self._reset(monkeypatch)
         sys.modules.pop("pkg_resources", None)

@@ -21,15 +21,13 @@ Contrato de salida (estable entre SO y lenguajes):
 
 import sys
 
-# Fuerza salida UTF-8 antes de cualquier otra acción del proceso (incluido
-# bootstrap.apply), para una codificación consistente aunque falle algo temprano.
-for stream in (sys.stdout, sys.stderr):
-    reconfigure = getattr(stream, "reconfigure", None)
-    if reconfigure:
-        reconfigure(encoding="utf-8")
-
+# La capa única de bootstrap (UTF-8, warnings, env vars, mock de pkg_resources)
+# ya NO corre como efecto colateral de importar este módulo: la invoca main()
+# como su primera acción. Así importar `tts_sidecar.cli` deja de imponer que
+# todo import posterior ocurra tras un apply() implícito (S2-14). Los imports
+# de módulo de abajo son livianos (stdlib + timing) y no arrastran chatterbox;
+# las dependencias pesadas se importan de forma perezosa dentro de cada comando.
 from . import bootstrap
-bootstrap.apply()
 
 import argparse
 import os
@@ -1513,6 +1511,11 @@ def cmd_daemon(args):
 
 def main():
     """Punto de entrada principal de la CLI."""
+    # Capa única de bootstrap: primera acción del proceso en la vía pip
+    # (`tts_sidecar.cli:main`) y en la congelada (`bin/tts-sidecar` → main).
+    # Idempotente, así que una invocación previa de otro entry point es no-op.
+    bootstrap.apply()
+
     parser = argparse.ArgumentParser(
         prog="tts-sidecar",
         description="TTS Sidecar - TTS 100% local con clonación de voz"

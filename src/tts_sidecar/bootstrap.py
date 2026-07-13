@@ -52,11 +52,33 @@ def _install_pkg_resources_mock() -> None:
 
 
 def apply() -> None:
-    """Aplica el bootstrap pre-import. Idempotente: una segunda invocación es no-op."""
+    """Aplica el bootstrap pre-import. Idempotente: una segunda invocación es no-op.
+
+    Es la **capa única** de preparación del proceso: todas las vías de entrada
+    (entry point pip/uv `tts_sidecar.cli:main`, `bin/tts-sidecar`,
+    `python -m tts_sidecar`, `python -m tts_sidecar.daemon.run` y el subcomando
+    congelado `daemon serve`) la invocan explícitamente como su primera acción,
+    en vez de depender de un efecto colateral de importación de `cli.py`.
+    """
     global _applied
     if _applied:
         return
     _applied = True
+
+    # UTF-8 primero, antes de warnings/env/imports pesados: fuerza una
+    # codificación de salida consistente en toda plataforma aunque algo falle
+    # temprano. Antes vivía solo en cli.py; al formar parte de la capa única,
+    # el daemon y `python -m` heredan el mismo contrato de codificación.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure:
+            try:
+                reconfigure(encoding="utf-8")
+            except (ValueError, OSError):
+                # Un stream ya leído, cerrado o sin reconfiguración de encoding
+                # (algunos wrappers de captura/redirección) no debe abortar el
+                # arranque: se conserva la codificación por defecto.
+                pass
 
     warnings.filterwarnings("ignore")
     os.environ["PYTHONWARNINGS"] = "ignore"

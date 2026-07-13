@@ -6,22 +6,27 @@ Modo compilado (PyInstaller --onedir): los paquetes están embebidos por
 PyInstaller y sys.path lo gestiona el intérprete embebido automáticamente.
 Modo desarrollo: se añade el directorio src/ del proyecto a sys.path.
 
-El bootstrap pre-import (warnings, env vars, logging, mock de pkg_resources)
-corre dentro de tts_sidecar.cli al importarlo, no aquí: así se aplica también
-al entry point generado por pip/uv y a `python -m tts_sidecar`.
+El bootstrap pre-import (UTF-8, warnings, env vars, logging, mock de
+pkg_resources) es la capa única de `bootstrap.apply()`. Se invoca aquí de forma
+explícita —igual que en `python -m tts_sidecar` y en el daemon—, en vez de
+depender de un efecto colateral de importar `tts_sidecar.cli`.
 """
 
 import sys
 from pathlib import Path
 
-if getattr(sys, 'frozen', False):
-    pass
-else:
-    _script_dir = Path(__file__).parent.resolve()
-    _project_root = _script_dir.parent
-    _src_path = _project_root / "src"
-    if _src_path.exists():
+# Único ajuste de sys.path pre-import y exclusivo de este launcher: en modo
+# fuente el paquete vive en src/ y aún no es importable, así que hay que
+# insertarlo antes de poder importar nada de tts_sidecar. Es irreducible (no se
+# puede factorizar al paquete: alcanzarlo es justo lo que falta), por eso no
+# vive en bootstrap. En modo congelado se omite: PyInstaller ya gestiona el path.
+if not getattr(sys, 'frozen', False):
+    _src_path = Path(__file__).resolve().parent.parent / "src"
+    if _src_path.is_dir():
         sys.path.insert(0, str(_src_path))
+
+from tts_sidecar import bootstrap
+bootstrap.apply()
 
 from tts_sidecar.cli import main
 
