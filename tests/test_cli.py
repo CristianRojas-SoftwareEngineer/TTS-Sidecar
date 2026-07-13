@@ -519,8 +519,28 @@ class TestCmdDevicesError:
         assert "Error" in err
 
 
+# S1-12: en Windows, crear symlinks sin privilegios elevados exige Developer
+# Mode (SeCreateSymbolicLinkPrivilege) habilitado; en CI/runners sin esa
+# configuración, os.symlink levanta OSError (WinError 1314). En Linux/macOS
+# los symlinks de usuario funcionan sin configuración especial, así que el
+# skip real solo ocurre en Windows sin Developer Mode. La razón del skip es
+# explícita y accionable (a diferencia de un return silencioso) para que un
+# run local en un Windows sin Developer Mode explique por qué faltan estos
+# tests en vez de aparentar cobertura completa.
+_SYMLINK_SKIP_REASON = (
+    "el entorno no permite crear symlinks (en Windows: habilita Developer "
+    "Mode en Configuración > Privacidad y seguridad > Para programadores, o "
+    "corre con privilegios elevados)"
+)
+
+
 def _symlinks_supported(tmp_path) -> bool:
-    """En Windows crear symlinks exige Developer Mode o privilegios; se sondea."""
+    """Sondea si el proceso actual puede crear symlinks en `tmp_path`.
+
+    En Windows depende de Developer Mode o de privilegios elevados; en
+    Linux/macOS los symlinks de usuario no requieren configuración especial,
+    así que esto normalmente solo es False en Windows sin Developer Mode.
+    """
     probe = tmp_path / "_symlink_probe"
     try:
         probe.symlink_to(tmp_path)
@@ -548,7 +568,7 @@ class TestSetupLinuxPath:
 
     def test_creates_symlink_from_appimage(self, monkeypatch, tmp_path, capsys):
         if not _symlinks_supported(tmp_path):
-            pytest.skip("el entorno no permite crear symlinks")
+            pytest.skip(_SYMLINK_SKIP_REASON)
         from tts_sidecar.cli import _integrate_linux_path
 
         home = self._fake_home(monkeypatch, tmp_path)
@@ -566,7 +586,7 @@ class TestSetupLinuxPath:
         # en ~/.local/opt/tts-sidecar/, sin correr dentro de un runtime AppImage
         # real. El symlink debe crearse igual que si lo exportara el runtime.
         if not _symlinks_supported(tmp_path):
-            pytest.skip("el entorno no permite crear symlinks")
+            pytest.skip(_SYMLINK_SKIP_REASON)
         from tts_sidecar.cli import _integrate_linux_path
 
         home = self._fake_home(monkeypatch, tmp_path)
@@ -597,7 +617,7 @@ class TestSetupLinuxPath:
 
     def test_updates_existing_symlink_idempotent(self, monkeypatch, tmp_path, capsys):
         if not _symlinks_supported(tmp_path):
-            pytest.skip("el entorno no permite crear symlinks")
+            pytest.skip(_SYMLINK_SKIP_REASON)
         from tts_sidecar.cli import _integrate_linux_path
 
         home = self._fake_home(monkeypatch, tmp_path)
@@ -640,7 +660,7 @@ class TestSetupLinuxPath:
 
     def test_remove_path_elimina_symlink(self, monkeypatch, tmp_path, capsys):
         if not _symlinks_supported(tmp_path):
-            pytest.skip("el entorno no permite crear symlinks")
+            pytest.skip(_SYMLINK_SKIP_REASON)
         from tts_sidecar.cli import cmd_setup
 
         home = self._fake_home(monkeypatch, tmp_path)
@@ -680,7 +700,7 @@ class TestSetupLinuxPath:
         # L-01: la línea sugerida debe ser bash válido (forward slashes),
         # nunca rutas con backslashes que romperían el shell profile.
         if not _symlinks_supported(tmp_path):
-            pytest.skip("el entorno no permite crear symlinks")
+            pytest.skip(_SYMLINK_SKIP_REASON)
         from tts_sidecar.cli import _integrate_linux_path
 
         self._fake_home(monkeypatch, tmp_path)
@@ -702,7 +722,7 @@ class TestSetupLinuxPath:
         # comando en el PATH, en paridad con Windows y macOS. Se usa un FAIL
         # no-audio porque el de audio ya no aborta setup (A-01).
         if not _symlinks_supported(tmp_path):
-            pytest.skip("el entorno no permite crear symlinks")
+            pytest.skip(_SYMLINK_SKIP_REASON)
         import tts_sidecar.cli as cli
 
         home = self._fake_home(monkeypatch, tmp_path)
@@ -1231,7 +1251,7 @@ class TestSetupUninstall:
 
     def test_uninstall_elimina_symlink_y_directorio(self, monkeypatch, tmp_path, capsys):
         if not _symlinks_supported(tmp_path):
-            pytest.skip("el entorno no permite crear symlinks")
+            pytest.skip(_SYMLINK_SKIP_REASON)
         from tts_sidecar.cli import cmd_setup
 
         home = self._fake_home_linux(monkeypatch, tmp_path)
@@ -1271,7 +1291,7 @@ class TestSetupUninstall:
         # El reorden vuelve la cancelación atómica: cancelar el cleanup (primer
         # paso) aborta la desinstalación sin tocar PATH ni binario.
         if not _symlinks_supported(tmp_path):
-            pytest.skip("el entorno no permite crear symlinks")
+            pytest.skip(_SYMLINK_SKIP_REASON)
         from tts_sidecar.cli import cmd_setup
 
         home = self._fake_home_linux(monkeypatch, tmp_path)
@@ -1294,7 +1314,7 @@ class TestSetupUninstall:
         # «No hay nada que limpiar» NO es cancelación: la desinstalación continúa
         # y borra symlink + directorio.
         if not _symlinks_supported(tmp_path):
-            pytest.skip("el entorno no permite crear symlinks")
+            pytest.skip(_SYMLINK_SKIP_REASON)
         from tts_sidecar.cli import cmd_setup
 
         home = self._fake_home_linux(monkeypatch, tmp_path)
@@ -1321,7 +1341,7 @@ class TestSetupUninstall:
 
     def test_uninstall_json_payload_incluye_rutas_datos(self, monkeypatch, tmp_path, capsys):
         if not _symlinks_supported(tmp_path):
-            pytest.skip("el entorno no permite crear symlinks")
+            pytest.skip(_SYMLINK_SKIP_REASON)
         import json as _json
         from tts_sidecar.cli import cmd_setup
 
@@ -1364,7 +1384,7 @@ class TestSetupUninstall:
 
     def test_uninstall_macos_borra_bundle_symlink_cleanup(self, monkeypatch, tmp_path, capsys):
         if not _symlinks_supported(tmp_path):
-            pytest.skip("el entorno no permite crear symlinks")
+            pytest.skip(_SYMLINK_SKIP_REASON)
         from tts_sidecar.cli import cmd_setup
 
         home = self._fake_macos(monkeypatch, tmp_path)
@@ -1383,7 +1403,7 @@ class TestSetupUninstall:
 
     def test_uninstall_macos_resuelve_symlink_del_ejecutable(self, monkeypatch, tmp_path, capsys):
         if not _symlinks_supported(tmp_path):
-            pytest.skip("el entorno no permite crear symlinks")
+            pytest.skip(_SYMLINK_SKIP_REASON)
         from tts_sidecar.cli import cmd_setup
 
         home = self._fake_macos(monkeypatch, tmp_path)
