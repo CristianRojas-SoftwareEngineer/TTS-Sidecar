@@ -8,15 +8,12 @@ así que el orquestador es dueño del flujo de síntesis.
 """
 
 import io
-import logging
 import wave
 from pathlib import Path
 
 from .paths import ensure_parent_dir
 
 import numpy as np
-
-logger = logging.getLogger(__name__)
 
 
 class AudioWriter:
@@ -55,7 +52,6 @@ class AudioWriter:
             ensure_parent_dir(path)
             with open(path, 'wb') as f:
                 f.write(wav_bytes)
-            log_saved(path)
 
         return wav_bytes
 
@@ -70,12 +66,3 @@ class AudioWriter:
             audio_int16 = (audio_np * 32767).astype(np.int16)
             wf.writeframes(audio_int16.tobytes())
         return buffer.getvalue()
-
-
-def log_saved(path) -> None:
-    """Registra el guardado del archivo en el log del motor (best-effort)."""
-    try:
-        from .timing import log
-        log(f"   -> Archivo guardado: {path}")
-    except Exception:  # pragma: no cover - logging only
-        logger.debug("No se pudo registrar el guardado del archivo", exc_info=True)

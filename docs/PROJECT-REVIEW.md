@@ -32,10 +32,10 @@ Conteo por severidad: **0 S4, 2 S3, 18 S2, 18 S1, 5 S0** (43 hallazgos consolida
 | S2-16 | Cobertura: `daemon run` (auto-restart, señales) y `setup`/`uninstall` subtesteados | S2 — Medio | P1 | daemon/cli / Testing | No | Resuelto |
 | S2-17 | Cobertura: reproducción de audio por plataforma (macOS/Windows) sin tests | S2 — Medio | P2 | audio / Testing | No | Resuelto |
 | S2-18 | Cobertura: `purge_incomplete_downloads` sin test | S2 — Medio | P2 | model_cache / Testing | No | Resuelto |
-| S1-01 | Logging redundante en `_emit_audio` | S1 — Bajo | P3 | cli / Calidad | No | Pendiente |
+| S1-01 | Logging redundante en `_emit_audio` | S1 — Bajo | P3 | cli / Calidad | Sí | Resuelto |
 | S1-02 | Filtro de warning redundante en `audio.py` | S1 — Bajo | P3 | audio / Calidad | No | Resuelto |
 | S1-03 | `import subprocess` bajo guarda de plataforma | S1 — Bajo | P3 | cli / Calidad | No | Resuelto |
-| S1-04 | `_paths_allowed_by_daemon` no valida existencia de archivos | S1 — Bajo | P3 | cli / Calidad | No | Pendiente |
+| S1-04 | `_paths_allowed_by_daemon` no valida existencia de archivos | S1 — Bajo | P3 | cli / Calidad | Sí | Pendiente |
 | S1-05 | `list_voices` es O(n²) | S1 — Bajo | P3 | voices / Calidad | No | Resuelto |
 | S1-06 | `__init__.py` declara `__all__ = []` | S1 — Bajo | P3 | package / Calidad | No | Resuelto |
 | S1-07 | Valores mágicos sin nombrar | S1 — Bajo | P3 | varios / Calidad | No | Resuelto |
@@ -457,7 +457,7 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
 - **Evidencia**: En **modo directo**, `engine.speak(output_path=...)` guarda el archivo y `AudioWriter.write` ya loguea `"   -> Archivo guardado: {path}"` (`audio_writer.py`); acto seguido `cmd_speak` loguea de nuevo `"[Archivo] Audio guardado: {output}"` (`cli.py:298`) para el mismo evento. La formulación original («`_emit_audio` lo vuelve a registrar») es **imprecisa**: en modo directo `_emit_audio` se invoca con `output=None` (`cli.py:300`), así que su log NO es el duplicado; el `[Archivo] Audio guardado` de `_emit_audio` (`cli.py:104`) solo corre en la ruta **daemon**, donde el `AudioWriter.write` del engine ocurrió en el proceso **servidor** (su log no llega al cliente) y por tanto NO es redundante. El doble mensaje real es únicamente `audio_writer.py` + `cli.py:298` en la ruta directa.
 - **Confianza**: Alta
 - **Impacto**: Doble mensaje "Archivo guardado" para el mismo evento, solo en modo directo. Puramente cosmético (ruido en el log/consola); sin efecto funcional.
-- **Decisión requerida**: No (corrección directa una vez elegida la variante), pero conviene fijar **dónde** debe vivir el mensaje canónico.
+- **Decisión requerida**: **Sí** — aprobar la variante (A/B/C) y fijar explícitamente **dónde** debe vivir el mensaje canónico del guardado. Aunque el doc recomienda B, la elección no está tomada por el humano y debe aprobarse antes de implementar (es una micro-decisión de UX/capas, no arquitectónica, pero sí requiere validación).
 - **Alternativas y trade-offs**:
   - **A) Quitar el log de `cli.py:298`** y dejar que el mensaje del engine (`AudioWriter.write`) sea el único.
     - *Pros*: cambio mínimo; el engine ya es quien sabe que escribió; elimina el duplicado en la ruta directa.
@@ -471,6 +471,9 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
   - **Trampa del parche barato**: borrar `cli.py:298` sin notar que el mensaje del engine no lleva la ruta → se pierde la ruta en la salida del modo directo. O tocar `_emit_audio` creyendo que es el duplicado (no lo es).
   - **Recomendación**: **B** (el CLI es el dueño de la salida a usuario; el engine no debería formatear consola), enriqueciendo si hace falta que el CLI loguee con ruta en ambos modos. Emparentado con la separación de responsabilidades de S2-10 (el God object mezcla síntesis con logging de presentación).
 - **Prioridad**: P3
+- **Estado**: Resuelto
+- **Resolución (2026-07-13)**: se aplicó la **variante B** — se eliminó la emisión de log del engine (`log_saved` en `audio_writer.py`), dejando al CLI como único dueño del mensaje de guardado. En modo directo el mensaje `"[Archivo] Audio guardado: {output}"` se emite una sola vez desde `cli.py:298`; en modo daemon, desde `_emit_audio` (`cli.py:104`). El engine ya no formatea la consola del CLI, reforzando la separación de capas (S2-10). La escritura del archivo WAV a disco quedó intacta en `AudioWriter.write`. Se removieron además el `import logging` y el `logger` del módulo, que quedaron sin referencias tras borrar `log_saved`.
+- **Reversión**: reañadir `log_saved` en `audio_writer.py` (con su `from .timing import log` interno y su bloque `try/except` que usaba `logger`), reinsertar la llamada `log_saved(path)` en `AudioWriter.write`, y restaurar `import logging` + `logger = logging.getLogger(__name__)` en la cabecera del módulo.
 
 #### S1-02 — Filtro de warning redundante en `audio.py`
 - **Categoría**: Calidad de código
@@ -509,7 +512,7 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
 - **Evidencia**: La función valida que la ruta caiga en `allowed_audio_dirs()` vía `realpath` (`cli.py:127-135`), pero **no** comprueba que el archivo exista. Si el usuario pasa `--voice-audio`/`--speech-audio` a una ruta inexistente dentro de un dir permitido, el cliente la deja pasar y el fallo se pospone al **daemon**, que responde 400/404 (mensaje más opaco). Su docstring (N-02, `cli.py:119-123`) aclara que la función solo **anticipa la sandbox del servidor** para dar un mensaje accionable; la existencia es una dimensión distinta que hoy no cubre.
 - **Confianza**: Media
 - **Impacto**: Mensaje de error menos preciso de lo necesario en la ruta daemon: el usuario ve un 400/400 remoto en vez de un "archivo no encontrado" local e inmediato. Sin impacto de seguridad (la sandbox del servidor sigue validando).
-- **Decisión requerida**: No en lo técnico, pero conviene fijar **dónde** vive la validación de existencia para no duplicar responsabilidades cliente/servidor (mismo tema que S1-01/S2-13).
+- **Decisión requerida**: **Sí** — aprobar la variante (A/B/C) y fijar explícitamente **dónde** vive la validación de existencia para no duplicar responsabilidades cliente/servidor (mismo tema que S1-01/S2-13). Aunque el doc recomienda A, la elección no está tomada por el humano y debe aprobarse antes de implementar (la seguridad ya está cubierta en el servidor, así que es una decisión de UX, no de diseño, pero sí requiere validación).
 - **Alternativas y trade-offs**:
   - **A) Validar existencia en el cliente antes del despacho** (junto a `_paths_allowed_by_daemon` o dentro de él), abortando con un mensaje local claro.
     - *Pros*: error temprano y accionable ("archivo no existe: X") sin round-trip al daemon; mejor UX en la ruta más común (archivo tecleado mal).
