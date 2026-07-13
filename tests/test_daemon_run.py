@@ -17,21 +17,23 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from tts_sidecar.compute_backend import ComputeBackendResolver
 from tts_sidecar.daemon import run as daemon_run
 
 
 @pytest.fixture(autouse=True)
 def _mock_engine_loading(monkeypatch):
-    """Evita cargar el motor real: get_instance/_auto_detect_compute_backend mockeados."""
+    """Evita cargar el motor real: get_instance/ComputeBackendResolver mockeados."""
     from tts_sidecar.engine import ChatterboxEngine
+    from tts_sidecar.compute_backend import ComputeBackendResolver
 
     monkeypatch.setattr(
         ChatterboxEngine, "get_instance",
         staticmethod(lambda **kw: MagicMock()),
     )
     monkeypatch.setattr(
-        ChatterboxEngine, "_auto_detect_compute_backend",
-        staticmethod(lambda: "cpu"),
+        ComputeBackendResolver, "resolve",
+        staticmethod(lambda compute_backend=None: "cpu"),
     )
     yield
 
@@ -92,7 +94,7 @@ class TestServeAutoRestart:
         motor para forzar una recarga real en el siguiente intento."""
         from tts_sidecar.engine import ChatterboxEngine
 
-        cache_key = ChatterboxEngine.cache_key(model="es-mx-latam", compute_backend="cpu")
+        cache_key = ComputeBackendResolver.cache_key(model="es-mx-latam", compute_backend="cpu")
         ChatterboxEngine._cache[cache_key] = MagicMock()
         try:
             with patch("uvicorn.Server.run", side_effect=RuntimeError("boom")):

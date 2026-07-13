@@ -29,11 +29,9 @@ os.environ.setdefault("TQDM_DISABLE", "1")
 import logging
 import platform
 import threading
-import wave
 from pathlib import Path
 from typing import Callable, Optional
 
-import numpy as np
 import torch
 
 from . import voices
@@ -49,6 +47,9 @@ from .model_cache import (
 from .timing import StageTimer, SynthesisMetrics, log
 from .model_loader import ModelLoader
 from .conditionals import ConditionalsPreparer
+from .compute_backend import ComputeBackendResolver
+from .audio_writer import AudioWriter
+from .synthesis import SynthesisOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -157,39 +158,6 @@ class ChatterboxEngine:
     _cache: dict[str, "ChatterboxEngine"] = {}
     _cache_lock = threading.Lock()
 
-    @staticmethod
-    def _auto_detect_compute_backend() -> str:
-        """Resuelve el mejor compute backend disponible en el host.
-
-        Orden de preferencia: cuda (NVIDIA) → mps (Apple Silicon) → cpu.
-        Los probes de torch se envuelven en try/except: un torch sin CUDA
-        o sin MPS, o un fallo de import del backend, degradan a "cpu" sin
-        crashear.
-        """
-        try:
-            if torch.cuda.is_available():
-                return "cuda"
-        except Exception:
-            logger.debug("La prueba de disponibilidad de CUDA falló; se descarta el backend", exc_info=True)
-        try:
-            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                return "mps"
-        except Exception:
-            logger.debug("La prueba de disponibilidad de MPS falló; se descarta el backend", exc_info=True)
-        return "cpu"
-
-    @classmethod
-    def _resolve_compute_backend(cls, compute_backend: Optional[str]) -> str:
-        """Acepta None/"auto" y lo mapea a uno de los backends concretos."""
-        if compute_backend is None or compute_backend == "auto":
-            return cls._auto_detect_compute_backend()
-        return compute_backend
-
-    @staticmethod
-    def cache_key(model: str = "es-mx-latam", compute_backend: str = "cpu", models_dir: Optional[str] = None) -> str:
-        """Construye la clave de caché de instancias, compartida con el daemon (run.py)."""
-        return f"{model}:{compute_backend}:{models_dir}"
-
     @classmethod
     def get_instance(cls, model: str = "es-mx-latam", compute_backend: str = "auto", models_dir: Optional[str] = None) -> "ChatterboxEngine":
         """
@@ -204,8 +172,8 @@ class ChatterboxEngine:
                 detecta el mejor disponible.
             models_dir: Directorio donde cachear los modelos
         """
-        resolved = cls._resolve_compute_backend(compute_backend)
-        key = cls.cache_key(model, resolved, models_dir)
+        resolved = ComputeBackendResolver.resolve(compute_backend)
+        key = ComputeBackendResolver.cache_key(model, resolved, models_dir)
         with cls._cache_lock:
             if key not in cls._cache:
                 cls._cache[key] = cls(model=model, compute_backend=resolved, models_dir=models_dir)
@@ -233,7 +201,7 @@ class ChatterboxEngine:
             conditionals_prep: Colaborador de preparación de conditionals
                 (inyectable en tests). Por defecto se instancia `ConditionalsPreparer`.
         """
-        self.compute_backend = self._resolve_compute_backend(compute_backend)
+        self.compute_backend = ComputeBackendResolver.resolve(compute_backend)
         self.model_name = self.MODELS.get(model, model)
 
         # Colaboradores inyectables: por defecto se crean aquí para no alterar el
@@ -261,6 +229,14 @@ class ChatterboxEngine:
 
         # Aplica los parámetros de síntesis optimizados y el timing por sub-etapa
         self._apply_synthesis_optimizations()
+
+        # Colaboradores de síntesis (S2-10): el orquestador es dueño del flujo
+        # speak y del ciclo de vida de _active_progress_cb; el engine queda como
+        # façade / composition root que posee el modelo y los colaboradores.
+        self._audio_writer = AudioWriter()
+        self._orchestrator = SynthesisOrchestrator(
+            self, self._conditionals_prep, self._audio_writer
+        )
 
     def _emit_progress(self, **fields) -> None:
         """Emite un evento de progreso al callback activo, si lo hay (best-effort).
@@ -498,142 +474,11 @@ class ChatterboxEngine:
         if voice_audio and not speech_audio:
             speech_audio = voice_audio
 
-        # Fija el callback activo por la duración de esta síntesis (limpiado en
-        # finally). El shim de tokens y los wrappers timed_t3/timed_s3gen lo leen.
-        self._active_progress_cb = progress_callback
-        try:
-            return self._speak_impl(text, voice_audio, speech_audio, output_path)
-        finally:
-            self._active_progress_cb = None
-
-    def _speak_impl(
-        self,
-        text: str,
-        voice_audio: Optional[str],
-        speech_audio: Optional[str],
-        output_path: Optional[str],
-    ) -> bytes:
-        """Cuerpo de la síntesis (con el callback de progreso ya fijado)."""
-        # Stage 1: Carga de conditionals
-        self._emit_progress(stage="conditionals")
-        with StageTimer("1-Speak", "Etapa 1/4: Cargando conditionals"):
-            voice_dir = None
-            if speech_audio:
-                voice_dir = os.path.dirname(speech_audio)
-                conditionals_path = os.path.join(voice_dir, "conditionals.pt")
-                if os.path.exists(conditionals_path):
-                    conds_key = (voice_dir, os.path.getmtime(conditionals_path))
-                    if (
-                        getattr(self, "_conds_cache_key", None) == conds_key
-                        and getattr(self._tts, "conds", None) is not None
-                    ):
-                        # Misma voz consecutiva: los conds ya están en memoria
-                        log("   -> Conditionals precomputados (en memoria, sin lectura de disco)")
-                    elif self.load_precomputed_conditionals(voice_dir):
-                        self._conds_cache_key = conds_key
-                        log("   -> Conditionals precomputados cargados")
-                    else:
-                        # conditionals.pt ilegible: degradar al cómputo on-the-fly
-                        # en vez de sintetizar en silencio con los conds previos.
-                        log("   -> conditionals.pt inválido, recomputando on-the-fly...")
-                        self._conds_cache_key = None
-                        self._prepare_conditionals_multi(
-                            voice_audio_path=voice_audio,
-                            speech_audio_path=speech_audio,
-                        )
-                else:
-                    log("   -> Calculando conditionals on-the-fly...")
-                    self._conds_cache_key = None
-                    self._prepare_conditionals_multi(
-                        voice_audio_path=voice_audio,
-                        speech_audio_path=speech_audio,
-                    )
-            else:
-                self._conds_cache_key = None
-                self._prepare_conditionals_multi(
-                    voice_audio_path=voice_audio,
-                    speech_audio_path=speech_audio,
-                )
-
-        # Stage 2: Generación TTS con los parámetros optimizados del engine.
-        # max_new_tokens y n_cfm_timesteps se inyectan en t3/s3gen.inference
-        # vía _apply_synthesis_optimizations; exaggeration se pasa aquí. Las
-        # sub-etapas t3/s3gen (y el conteo de tokens) las emiten los wrappers
-        # timed_t3/timed_s3gen y el shim de tqdm desde dentro de generate().
-        self._emit_progress(stage="tts")
-        with StageTimer("2-Speak", "Etapa 2/4: Generando audio (TTS)"):
-            wav = self._tts.generate(text, language_id="es", exaggeration=self.EXAGGERATION)
-
-        # Stage 3: Conversión a WAV
-        self._emit_progress(stage="encoding")
-        with StageTimer("3-Speak", "Etapa 3/4: Convirtiendo a WAV"):
-            wav_bytes = self._audio_to_wav(wav)
-
-        # Stage 4: Guardado a archivo (opcional)
-        if output_path:
-            self._emit_progress(stage="saving")
-            with StageTimer("4-Speak", "Etapa 4/4: Guardando en archivo"):
-                self._save_wav(wav_bytes, output_path)
-                log("   -> Archivo guardado")
-
-        return wav_bytes
-
-    def _prepare_conditionals_multi(
-        self,
-        voice_audio_path: Optional[str],
-        speech_audio_path: str,
-    ):
-        """
-        Prepara los conditionals del modelo con fuentes de audio separadas.
-
-        Si voice_audio_path es None, usa speech_audio_path para todo.
-        Delegado a `ConditionalsPreparer` (inyectable en tests).
-        """
-        self._tts.conds = self._conditionals_prep.compute(
-            self._tts, self.compute_backend, voice_audio_path, speech_audio_path
+        # Façade delgado (S2-10): el flujo de síntesis y el ciclo de vida de
+        # _active_progress_cb viven en el orquestador, no en el engine.
+        return self._orchestrator.synthesize(
+            text, voice_audio, speech_audio, output_path, progress_callback
         )
-
-    def _audio_to_wav(self, audio_data) -> bytes:
-        """Convierte un array numpy o tensor de audio a bytes WAV."""
-        if hasattr(audio_data, 'numpy'):
-            audio_np = audio_data.numpy()
-        elif hasattr(audio_data, 'cpu'):
-            audio_np = audio_data.cpu().numpy()
-        else:
-            audio_np = np.array(audio_data)
-
-        # Asegura que sea float32 en [-1, 1]
-        if audio_np.dtype != np.float32:
-            audio_np = audio_np.astype(np.float32)
-
-        # Maneja la dimensión de batch
-        if audio_np.ndim > 1:
-            audio_np = audio_np.flatten()
-
-        # Normaliza si hace falta
-        max_val = np.abs(audio_np).max()
-        if max_val > 1.0:
-            audio_np = audio_np / max_val
-
-        # Crea el WAV
-        import io
-        buffer = io.BytesIO()
-        sample_rate = getattr(self._tts, 'sr', 24000)
-
-        with wave.open(buffer, 'wb') as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)  # 16 bits
-            wf.setframerate(sample_rate)
-            audio_int16 = (audio_np * 32767).astype(np.int16)
-            wf.writeframes(audio_int16.tobytes())
-
-        return buffer.getvalue()
-
-    def _save_wav(self, wav_bytes: bytes, path: str) -> None:
-        """Guarda los bytes WAV a un archivo."""
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        with open(path, 'wb') as f:
-            f.write(wav_bytes)
 
     def add_voice(
         self,

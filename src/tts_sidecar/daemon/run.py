@@ -91,15 +91,15 @@ def serve(port: int = DEFAULT_PORT, auto_restart: bool = False, max_retries: int
             # Etapa 1: cargar modelo
             with StageTimer("1-Daemon", "Etapa 1/3: Cargando modelo"):
                 from ..engine import ChatterboxEngine
+                from ..compute_backend import ComputeBackendResolver
 
                 # El daemon decide el compute backend una sola vez al
                 # arrancar y lo cachea en la instancia del motor: cualquier
                 # speak posterior reutiliza esa decisión. TTS_SIDECAR_COMPUTE_BACKEND
                 # es el override de bajo nivel; con "auto" (o sin la var),
-                # _auto_detect_compute_backend() resuelve cuda → mps → cpu.
-                compute_backend = (
+                # ComputeBackendResolver.resolve() detecta cuda → mps → cpu.
+                compute_backend = ComputeBackendResolver.resolve(
                     os.environ.get("TTS_SIDECAR_COMPUTE_BACKEND")
-                    or ChatterboxEngine._auto_detect_compute_backend()
                 )
 
                 # El engine ya aplica los parámetros de síntesis optimizados,
@@ -170,8 +170,9 @@ def serve(port: int = DEFAULT_PORT, auto_restart: bool = False, max_retries: int
         # motor: si el crash se debió a un estado interno corrupto, revivir
         # el mismo objeto anularía el propósito de --auto-restart.
         from ..engine import ChatterboxEngine
+        from ..compute_backend import ComputeBackendResolver
         ChatterboxEngine._cache.pop(
-            ChatterboxEngine.cache_key(model="es-mx-latam", compute_backend=compute_backend),
+            ComputeBackendResolver.cache_key(model="es-mx-latam", compute_backend=compute_backend),
             None,
         )
 

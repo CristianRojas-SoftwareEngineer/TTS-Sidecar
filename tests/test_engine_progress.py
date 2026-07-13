@@ -15,29 +15,40 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 def _engine_stub(tmp_path):
     """ChatterboxEngine sin cargar el modelo real (bypass de __init__)."""
     from tts_sidecar.engine import ChatterboxEngine
+    from tts_sidecar.conditionals import ConditionalsPreparer
+    from tts_sidecar.audio_writer import AudioWriter
+    from tts_sidecar.synthesis import SynthesisOrchestrator
 
     eng = ChatterboxEngine.__new__(ChatterboxEngine)
     eng.compute_backend = "cpu"
     eng._conds_cache_key = None
     eng._active_progress_cb = None
+    eng._conditionals_prep = ConditionalsPreparer()
 
     class FakeTTS:
         conds = None
+        sr = 24000
 
         def generate(self, text, **kwargs):
             return [0.0]
 
     eng._tts = FakeTTS()
+    # S2-10: speak() delega en el orquestador; lo cableamos igual que __init__.
+    eng._audio_writer = AudioWriter()
+    eng._orchestrator = SynthesisOrchestrator(
+        eng, eng._conditionals_prep, eng._audio_writer
+    )
     return eng
 
 
 class TestSpeakProgressCallback:
     def test_emits_stage_events(self, tmp_path, monkeypatch):
-        from tts_sidecar.engine import ChatterboxEngine
-
         eng = _engine_stub(tmp_path)
-        monkeypatch.setattr(ChatterboxEngine, "_audio_to_wav", lambda self, w: b"RIFF")
-        eng._prepare_conditionals_multi = lambda **kw: None
+        monkeypatch.setattr(
+            eng._orchestrator.audio_writer, "write",
+            lambda audio_data, sample_rate, path=None: b"RIFF",
+        )
+        eng._conditionals_prep.compute = lambda *a, **kw: None
 
         speech = tmp_path / "speech.wav"
         speech.write_bytes(b"RIFF")
@@ -56,12 +67,14 @@ class TestSpeakProgressCallback:
         assert all(ev["event"] == "progress" for ev in events)
 
     def test_emits_saving_with_output_path(self, tmp_path, monkeypatch):
-        from tts_sidecar.engine import ChatterboxEngine
-
         eng = _engine_stub(tmp_path)
-        monkeypatch.setattr(ChatterboxEngine, "_audio_to_wav", lambda self, w: b"RIFF")
-        monkeypatch.setattr(ChatterboxEngine, "_save_wav", lambda self, b, p: None)
-        eng._prepare_conditionals_multi = lambda **kw: None
+        # El guardado ahora vive en AudioWriter.write (recibe path); el doble lo
+        # ignora y solo retorna bytes, así que no toca disco.
+        monkeypatch.setattr(
+            eng._orchestrator.audio_writer, "write",
+            lambda audio_data, sample_rate, path=None: b"RIFF",
+        )
+        eng._conditionals_prep.compute = lambda *a, **kw: None
 
         speech = tmp_path / "speech.wav"
         speech.write_bytes(b"RIFF")
@@ -79,11 +92,12 @@ class TestSpeakProgressCallback:
         ]
 
     def test_callback_is_cleared_in_finally(self, tmp_path, monkeypatch):
-        from tts_sidecar.engine import ChatterboxEngine
-
         eng = _engine_stub(tmp_path)
-        monkeypatch.setattr(ChatterboxEngine, "_audio_to_wav", lambda self, w: b"RIFF")
-        eng._prepare_conditionals_multi = lambda **kw: None
+        monkeypatch.setattr(
+            eng._orchestrator.audio_writer, "write",
+            lambda audio_data, sample_rate, path=None: b"RIFF",
+        )
+        eng._conditionals_prep.compute = lambda *a, **kw: None
         speech = tmp_path / "speech.wav"
         speech.write_bytes(b"RIFF")
 
@@ -91,11 +105,12 @@ class TestSpeakProgressCallback:
         assert eng._active_progress_cb is None
 
     def test_callback_exception_does_not_break_synthesis(self, tmp_path, monkeypatch):
-        from tts_sidecar.engine import ChatterboxEngine
-
         eng = _engine_stub(tmp_path)
-        monkeypatch.setattr(ChatterboxEngine, "_audio_to_wav", lambda self, w: b"RIFF")
-        eng._prepare_conditionals_multi = lambda **kw: None
+        monkeypatch.setattr(
+            eng._orchestrator.audio_writer, "write",
+            lambda audio_data, sample_rate, path=None: b"RIFF",
+        )
+        eng._conditionals_prep.compute = lambda *a, **kw: None
         speech = tmp_path / "speech.wav"
         speech.write_bytes(b"RIFF")
 

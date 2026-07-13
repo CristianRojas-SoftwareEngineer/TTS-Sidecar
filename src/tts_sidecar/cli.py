@@ -94,7 +94,7 @@ def _resolve_voice_paths(args):
 def _emit_audio(audio_bytes, output):
     """Reproduce los bytes de audio, o los escribe a un archivo si se da una ruta de salida."""
     if output:
-        # N-12: simetría con engine._save_wav (modo directo), que ya crea los
+        # N-12: simetría con AudioWriter.write (modo directo), que ya crea los
         # directorios padres; sin esto, --output a un directorio inexistente
         # solo fallaba vía daemon.
         parent = os.path.dirname(output)

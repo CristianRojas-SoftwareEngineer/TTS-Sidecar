@@ -81,12 +81,22 @@ class TestCorruptConditionals:
         """Instancia de ChatterboxEngine sin cargar el modelo real."""
         from tts_sidecar.engine import ChatterboxEngine
         from tts_sidecar.conditionals import ConditionalsPreparer
+        from tts_sidecar.audio_writer import AudioWriter
+        from tts_sidecar.synthesis import SynthesisOrchestrator
 
         eng = ChatterboxEngine.__new__(ChatterboxEngine)
         eng.compute_backend = "cpu"
+        eng._conds_cache_key = None
+        eng._active_progress_cb = None
         # Tras la extracción de ConditionalsPreparer (S3-01), el engine delega la
         # carga de conditionals a este colaborador; lo inyectamos igual que __init__.
         eng._conditionals_prep = ConditionalsPreparer()
+        # S2-10: el flujo de síntesis vive en el orquestador; el engine.speak es
+        # un façade que delega en él. Lo cableamos igual que __init__.
+        eng._audio_writer = AudioWriter()
+        eng._orchestrator = SynthesisOrchestrator(
+            eng, eng._conditionals_prep, eng._audio_writer
+        )
         return eng
 
     def test_load_returns_false_with_corrupt_file(self, tmp_path):
@@ -96,8 +106,6 @@ class TestCorruptConditionals:
         assert eng.load_precomputed_conditionals(str(tmp_path)) is False
 
     def test_speak_recomputes_with_corrupt_conditionals(self, tmp_path, monkeypatch):
-        from tts_sidecar.engine import ChatterboxEngine
-
         eng = self._engine_sin_modelo()
         voice = tmp_path / "voz"
         voice.mkdir()
@@ -106,16 +114,20 @@ class TestCorruptConditionals:
         speech.write_bytes(b"RIFF")
 
         recomputos = []
-        eng._prepare_conditionals_multi = lambda **kw: recomputos.append(kw)
+        eng._conditionals_prep.compute = lambda *a, **kw: recomputos.append((a, kw))
 
         class FakeTTS:
             conds = None
+            sr = 24000
 
             def generate(self, text, **kwargs):
                 return [0.0]
 
         eng._tts = FakeTTS()
-        monkeypatch.setattr(ChatterboxEngine, "_audio_to_wav", lambda self, w: b"RIFF")
+        monkeypatch.setattr(
+            eng._orchestrator.audio_writer, "write",
+            lambda audio_data, sample_rate, path=None: b"RIFF",
+        )
 
         assert eng.speak("hola", speech_audio=str(speech)) == b"RIFF"
         assert recomputos, "speak debe recomputar los conditionals cuando el .pt es corrupto"
@@ -124,19 +136,29 @@ class TestCorruptConditionals:
 class TestUnifiedParameters:
     def _engine_stub(self, tmp_path):
         from tts_sidecar.engine import ChatterboxEngine
+        from tts_sidecar.conditionals import ConditionalsPreparer
+        from tts_sidecar.audio_writer import AudioWriter
+        from tts_sidecar.synthesis import SynthesisOrchestrator
 
         eng = ChatterboxEngine.__new__(ChatterboxEngine)
         eng.compute_backend = "cpu"
         eng._conds_cache_key = None
+        eng._active_progress_cb = None
+        eng._conditionals_prep = ConditionalsPreparer()
 
         class FakeTTS:
             conds = None
+            sr = 24000
 
             def generate(self, text, **kwargs):
                 self.last_generate_kwargs = kwargs
                 return [0.0]
 
         eng._tts = FakeTTS()
+        eng._audio_writer = AudioWriter()
+        eng._orchestrator = SynthesisOrchestrator(
+            eng, eng._conditionals_prep, eng._audio_writer
+        )
         return eng
 
     def test_get_instance_includes_models_dir_in_key(self, monkeypatch):
@@ -155,10 +177,13 @@ class TestUnifiedParameters:
         from tts_sidecar.engine import ChatterboxEngine
 
         eng = self._engine_stub(tmp_path)
-        monkeypatch.setattr(ChatterboxEngine, "_audio_to_wav", lambda self, w: b"RIFF")
+        monkeypatch.setattr(
+            eng._orchestrator.audio_writer, "write",
+            lambda audio_data, sample_rate, path=None: b"RIFF",
+        )
         speech = tmp_path / "speech.wav"
         speech.write_bytes(b"RIFF")
-        eng._prepare_conditionals_multi = lambda **kw: None
+        eng._conditionals_prep.compute = lambda *a, **kw: None
 
         eng.speak("hola", speech_audio=str(speech))
 
@@ -169,7 +194,10 @@ class TestUnifiedParameters:
         from tts_sidecar.engine import ChatterboxEngine
 
         eng = self._engine_stub(tmp_path)
-        monkeypatch.setattr(ChatterboxEngine, "_audio_to_wav", lambda self, w: b"RIFF")
+        monkeypatch.setattr(
+            eng._orchestrator.audio_writer, "write",
+            lambda audio_data, sample_rate, path=None: b"RIFF",
+        )
 
         voice = tmp_path / "voz"
         voice.mkdir()

@@ -951,7 +951,7 @@ class TestServePortInUse:
             "tts_sidecar.engine.ChatterboxEngine.get_instance",
             return_value=MagicMock(),
         ), patch(
-            "tts_sidecar.engine.ChatterboxEngine._auto_detect_compute_backend",
+            "tts_sidecar.compute_backend.ComputeBackendResolver.resolve",
             return_value="cpu",
         ), patch(
             "uvicorn.Server.run",

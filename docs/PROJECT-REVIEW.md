@@ -23,7 +23,7 @@ Conteo por severidad: **0 S4, 2 S3, 18 S2, 18 S1, 5 S0** (43 hallazgos consolida
 | S2-07 | Pines de versión duplicados en CI y scripts | S2 — Medio | P1 | CI / Mantenibilidad-DevOps | Sí | Resuelto |
 | S2-08 | Smoke tests duplicados en CI | S2 — Medio | P2 | CI / DevOps | No | Resuelto |
 | S2-09 | Lockfiles omiten herramienta de build (PyInstaller) | S2 — Medio | P1 | build / Dependencias | No | Resuelto |
-| S2-10 | God object `ChatterboxEngine` | S2 — Medio | P2 | engine / Mantenibilidad | Sí | En progreso |
+| S2-10 | God object `ChatterboxEngine` | S2 — Medio | P2 | engine / Mantenibilidad | Sí | Resuelto |
 | S2-11 | Estado global `_active_spinner` en `timing.py` | S2 — Medio | P2 | timing / Mantenibilidad | Sí | Resuelto |
 | S2-12 | `bootstrap` usa `warnings.filterwarnings("ignore")` global | S2 — Medio | P2 | bootstrap / Observabilidad | Sí | Pendiente |
 | S2-13 | Creación de directorios duplicada `_emit_audio` vs `_save_wav` | S2 — Medio | P2 | cli/engine / Mantenibilidad | Sí | Pendiente |
@@ -292,8 +292,9 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
   - **Trampa del parche barato**: marcar S2-10 como "Resuelto" tras A. El hallazgo solo está cerrado cuando el núcleo deja de ser un único objeto de 15+ métodos con responsabilidad de síntesis.
   - **Qué se necesita del humano**: (1) aprobar el **arquitectura destino** (B vs. C); (2) fijar el **criterio de terminado** ("Resuelto" solo cuando el `speak`/`self._tts` stateful deje el God object) para no dejarlo a medias indefinidamente.
 
-- **Estado**: En progreso
-- **Avance parcial (S3-01)**: La extracción de `ModelLoader` y `ConditionalsPreparer` como colaboradores inyectables (Tareas 1-2 de la remediación de S3-01) ya segregó dos de las responsabilidades del God object: la carga/resolución de modelos y la preparación de conditionals. Ambos viven ahora en `src/tts_sidecar/model_loader.py` y `src/tts_sidecar/conditionals.py`, inyectables en `ChatterboxEngine` vía `model_loader`/`conditionals_prep` (kwargs opcionales de `__init__`, compatibles con `get_instance`). Restan por extraer las responsabilidades señaladas en el deep-dive (ComputeBackendResolver, ModelCache, AudioWriter, SynthesisInstrumentation).
+- **Estado**: Resuelto
+- **Avance parcial (S3-01)**: La extracción de `ModelLoader` y `ConditionalsPreparer` como colaboradores inyectables (Tareas 1-2 de la remediación de S3-01) ya segregó dos de las responsabilidades del God object: la carga/resolución de modelos y la preparación de conditionals. Ambos viven ahora en `src/tts_sidecar/model_loader.py` y `src/tts_sidecar/conditionals.py`, inyectables en `ChatterboxEngine` vía `model_loader`/`conditionals_prep` (kwargs opcionales de `__init__`, compatibles con `get_instance`).
+- **Remediación (alcance C acotado + `SynthesisOrchestrator`)**: Se extrajeron tres colaboradores más: `ComputeBackendResolver` (`src/tts_sidecar/compute_backend.py` — `detect`/`resolve`/`cache_key`), `AudioWriter` (`src/tts_sidecar/audio_writer.py` — fusión de `_audio_to_wav`+`_save_wav`, sample rate por parámetro) y `SynthesisOrchestrator` (`src/tts_sidecar/synthesis.py` — dueño del flujo `speak` y del ciclo de vida de `_active_progress_cb`). `ChatterboxEngine` queda como **façade / composition root**: posee el modelo (`self._tts`), el `compute_backend` y los colaboradores; su `speak()` es un delegador delgado que llama a `self._orchestrator.synthesize(...)` sin contener lógica de orquestación. `daemon/run.py` resuelve el backend y la clave de caché vía `ComputeBackendResolver`. Con esto, `speak`/`self._tts` stateful (la *responsabilidad de síntesis*) sale del God object, que era el **criterio de terminado** del hallazgo; **no** es la trampa A porque la síntesis sí se extrae, no solo lo trivial. Deuda conocida (no crítica, fase posterior): `SynthesisInstrumentation` (monkeypatch de `self._tts` + shim tqdm), `ModelCache` (`_download_model`) y `VoiceManager` (`add_voice`/`list_voices`/`remove_voice`/`resolve_voice`) permanecen en el engine.
 
 #### S2-11 — Estado global `_active_spinner` en `timing.py`
 - **Categoría**: Mantenibilidad
