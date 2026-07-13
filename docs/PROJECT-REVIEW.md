@@ -4,9 +4,9 @@
 
 Auditoría sistémica de **todo el repositorio TTS Sidecar** bajo la lente **calidad y deuda técnica** (perfil **perfectivo**: sin cambio funcional esperado, métrica de mantenibilidad). La investigación se delegó en 6 sub-agentes de exploración en paralelo, cada uno sobre una lonja concreta del código fuente, con evidencia `file:line` verificada.
 
-Veredicto global: el proyecto está **maduro y disciplinado** (460 tests, semáforo de admisión en el daemon, lock de arranque atómico, sandbox de audio con `realpath`). La deuda es **moderada y localizada**, no estructural. No hay hallazgos S4 (críticos). Los riesgos más relevantes son de **observabilidad** (excepciones silenciadas en rutas críticas), **acoplamiento del daemon al engine** (globals, sin inyección de dependencias) y **brechas de cobertura en la funcionalidad central del engine y en el límite de seguridad del sandbox**.
+Veredicto global: el proyecto está **maduro y disciplinado** (485 tests, semáforo de admisión en el daemon, lock de arranque atómico, sandbox de audio con `realpath`). La deuda es **moderada y localizada**, no estructural. No hay hallazgos S4 (críticos). Los riesgos más relevantes son de **observabilidad** (excepciones silenciadas en rutas críticas), **acoplamiento del daemon al engine** (globals, sin inyección de dependencias) y **brechas de cobertura en la funcionalidad central del engine y en el límite de seguridad del sandbox**.
 
-Conteo por severidad: **0 S4, 2 S3, 18 S2, 18 S1, 5 S0** (43 hallazgos consolidados). Dos afirmaciones de alta severidad propuestas por los sub-agentes fueron **descartadas como falso positivo** tras verificación directa; además, la presunta discrepancia de conteo de tests no es defecto (ver «Nota de verificación» y «Provenance»). El conteo en el momento de la auditoría era 350 tests recolectados por pytest (336 funciones `def test_`); las remediaciones posteriores de los hallazgos resueltos (S3-01/02, S2-02, S2-07, S1-17, etc.) elevaron la suite a **460 tests recolectados**. `CLAUDE.md` (~350) refleja el total de la auditoría.
+Conteo por severidad: **0 S4, 2 S3, 18 S2, 18 S1, 5 S0** (43 hallazgos consolidados). Dos afirmaciones de alta severidad propuestas por los sub-agentes fueron **descartadas como falso positivo** tras verificación directa; además, la presunta discrepancia de conteo de tests no es defecto (ver «Nota de verificación» y «Provenance»). El conteo en el momento de la auditoría era 350 tests recolectados por pytest (336 funciones `def test_`); las remediaciones posteriores de los hallazgos resueltos (S3-01/02, S2-02, S2-07, S1-17, S2-10, etc.) elevaron la suite a **485 tests recolectados**. `CLAUDE.md` (~485) refleja el total actual.
 
 ### Índice de hallazgos
 
@@ -26,7 +26,7 @@ Conteo por severidad: **0 S4, 2 S3, 18 S2, 18 S1, 5 S0** (43 hallazgos consolida
 | S2-10 | God object `ChatterboxEngine` | S2 — Medio | P2 | engine / Mantenibilidad | Sí | Resuelto |
 | S2-11 | Estado global `_active_spinner` en `timing.py` | S2 — Medio | P2 | timing / Mantenibilidad | Sí | Resuelto |
 | S2-12 | `bootstrap` usa `warnings.filterwarnings("ignore")` global | S2 — Medio | P2 | bootstrap / Observabilidad | Sí | Pendiente |
-| S2-13 | Creación de directorios duplicada `_emit_audio` vs `_save_wav` | S2 — Medio | P2 | cli/engine / Mantenibilidad | Sí | Pendiente |
+| S2-13 | Creación de directorios duplicada `_emit_audio` vs `AudioWriter.write` | S2 — Medio | P2 | cli/audio_writer / Mantenibilidad | Sí | Pendiente |
 | S2-14 | Orden de imports de `cli` acoplado a bootstrap + entry points duplicados | S2 — Medio | P1 | cli/bin / Mantenibilidad | Sí | Resuelto |
 | S2-15 | `voice add`/`remove` exigen modelo en caché innecesariamente | S2 — Medio | P2 | cli / Diseño | Sí | Pendiente |
 | S2-16 | Cobertura: `daemon run` (auto-restart, señales) y `setup`/`uninstall` subtesteados | S2 — Medio | P1 | daemon/cli / Testing | No | Resuelto |
@@ -67,7 +67,7 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
 #### S3-01 — Funcionalidad central del engine sin tests
 - **Categoría**: Testing / Cobertura
 - **Área/plataforma**: `src/tts_sidecar/engine.py`
-- **Evidencia**: `engine.py:128-870` (clase `ChatterboxEngine` con 15+ métodos). `tests/test_engine_cache.py` y `test_engine_progress.py` cubren caché y progreso, pero los métodos `add_voice`, `list_voices`, `remove_voice`, `resolve_voice`, `_compute_conditionals`, `_load_model` / `_load_es_latam` / `_load_multilingual` no tienen tests directos.
+- **Evidencia**: `engine.py` (clase `ChatterboxEngine`, reducida por la remediación S2-10). `tests/test_engine_cache.py`, `test_engine_progress.py`, `test_synthesis_orchestrator.py`, `test_engine_voices.py` y `test_model_loader.py` cubren caché, progreso, síntesis (conditionals), gestión de voces y carga de modelo. Los métodos que aún carecen de test directo aislado son `_download_model` (ModelCache, pendiente de extraer en fase posterior a S2-10) y `_apply_synthesis_optimizations`/`_install_token_progress_shim` (SynthesisInstrumentation, pendiente de extraer).
 - **Confianza**: Alta
 - **Causa**: La síntesis se ejerce mayormente vía el path `speak()` mockeado; la gestión de voces a nivel engine y la carga/precomputación de modelos quedaron sin aislar.
 - **Impacto**: Regresiones en la función primaria (clonación de voz, selección de modelo, conditionals) podrían pasar desapercibidas; es la lógica de mayor valor del producto.
@@ -271,7 +271,7 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
 
 #### S2-10 — God object `ChatterboxEngine`
 - **Categoría**: Mantenibilidad
-- **Área/plataforma**: `src/tts_sidecar/engine.py:128-870`
+- **Área/plataforma**: `src/tts_sidecar/engine.py`
 - **Evidencia**: La clase asume carga de modelos, síntesis TTS, caché, conversión de audio, precomputación de conditionals y gestión de voces (15+ métodos).
 - **Confianza**: Alta
 - **Causa**: Responsabilidad no separada (violación de SRP).
@@ -344,10 +344,10 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
   - **Trampa del parche barato**: borrar la línea 61 sin verificar qué warnings reaparecen → CI ruidoso o, peor, warnings que ocultan errores reales.
   - **Qué se necesita del humano**: aprobar la allow-list de warnings a silenciar (debe preservar el contrato de arranque limpio de CLAUDE.md) y confirmar que ningún flujo depende del silencio total.
 
-#### S2-13 — Creación de directorios duplicada `_emit_audio` vs `_save_wav`
+#### S2-13 — Creación de directorios duplicada `_emit_audio` vs `AudioWriter.write`
 - **Categoría**: Mantenibilidad
-- **Área/plataforma**: `src/tts_sidecar/cli.py:102-104` (`_emit_audio`) vs `src/tts_sidecar/engine.py:629-631` (`_save_wav`)
-- **Evidencia**: `_emit_audio` (CLI) crea el directorio padre con `os.makedirs(parent, exist_ok=True)` (`cli.py:102-104`) y `_save_wav` (engine) hace `Path(path).parent.mkdir(parents=True, exist_ok=True)` (`engine.py:631`). Parecen duplicados, pero operan en **procesos distintos**: en modo daemon el servidor escribe vía `_save_wav` en su propio filesystem y devuelve los bytes; el cliente los escribe con `_emit_audio` en **su** filesystem. Por eso el comentario N-12 (`cli.py:99-101`) lo justifica explícitamente como simetría necesaria, no como descuido.
+- **Área/plataforma**: `src/tts_sidecar/cli.py:94-105` (`_emit_audio`) vs `src/tts_sidecar/audio_writer.py` (`AudioWriter.write`)
+- **Evidencia**: `_emit_audio` (CLI) crea el directorio padre con `os.makedirs(parent, exist_ok=True)` (`cli.py:102`) y `AudioWriter.write` (`audio_writer.py`) hace `Path(path).parent.mkdir(parents=True, exist_ok=True)`. Parecen duplicados, pero operan en **procesos distintos**: en modo daemon el servidor escribe vía `AudioWriter.write` en su propio filesystem y devuelve los bytes; el cliente los escribe con `_emit_audio` en **su** filesystem. Por eso el comentario N-12 (`cli.py:99-101`) lo justifica explícitamente como simetría necesaria, no como descuido.
 - **Confianza**: Alta
 - **Causa**: El límite cliente/servidor del daemon hace que "el engine ya creó el archivo" no sea cierto en el filesystem del cliente; la creación del lado cliente es requerida, no redundante.
 - **Impacto**: Borrar el `makedirs` de `_emit_audio` (el "arreglo obvio") rompería `--output` en modo daemon cuando el directorio no existe en la máquina del cliente — justo la trampa del parche barato.
@@ -358,12 +358,12 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
   - **A) Dejar como está, documentando el porqué**. La creación del lado cliente es correcta por el límite daemon cliente/servidor; el comentario N-12 ya lo explica.
     - *Pros*: cero riesgo; preserva `--output` remoto; el comportamiento es el correcto.
     - *Contras*: hay dos llamadas de creación de directorio que "se ven" duplicadas en una lectura superficial; un revisor podría "limpiarlas" y romper el daemon.
-  - **B) Extraer un helper `ensure_parent_dir(path)` compartido** (p. ej. en `paths` o un módulo util) usado por ambos `_save_wav` y `_emit_audio`, **sin** eliminar la llamada del lado cliente.
+  - **B) Extraer un helper `ensure_parent_dir(path)` compartido** (p. ej. en `paths` o un módulo util) usado por ambos `AudioWriter.write` y `_emit_audio`, **sin** eliminar la llamada del lado cliente.
     - *Pros*: una sola implementación de la creación de dirs; elimina el código duplicado real sin tocar el contrato de archivos del daemon.
     - *Contras*: refactor menor que cruza cli/engine; hay que cuidar que el helper no asuma nada sobre el filesystem del otro proceso.
-  - **C) Eliminar el `makedirs` de `_emit_audio` y "centralizar en `_save_wav`"** (la propuesta original del hallazgo).
+  - **C) Eliminar el `makedirs` de `_emit_audio` y "centralizar en `AudioWriter.write`"** (la propuesta original del hallazgo).
     - *Pros*: aparenta eliminar duplicación.
-    - *Contras*: **Trampa del parche barato** — `_save_wav` corre en el servidor, no en el cliente; quitar la creación del lado cliente rompe `--output` en modo daemon cuando el dir no existe localmente. No aplicar.
+    - *Contras*: **Trampa del parche barato** — `AudioWriter.write` corre en el servidor, no en el cliente; quitar la creación del lado cliente rompe `--output` en modo daemon cuando el dir no existe localmente. No aplicar.
   - **Qué se necesita del humano**: aprobar A (mantener + documentar) o B (helper compartido sin eliminar creación del cliente); rechazar C.
 
 #### S2-14 — Orden de imports de `cli` acoplado a bootstrap + entry points duplicados
@@ -450,19 +450,19 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
 
 #### S1-01 — Logging redundante al guardar en modo directo
 - **Categoría**: Calidad de código
-- **Área/plataforma**: `src/tts_sidecar/cli.py:299-301` (`cmd_speak`, ruta directa) vs `src/tts_sidecar/engine.py:573-574` (`_save_wav`)
-- **Evidencia**: En **modo directo**, `engine.speak(output_path=...)` guarda el archivo y `_save_wav` ya loguea `"   -> Archivo guardado"` (`engine.py:574`); acto seguido `cmd_speak` loguea de nuevo `"[Archivo] Audio guardado: {output}"` (`cli.py:301`) para el mismo evento. La formulación original («`_emit_audio` lo vuelve a registrar») es **imprecisa**: en modo directo `_emit_audio` se invoca con `output=None` (`cli.py:303`), así que su log NO es el duplicado; el `[Archivo] Audio guardado` de `_emit_audio` (`cli.py:107`) solo corre en la ruta **daemon**, donde el `_save_wav` del engine ocurrió en el proceso **servidor** (su log no llega al cliente) y por tanto NO es redundante. El doble mensaje real es únicamente `engine.py:574` + `cli.py:301` en la ruta directa.
+- **Área/plataforma**: `src/tts_sidecar/cli.py:299` (`cmd_speak`, ruta directa) vs `src/tts_sidecar/audio_writer.py` (`AudioWriter.write`)
+- **Evidencia**: En **modo directo**, `engine.speak(output_path=...)` guarda el archivo y `AudioWriter.write` ya loguea `"   -> Archivo guardado: {path}"` (`audio_writer.py`); acto seguido `cmd_speak` loguea de nuevo `"[Archivo] Audio guardado: {output}"` (`cli.py:299`) para el mismo evento. La formulación original («`_emit_audio` lo vuelve a registrar») es **imprecisa**: en modo directo `_emit_audio` se invoca con `output=None` (`cli.py:303`), así que su log NO es el duplicado; el `[Archivo] Audio guardado` de `_emit_audio` (`cli.py:105`) solo corre en la ruta **daemon**, donde el `AudioWriter.write` del engine ocurrió en el proceso **servidor** (su log no llega al cliente) y por tanto NO es redundante. El doble mensaje real es únicamente `audio_writer.py` + `cli.py:299` en la ruta directa.
 - **Confianza**: Alta
 - **Impacto**: Doble mensaje "Archivo guardado" para el mismo evento, solo en modo directo. Puramente cosmético (ruido en el log/consola); sin efecto funcional.
 - **Decisión requerida**: No (corrección directa una vez elegida la variante), pero conviene fijar **dónde** debe vivir el mensaje canónico.
 - **Alternativas y trade-offs**:
-  - **A) Quitar el log de `cli.py:301`** y dejar que el mensaje del engine (`_save_wav`, `engine.py:574`) sea el único.
+  - **A) Quitar el log de `cli.py:299`** y dejar que el mensaje del engine (`AudioWriter.write`) sea el único.
     - *Pros*: cambio mínimo; el engine ya es quien sabe que escribió; elimina el duplicado en la ruta directa.
-    - *Contras*: el mensaje del engine (`"   -> Archivo guardado"`, sin la ruta) es menos informativo que el del CLI (`"[Archivo] Audio guardado: {output}"`, con ruta); habría que enriquecer el del engine o se pierde la ruta en la salida directa. Además el CLI deja de tener un punto único de "salida al usuario".
-  - **B) Quitar el log de `_save_wav` (`engine.py:574`)** y dejar que el **CLI** sea siempre quien anuncia el guardado (tanto en directo `cli.py:301` como en daemon vía `_emit_audio` `cli.py:107`).
+    - *Contras*: el mensaje del engine (`"   -> Archivo guardado: {path}"`, con ruta desde el refactor S2-10) es informativo; sin embargo el CLI deja de tener un punto único de "salida al usuario".
+  - **B) Quitar el log de `AudioWriter.write`** y dejar que el **CLI** sea siempre quien anuncia el guardado (tanto en directo `cli.py:299` como en daemon vía `_emit_audio` `cli.py:105`).
     - *Pros*: mensaje uniforme y con ruta en ambos modos; el engine deja de emitir salida orientada a usuario (mejor separación de capas: el engine no debería decidir el formato de consola del CLI); mensaje único y consistente.
     - *Contras*: si algún otro consumidor del engine dependía de ese log, lo pierde (hoy no hay evidencia de tal consumidor); toca el engine, no solo el CLI.
-  - **C) Flag `log_save: bool = True` en `engine.speak`/`_save_wav`** que el CLI ponga en `False` cuando él va a loguear.
+  - **C) Flag `log_save: bool = True` en `engine.speak`/`AudioWriter.write`** que el CLI ponga en `False` cuando él va a loguear.
     - *Pros*: preserva ambos comportamientos según el llamador.
     - *Contras*: **sobre-ingeniería para un mensaje cosmético**; añade un parámetro de acoplamiento cross-capa por un log; peor que B en simplicidad.
   - **Trampa del parche barato**: borrar `cli.py:301` sin notar que el mensaje del engine no lleva la ruta → se pierde la ruta en la salida del modo directo. O tocar `_emit_audio` creyendo que es el duplicado (no lo es).

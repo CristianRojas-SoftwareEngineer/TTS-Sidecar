@@ -62,7 +62,12 @@ src/tts_sidecar/
 ├── __main__.py              # Entry point de `python -m tts_sidecar`
 ├── bootstrap.py             # apply() idempotente: warnings, env vars, logging, mock pkg_resources
 ├── cli.py                   # CLI con argparse (speak, voice, daemon, devices, doctor, setup, version); llama bootstrap.apply()
-├── engine.py                # Wrapper Chatterbox + síntesis
+├── engine.py                # Façade / composition root de síntesis (delega en los colaboradores de abajo)
+├── compute_backend.py       # ComputeBackendResolver: detección/resolución de backend (cuda/mps/cpu) + cache key
+├── audio_writer.py          # AudioWriter: audio → bytes WAV PCM 16-bit mono (en memoria o a disco)
+├── synthesis.py             # SynthesisOrchestrator: flujo speak (conditionals → generate → encode → save)
+├── model_loader.py          # ModelLoader: carga del checkpoint según caché (inyectable)
+├── conditionals.py          # ConditionalsPreparer: cómputo/carga de conditionals (inyectable)
 ├── audio.py                 # Playback multiplataforma
 ├── timing.py                # StageTimer, log(), timed_command
 ├── model_cache.py           # Detección del modelo en la caché de HF (sin torch/chatterbox); usado por engine.py/cli.py
@@ -106,7 +111,7 @@ CLI → cmd_speak
               ↓
        S3Gen vocoder [Etapa 2b] (~5-8s)
               ↓ (bypass watermark)
-       _audio_to_wav() → WAV PCM 24kHz mono
+       AudioWriter.write() → WAV PCM 24kHz mono
               ↓
        AudioPlayer.play() / archivo
 ```
@@ -238,7 +243,7 @@ src/tts_sidecar/         # Código fuente Python
 └── daemon/              # Daemon mode
 # Las voces de USUARIO viven en el user-data-dir por SO (no en el repo)
 
-tests/                   # Tests pytest (350 tests) + smoke-tests de instaladores
+tests/                   # Tests pytest (~485 tests) + smoke-tests de instaladores
 ├── conftest.py
 ├── installer/           # Smoke-tests de los instaladores de una línea (corren en CI, no en pytest)
 │   ├── install-linux.bats     # install-linux.sh (bats, job test-installer-linux)
