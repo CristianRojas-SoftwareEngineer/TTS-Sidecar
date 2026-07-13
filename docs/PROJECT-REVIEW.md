@@ -24,7 +24,7 @@ Conteo por severidad: **0 S4, 2 S3, 18 S2, 18 S1, 5 S0** (43 hallazgos consolida
 | S2-08 | Smoke tests duplicados en CI | S2 — Medio | P2 | CI / DevOps | No | Resuelto |
 | S2-09 | Lockfiles omiten herramienta de build (PyInstaller) | S2 — Medio | P1 | build / Dependencias | No | Resuelto |
 | S2-10 | God object `ChatterboxEngine` | S2 — Medio | P2 | engine / Mantenibilidad | Sí | En progreso |
-| S2-11 | Estado global `_active_spinner` en `timing.py` | S2 — Medio | P2 | timing / Mantenibilidad | Sí | Pendiente |
+| S2-11 | Estado global `_active_spinner` en `timing.py` | S2 — Medio | P2 | timing / Mantenibilidad | Sí | Resuelto |
 | S2-12 | `bootstrap` usa `warnings.filterwarnings("ignore")` global | S2 — Medio | P2 | bootstrap / Observabilidad | Sí | Pendiente |
 | S2-13 | Creación de directorios duplicada `_emit_audio` vs `_save_wav` | S2 — Medio | P2 | cli/engine / Mantenibilidad | Sí | Pendiente |
 | S2-14 | Orden de imports de `cli` acoplado a bootstrap + entry points duplicados | S2 — Medio | P1 | cli/bin / Mantenibilidad | Sí | Pendiente |
@@ -295,6 +295,8 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
     - *Contras*: no testeable aisladamente; frágil en multithread.
   - **Trampa del parche barato**: envolver el global en una clase singleton — sigue siendo global mutable, solo cambia la forma, no el acoplamiento.
   - **Qué se necesita del humano**: (1) resolver aislado o junto con S2-01 (mismo tema de globals); (2) si el alcance incluye `_synthesis_timing`.
+- **Estado**: Resuelto
+- **Remediación (opción A, lote cluster de globals)**: `_active_spinner` pasó de global mutable de módulo a `contextvars.ContextVar` (`timing.py:20-27`). `log()` lo consulta con `.get()`; `Spinner.__enter__` fija el valor con `set()` guardando el token y `__exit__` lo revierte con `reset(token)` (restaura el valor previo del contexto, soportando anidamiento). El estado del spinner queda aislado por contexto/hilo —un spinner activo en el hilo principal ya **no** se filtra a otro hilo—, eliminando el estado compartido de módulo sin caer en la trampa del singleton (un ContextVar no es un global mutable reasignable). `_spinner_lock` se conserva porque protege el I/O del stream compartido entre el hilo de redibujado y `write_line()`, no la referencia al spinner. Nuevo test `tests/test_timing.py::TestSpinner::test_active_spinner_is_isolated_per_thread` fija el aislamiento por hilo; los tests que leían el global se migraron a `.get()`. `_synthesis_timing` (mencionado en el punto 2) se resuelve en la entrada de **S2-01** (mismo lote), donde se modela como métricas explícitas del engine en vez de leerse vía globals.
 
 #### S2-12 — `bootstrap` usa `warnings.filterwarnings("ignore")` global
 - **Categoría**: Observabilidad / Mantenibilidad

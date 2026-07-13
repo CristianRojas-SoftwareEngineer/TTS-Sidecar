@@ -209,8 +209,8 @@ class TestSpinner:
             time.sleep(0.05)
         captured = capsys.readouterr()
         assert captured.out == ""
-        # No deja el global activo ni caracteres de control tras de sí.
-        assert timing._active_spinner is None
+        # No deja el spinner activo en el contexto ni caracteres de control.
+        assert timing._active_spinner.get() is None
 
     def test_update_headless_does_not_fail(self):
         with Spinner("a") as sp:
@@ -221,14 +221,14 @@ class TestSpinner:
         stream = FakeTTY()
         with Spinner("sintetizando", stream=stream) as sp:
             assert sp._enabled is True
-            assert timing._active_spinner is sp
+            assert timing._active_spinner.get() is sp
             time.sleep(0.25)  # al menos un par de frames
         # Escribió frames a su stream; nunca a stdout real.
         out = stream.getvalue()
         assert "sintetizando" in out
         assert "\r" in out  # redibujado en el sitio
-        # Tras salir, el global queda limpio.
-        assert timing._active_spinner is None
+        # Tras salir, el contexto queda limpio.
+        assert timing._active_spinner.get() is None
 
     def test_ascii_fallback_for_non_utf8(self):
         stream = FakeTTY(encoding="cp1252")
@@ -261,4 +261,26 @@ class TestSpinner:
             with Spinner("x", stream=stream):
                 raise RuntimeError("boom")
         # No debe tragar la excepción ni dejar el spinner registrado.
-        assert timing._active_spinner is None
+        assert timing._active_spinner.get() is None
+
+    def test_active_spinner_is_isolated_per_thread(self):
+        """El spinner activo vive en un ContextVar, no en un global compartido:
+        un spinner activo en el hilo principal no se filtra a otro hilo, que ve
+        su propio contexto (default None). Este aislamiento es justo lo que un
+        global mutable de módulo no daba y es la razón del refactor de S2-11."""
+        import threading
+
+        seen_in_worker = {}
+
+        def worker():
+            seen_in_worker["value"] = timing._active_spinner.get()
+
+        with Spinner("principal", stream=FakeTTY()) as sp:
+            assert timing._active_spinner.get() is sp
+            t = threading.Thread(target=worker)
+            t.start()
+            t.join(timeout=5)
+
+        # El hilo worker arranca con un contexto propio: no ve el spinner del
+        # hilo principal (habría sido `sp` con un global de módulo compartido).
+        assert seen_in_worker["value"] is None

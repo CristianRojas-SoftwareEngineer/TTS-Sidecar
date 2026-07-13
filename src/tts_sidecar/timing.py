@@ -7,6 +7,7 @@ timed_command) se emite a **stderr**: stdout queda reservado para datos
 de salida del CLI.
 """
 
+import contextvars
 import sys
 import threading
 import time
@@ -15,9 +16,16 @@ from functools import wraps
 from typing import Optional
 
 
-# Spinner activo (a lo sumo uno por proceso). log() lo consulta para no
-# entremezclar sus líneas con el redibujado del spinner; ver clase Spinner.
-_active_spinner: Optional["Spinner"] = None
+# Spinner activo por contexto de ejecución (a lo sumo uno). log() lo consulta
+# para no entremezclar sus líneas con el redibujado del spinner; ver Spinner.
+# Es un ContextVar, no un global mutable de módulo: el estado del spinner queda
+# aislado por contexto/hilo y es testeable sin ensuciar estado compartido entre
+# pruebas ni acoplar log() a una variable de módulo reasignable.
+_active_spinner: "contextvars.ContextVar[Optional[Spinner]]" = contextvars.ContextVar(
+    "_active_spinner", default=None
+)
+# Serializa la escritura al stream entre el hilo de redibujado del Spinner y
+# write_line(): protege el I/O del stream compartido, no la referencia al spinner.
 _spinner_lock = threading.Lock()
 
 
@@ -37,7 +45,7 @@ def log(msg: str, duration: Optional[float] = None):
     else:
         line = f"[{now}] {msg}..."
 
-    spinner = _active_spinner
+    spinner = _active_spinner.get()
     if spinner is not None:
         spinner.write_line(line)
     else:
@@ -177,6 +185,8 @@ class Spinner:
         self._thread = None
         self._stop = threading.Event()
         self._lock = threading.Lock()
+        # Token de reset del ContextVar _active_spinner, fijado en __enter__.
+        self._token = None
 
     def _stream_is_tty(self) -> bool:
         try:
@@ -241,18 +251,18 @@ class Spinner:
             self._stream.flush()
 
     def __enter__(self):
-        global _active_spinner
         if not self._enabled:
             return self
         self._start = time.time()
         self._stop.clear()
-        _active_spinner = self
+        # set() devuelve un token que reset() consume en __exit__, restaurando
+        # el valor previo del contexto (soporta anidamiento correctamente).
+        self._token = _active_spinner.set(self)
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        global _active_spinner
         if not self._enabled:
             return False
         self._stop.set()
@@ -260,5 +270,6 @@ class Spinner:
             self._thread.join(timeout=1.0)
         with _spinner_lock:
             self._clear_line()
-        _active_spinner = None
+        _active_spinner.reset(self._token)
+        self._token = None
         return False  # nunca traga excepciones
