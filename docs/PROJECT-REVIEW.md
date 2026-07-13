@@ -22,7 +22,7 @@ Conteo por severidad: **0 S4, 2 S3, 18 S2, 18 S1, 5 S0** (43 hallazgos consolida
 | S2-06 | Lógica de dependencias duplicada entre build scripts | S2 — Medio | P1 | build / Mantenibilidad | No | Pendiente |
 | S2-07 | Pines de versión duplicados en CI y scripts | S2 — Medio | P1 | CI / Mantenibilidad-DevOps | Sí | Pendiente |
 | S2-08 | Smoke tests duplicados en CI | S2 — Medio | P2 | CI / DevOps | No | Pendiente |
-| S2-09 | Lockfiles omiten herramientas de build (PyInstaller/Pillow) | S2 — Medio | P1 | build / Dependencias | No | Pendiente |
+| S2-09 | Lockfiles omiten herramienta de build (PyInstaller) | S2 — Medio | P1 | build / Dependencias | No | Pendiente |
 | S2-10 | God object `ChatterboxEngine` | S2 — Medio | P2 | engine / Mantenibilidad | Sí | En progreso |
 | S2-11 | Estado global `_active_spinner` en `timing.py` | S2 — Medio | P2 | timing / Mantenibilidad | Sí | Pendiente |
 | S2-12 | `bootstrap` usa `warnings.filterwarnings("ignore")` global | S2 — Medio | P2 | bootstrap / Observabilidad | Sí | Pendiente |
@@ -50,7 +50,7 @@ Conteo por severidad: **0 S4, 2 S3, 18 S2, 18 S1, 5 S0** (43 hallazgos consolida
 | S1-16 | `build_utils.py` importa PIL duplicado en `ensure_ico`/`ensure_icns` | S1 — Bajo | P3 | build / Calidad | No | Pendiente |
 | S1-17 | Validación de nombre de voz no previene symlinks dentro del dir permitido | S1 — Bajo | P3 | voices / Seguridad | Sí | Pendiente |
 | S1-18 | Deriva documental menor (árbol de CLAUDE.md y ruta de voces en DESIGN.md) | S1 — Bajo | P3 | docs / Documentación | No | Pendiente |
-| S0-01 | `bundle_size_mb()` no referenciada externamente | S0 — Informativo | P3 | build / Calidad | No | Pendiente |
+| S0-01 | `bundle_size_mb()` no referenciada externamente | S0 — Informativo | P3 | build / Calidad | No | Resuelto |
 | S0-02 | Estrategia de lockfile CPU-only de Linux no documentada | S0 — Informativo | P3 | build / Dependencias | No | Pendiente |
 | S0-03 | `pyenv` sin pin de versión (decisión consciente) | S0 — Informativo | P3 | CI / DevOps | No | Pendiente |
 | S0-04 | Naming inconsistente de arquitectura en artefactos (aarch64/arm64/x86_64) | S0 — Informativo | P3 | build / Mantenibilidad | No | Pendiente |
@@ -238,11 +238,11 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
 #### S2-09 — Lockfiles omiten herramientas de build
 - **Categoría**: Dependencias
 - **Área/plataforma**: `requirements-lock.txt`, `requirements-lock-linux-cpu.txt` vs `requirements.txt`
-- **Evidencia**: `pyinstaller` y `pillow` (declaradas en `requirements.txt` como herramientas de build) no aparecen en los lockfiles; el CI las instala con `pip` directo.
+- **Evidencia**: `pyinstaller` (declarado en `requirements.txt` como herramienta de build) **no** aparece en `requirements-lock.txt` ni en `requirements-lock-linux-cpu.txt`; el CI lo instala con `pip` directo. `pillow` **sí** está presente en `requirements-lock.txt` (verified line ~1370, `pillow==12.3.0`); la evidencia original afirmaba erróneamente que tampoco aparecía. La omisión real del lockfile es solo `pyinstaller`.
 - **Confianza**: Alta
-- **Causa**: Estrategia de lockfile enfocada solo en runtime.
-- **Impacto**: Versiones de build no reproducibles; posible desincronización entre entornos.
-- **Corrección(es) propuesta(s)**: Añadir herramientas de build al lockfile o crear un lockfile separado de build (recomendada).
+- **Causa**: Estrategia de lockfile enfocada solo en runtime (PyInstaller es la única herramienta de build que queda fuera).
+- **Impacto**: Versión de PyInstaller no reproducible en build; posible desincronización entre entornos.
+- **Corrección(es) propuesta(s)**: Añadir `pyinstaller` al lockfile o crear un lockfile separado de build (recomendada).
 - **Decisión requerida**: No
 - **Prioridad**: P1
 
@@ -602,11 +602,13 @@ Nota: el conteo de tests **no** es una discrepancia. `pytest --collect-only` rec
 #### S0-01 — `bundle_size_mb()` no referenciada externamente
 - **Categoría**: Calidad de código
 - **Área/plataforma**: `scripts/build_utils.py:269-276`
-- **Evidencia**: Función utilitaria de visualización de tamaño no invocada por otros módulos.
-- **Confianza**: Media
-- **Impacto**: Código muerto leve.
-- **Corrección**: Documentar su propósito o añadir un test; eliminar si no se usa.
+- **Evidencia**: La evidencia original afirmaba que `bundle_size_mb()` no era invocada por otros módulos (código muerto leve). La lectura directa del código confirma que **sí** está referenciada externamente: se importa y usa en `scripts/build_linux.py:180`, `scripts/build_macos.py:133` y `scripts/build_windows.py:154` (log del tamaño del bundle tras el build de PyInstaller) y además tiene un test dedicado `tests/test_build_utils.py:181` (`test_bundle_size_mb_sums_nested_files`). El hallazgo era un falso positivo de la evidencia (deriva documental, no deuda real).
+- **Confianza**: Alta
+- **Impacto**: Ninguno en la forma actual; la función está vigente y cubierta por test.
+- **Corrección(es) propuesta(s)**: Ninguna (ya resuelto en código). Dejar constancia para evitar reabrirlo.
+- **Decisión requerida**: No
 - **Prioridad**: P3
+- **Estado**: Resuelto
 
 #### S0-02 — Estrategia de lockfile CPU-only de Linux no documentada
 - **Categoría**: Dependencias
