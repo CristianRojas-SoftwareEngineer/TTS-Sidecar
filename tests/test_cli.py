@@ -8,6 +8,21 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+import tempfile
+
+# Directorio temporal compartido para los .wav de prueba que deben existir en
+# disco (S1-04: el cliente ahora valida existencia/extensión antes del despacho).
+_VOICE_TMP = tempfile.mkdtemp(prefix="tts-sidecar-cli-")
+
+
+def _make_wav(name):
+    """Crea (si falta) un .wav existente con cabecera RIFF/WAVE mínima y retorna su ruta."""
+    path = os.path.join(_VOICE_TMP, name)
+    if not os.path.exists(path):
+        with open(path, "wb") as f:
+            f.write(b"RIFF\x24\x00\x00\x00WAVE")
+    return path
+
 
 class MockArgs:
     def __init__(self, **kwargs):
@@ -238,9 +253,9 @@ class TestCmdSpeakDaemonDispatch:
     """Las tres ramas del despacho daemon/auto/directo (WARNING-06)."""
 
     def _args(self, **kw):
-        kw.setdefault("voice_audio", "v.wav")
-        kw.setdefault("speech_audio", "s.wav")
-        kw.setdefault("output", "out.wav")
+        kw.setdefault("voice_audio", _make_wav("v.wav"))
+        kw.setdefault("speech_audio", _make_wav("s.wav"))
+        kw.setdefault("output", os.path.join(_VOICE_TMP, "out.wav"))
         return MockArgs(**kw)
 
     @patch("tts_sidecar.cli._paths_allowed_by_daemon", return_value=True)
@@ -312,8 +327,8 @@ class TestCmdSpeakLiveProgress:
     ambos modos: on_progress (daemon) y progress_callback (directo)."""
 
     def _args(self, **kw):
-        kw.setdefault("voice_audio", "v.wav")
-        kw.setdefault("speech_audio", "s.wav")
+        kw.setdefault("voice_audio", _make_wav("v.wav"))
+        kw.setdefault("speech_audio", _make_wav("s.wav"))
         return MockArgs(**kw)
 
     @patch("tts_sidecar.cli._paths_allowed_by_daemon", return_value=True)
@@ -362,9 +377,9 @@ class TestCmdSpeakVoiceAudioDaemonSandbox:
     """N-02: --voice-audio/--speech-audio fuera de la sandbox del daemon."""
 
     def _args(self, **kw):
-        kw.setdefault("voice_audio", "/fuera/de/la/sandbox/v.wav")
-        kw.setdefault("speech_audio", "/fuera/de/la/sandbox/s.wav")
-        kw.setdefault("output", "out.wav")
+        kw.setdefault("voice_audio", _make_wav("v.wav"))
+        kw.setdefault("speech_audio", _make_wav("s.wav"))
+        kw.setdefault("output", os.path.join(_VOICE_TMP, "out.wav"))
         return MockArgs(**kw)
 
     @patch("tts_sidecar.cli._paths_allowed_by_daemon", return_value=False)
@@ -402,6 +417,79 @@ class TestCmdSpeakVoiceAudioDaemonSandbox:
         stderr = capsys.readouterr().err
         assert "voice add" in stderr
         assert "--no-daemon" in stderr
+
+
+class TestCmdSpeakAudioPathExistence:
+    """S1-04 (opción A): el cliente valida existencia/extensión de audio de forma
+    central antes del modelo (directo) o del round-trip (daemon), con el mismo
+    mensaje y exit code (3) en ambos modos."""
+
+    def test_function_returns_none_when_paths_valid_or_null(self):
+        from tts_sidecar.cli import _check_audio_paths_present
+
+        # Ambas nulas: sin audio que validar.
+        assert _check_audio_paths_present(None, None) is None
+        # Archivo .wav existente.
+        assert _check_audio_paths_present(_make_wav("ok.wav"), None) is None
+        # Ambos existentes.
+        assert _check_audio_paths_present(
+            _make_wav("a.wav"), _make_wav("b.wav")
+        ) is None
+
+    def test_function_reports_missing_file(self):
+        from tts_sidecar.cli import _check_audio_paths_present
+
+        missing = os.path.join(_VOICE_TMP, "no_existe.wav")
+        msg = _check_audio_paths_present(missing, None)
+        assert msg is not None
+        assert "no existe" in msg
+
+    def test_function_reports_non_wav_extension(self):
+        from tts_sidecar.cli import _check_audio_paths_present
+
+        bad = os.path.join(_VOICE_TMP, "not_audio.txt")
+        with open(bad, "wb") as f:
+            f.write(b"x")
+        msg = _check_audio_paths_present(bad, None)
+        assert msg is not None
+        assert ".wav" in msg
+
+    @patch("tts_sidecar.model_cache.is_model_cached", return_value=True)
+    def test_cmd_speak_daemon_missing_audio_exits_3(self, _cached, capsys):
+        from tts_sidecar.cli import cmd_speak, EXIT_NOT_FOUND
+
+        missing = os.path.join(_VOICE_TMP, "faltante.wav")
+        with pytest.raises(SystemExit) as exc_info:
+            cmd_speak(MockArgs(
+                text="hola",
+                voice_audio=missing,
+                speech_audio=_make_wav("s.wav"),
+                daemon=True,
+            ))
+        assert exc_info.value.code == EXIT_NOT_FOUND
+        stderr = capsys.readouterr().err
+        assert "no existe" in stderr
+
+    @patch("tts_sidecar.model_cache.is_model_cached", return_value=True)
+    @patch("tts_sidecar.engine.ChatterboxEngine")
+    def test_cmd_speak_direct_missing_audio_exits_3_without_loading_model(
+        self, mock_engine_cls, _cached, capsys
+    ):
+        from tts_sidecar.cli import cmd_speak, EXIT_NOT_FOUND
+
+        missing = os.path.join(_VOICE_TMP, "faltante.wav")
+        with pytest.raises(SystemExit) as exc_info:
+            cmd_speak(MockArgs(
+                text="hola",
+                voice_audio=_make_wav("v.wav"),
+                speech_audio=missing,
+                no_daemon=True,
+            ))
+        assert exc_info.value.code == EXIT_NOT_FOUND
+        # El modelo no debe cargarse cuando el audio falta (ahorra ~10-15 s).
+        mock_engine_cls.get_instance.assert_not_called()
+        stderr = capsys.readouterr().err
+        assert "no existe" in stderr
 
 
 class TestCmdSpeak:
@@ -905,8 +993,8 @@ class TestExitCodes:
             with pytest.raises(SystemExit) as exc:
                 cmd_speak(MockArgs(
                     text="hola",
-                    voice_audio="/audio/voz.wav",
-                    speech_audio="/audio/habla.wav",
+                    voice_audio=_make_wav("voz.wav"),
+                    speech_audio=_make_wav("habla.wav"),
                     daemon=True,
                 ))
         assert exc.value.code == EXIT_DAEMON_UNREACHABLE

@@ -35,7 +35,7 @@ Conteo por severidad: **0 S4, 2 S3, 18 S2, 18 S1, 5 S0** (43 hallazgos consolida
 | S1-01 | Logging redundante en `_emit_audio` | S1 — Bajo | P3 | cli / Calidad | Sí | Resuelto |
 | S1-02 | Filtro de warning redundante en `audio.py` | S1 — Bajo | P3 | audio / Calidad | No | Resuelto |
 | S1-03 | `import subprocess` bajo guarda de plataforma | S1 — Bajo | P3 | cli / Calidad | No | Resuelto |
-| S1-04 | `_paths_allowed_by_daemon` no valida existencia de archivos | S1 — Bajo | P3 | cli / Calidad | Sí | Pendiente |
+| S1-04 | `_paths_allowed_by_daemon` no valida existencia de archivos | S1 — Bajo | P3 | cli / Calidad | Sí | Resuelto |
 | S1-05 | `list_voices` es O(n²) | S1 — Bajo | P3 | voices / Calidad | No | Resuelto |
 | S1-06 | `__init__.py` declara `__all__ = []` | S1 — Bajo | P3 | package / Calidad | No | Resuelto |
 | S1-07 | Valores mágicos sin nombrar | S1 — Bajo | P3 | varios / Calidad | No | Resuelto |
@@ -507,14 +507,15 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
 - **Prioridad**: P3
 
 #### S1-04 — `_paths_allowed_by_daemon` no valida existencia de archivos
+- **Estado**: Resuelto
 - **Categoría**: Calidad de código
 - **Área/plataforma**: `src/tts_sidecar/cli.py:116-136` (`_paths_allowed_by_daemon`)
 - **Evidencia**: La función valida que la ruta caiga en `allowed_audio_dirs()` vía `realpath` (`cli.py:127-135`), pero **no** comprueba que el archivo exista. Si el usuario pasa `--voice-audio`/`--speech-audio` a una ruta inexistente dentro de un dir permitido, el cliente la deja pasar y el fallo se pospone al **daemon**, que responde 400/404 (mensaje más opaco). Su docstring (N-02, `cli.py:119-123`) aclara que la función solo **anticipa la sandbox del servidor** para dar un mensaje accionable; la existencia es una dimensión distinta que hoy no cubre.
 - **Confianza**: Media
 - **Impacto**: Mensaje de error menos preciso de lo necesario en la ruta daemon: el usuario ve un 400/400 remoto en vez de un "archivo no encontrado" local e inmediato. Sin impacto de seguridad (la sandbox del servidor sigue validando).
-- **Decisión requerida**: **Sí** — aprobar la variante (A/B/C) y fijar explícitamente **dónde** vive la validación de existencia para no duplicar responsabilidades cliente/servidor (mismo tema que S1-01/S2-13). Aunque el doc recomienda A, la elección no está tomada por el humano y debe aprobarse antes de implementar (la seguridad ya está cubierta en el servidor, así que es una decisión de UX, no de diseño, pero sí requiere validación).
+- **Decisión**: **Tomada — Opción A**. Se valida la existencia/extensión en el cliente de forma central (en `cmd_speak`, tras `_resolve_voice_paths`) mediante la nueva función hermana `_check_audio_paths_present` (`cli.py`, N-19), que falla temprano con `EXIT_NOT_FOUND` (3) y mensaje uniforme en ambos modos (directo y daemon), sin cargar el modelo cuando el audio falta. El servidor (`server.py._validate_audio_path`) queda intacto y sigue siendo la única fuente autoritativa de seguridad (WARNING-02, con su `realpath` único que cierra la ventana TOCTOU de symlink-swap). No se colapsó la existencia en `_paths_allowed_by_daemon` (se evitó la trampa del parche barato: dos preguntas distintas siguen en funciones distintas).
 - **Alternativas y trade-offs**:
-  - **A) Validar existencia en el cliente antes del despacho** (junto a `_paths_allowed_by_daemon` o dentro de él), abortando con un mensaje local claro.
+  - **A) Validar existencia en el cliente antes del despacho** (junto a `_paths_allowed_by_daemon` o dentro de él), abortando con un mensaje local claro. **← Elegida.**
     - *Pros*: error temprano y accionable ("archivo no existe: X") sin round-trip al daemon; mejor UX en la ruta más común (archivo tecleado mal).
     - *Contras*: introduce un chequeo `os.path.isfile` en el cliente que el servidor **también** hace (`_validate_audio_path`, `server.py:117`) → validación en dos sitios (aunque intencional, como la simetría documentada de S2-13); riesgo teórico de TOCTOU cliente↔servidor (el archivo desaparece entre el chequeo del cliente y el uso del servidor), pero el servidor revalida, así que es benigno.
   - **B) Dejar la validación solo en el daemon** (status quo) y mejorar el **mensaje** que el cliente muestra ante el 400/404 del servidor.
@@ -524,7 +525,8 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
     - *Pros*: sin duplicación; cada modo valida donde va a usar el archivo.
     - *Contras*: comportamiento asimétrico entre modos (un mismo error se reporta distinto según `--daemon`), lo que complica el modelo mental.
   - **Trampa del parche barato**: añadir `os.path.exists` dentro de `_paths_allowed_by_daemon` cambiando su semántica (hoy responde "¿permitido?", no "¿existe?") → mezcla dos preguntas en un booleano y confunde al llamador. Si se valida existencia, hacerlo en un chequeo aparte con su propio mensaje.
-  - **Qué se necesita del humano**: (1) ¿prioriza UX de error temprano (A) o mínima duplicación (B)?; (2) si A, mantener el chequeo de existencia **separado** del de contención (no colapsar ambos en `_paths_allowed_by_daemon`).
+- **Corrección**: `src/tts_sidecar/cli.py` — nueva `_check_audio_paths_present(voice_audio, speech_audio) -> str | None` (N-19) que itera las rutas no nulas y retorna un mensaje si la extensión no es `.wav` o el archivo no existe (`os.path.isfile`), o `None` si todo está bien; invocada centralmente en `cmd_speak` tras `_resolve_voice_paths`, saliendo con `EXIT_NOT_FOUND` (3) + mensaje accionable (sugiere `voice add` o `--no-daemon`). El docstring N-02 de `_paths_allowed_by_daemon` se alineó para mencionar la función hermana y dejar la contención como su responsabilidad. `server.py` e `ipc.py` no cambian. Cobertura: `tests/test_cli.py::TestCmdSpeakAudioPathExistence` (función aislada + `cmd_speak` en modo daemon y directo con audio faltante).
+- **Reversión**: eliminar `_check_audio_paths_present` de `cli.py`, quitar su invocación en `cmd_speak` (tras `_resolve_voice_paths`), revertir el docstring N-02 a la redacción previa y borrar `TestCmdSpeakAudioPathExistence`.
 - **Prioridad**: P3
 
 #### S1-05 — `list_voices` es O(n²)

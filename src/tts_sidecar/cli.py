@@ -117,7 +117,10 @@ def _paths_allowed_by_daemon(voice_audio, speech_audio) -> bool:
     quedarán fuera de los directorios que la sandbox del servidor acepta
     (voices.allowed_audio_dirs()), evitando el 400 opaco «la ruta no está en
     un directorio permitido». No relaja ni duplica la sandbox del servidor:
-    solo la anticipa para dar un mensaje accionable en el cliente.
+    solo la anticipa para dar un mensaje accionable en el cliente. La
+    *existencia/extensión* del archivo la anticipa en cambio la función hermana
+    `_check_audio_paths_present` (N-19, S1-04), dejando aquí solo la contención
+    de la sandbox como responsabilidad.
     """
     from . import voices
 
@@ -131,6 +134,33 @@ def _paths_allowed_by_daemon(voice_audio, speech_audio) -> bool:
         ):
             return False
     return True
+
+
+def _check_audio_paths_present(voice_audio, speech_audio) -> str | None:
+    """Valida existencia/extensión de los audios en el cliente (UX, no seguridad).
+
+    N-19 (S1-04, opción A): hermana de `_paths_allowed_by_daemon`; responde una
+    pregunta distinta —«¿el archivo existe y es .wav?»— y no colapsa ambas en un
+    solo booleano (la contención sigue siendo responsabilidad de N-02). Se invoca
+    centralmente en `cmd_speak` antes de cargar el modelo (directo) o del
+    round-trip (daemon), fallando temprano y con mensaje uniforme en ambos modos.
+
+    WARNING-02: este chequeo es de UX y **no reemplaza** la frontera de seguridad
+    del servidor. `server.py._validate_audio_path` sigue revalidando con un único
+    `realpath` (cierra la ventana TOCTOU de symlink-swap); aquí solo anticipamos
+    el error para ahorrar latencia y dar un mensaje accionable al cliente.
+
+    Retorna `None` si ambas rutas (no nulas) son archivos `.wav` existentes, o un
+    mensaje de error en caso contrario.
+    """
+    for path in (voice_audio, speech_audio):
+        if path is None:
+            continue
+        if not path.lower().endswith(".wav"):
+            return f"{path}: la ruta no apunta a un archivo .wav"
+        if not os.path.isfile(path):
+            return f"{path}: el archivo no existe"
+    return None
 
 
 def _warn_compute_backend_ignored(args):
@@ -239,6 +269,21 @@ def cmd_speak(args):
 
         # Resuelve las rutas de audio de la voz SIN cargar el modelo.
         voice_audio, speech_audio = _resolve_voice_paths(args)
+
+        # N-19 (S1-04, opción A): validación central de existencia/extensión de
+        # audio en el cliente, antes de cargar el modelo (directo) o del round-trip
+        # (daemon). Falla temprano y con mensaje uniforme en ambos modos; la
+        # frontera de seguridad queda en el servidor (WARNING-02), que revalida.
+        audio_problem = _check_audio_paths_present(voice_audio, speech_audio)
+        if audio_problem is not None:
+            print(f"Error: {audio_problem}.", file=sys.stderr)
+            print(
+                "Sugerencia: registra el audio como voz "
+                "(tts-sidecar voice add --name <nombre> --reference <ref> "
+                "--speech <habla>) o usa --no-daemon para sintetizar con esta ruta.",
+                file=sys.stderr,
+            )
+            sys.exit(EXIT_NOT_FOUND)
 
         # Despacho de tres ramas:
         #   --daemon:    usar el daemon sin sondeo previo; un fallo se reporta.
