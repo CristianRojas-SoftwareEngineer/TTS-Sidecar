@@ -45,53 +45,53 @@ class TestEnsureBuildDependency:
     def test_present_does_not_prompt_or_install(self, monkeypatch):
         preguntas = []
         monkeypatch.setattr("builtins.input", lambda *a: preguntas.append(a) or "s")
-        instalaciones = []
-        monkeypatch.setattr(build_utils.subprocess, "run", lambda *a, **k: instalaciones.append(a))
+        installations = []
+        monkeypatch.setattr(build_utils.subprocess, "run", lambda *a, **k: installations.append(a))
 
         assert ensure_build_dependency("herramienta", lambda: True, ["pip", "install", "x"]) is True
         assert preguntas == []
-        assert instalaciones == []
+        assert installations == []
 
     def test_absent_with_confirmation_installs_and_reverifies(self, monkeypatch):
         monkeypatch.setattr(build_utils.sys.stdin, "isatty", lambda: True)
         monkeypatch.setattr("builtins.input", lambda *a: "s")
-        instalaciones = []
+        installations = []
         estados = iter([False, True])  # ausente antes, presente tras instalar
         monkeypatch.setattr(
             build_utils.subprocess, "run",
-            lambda cmd, **k: instalaciones.append(cmd),
+            lambda cmd, **k: installations.append(cmd),
         )
 
-        resultado = ensure_build_dependency(
+        result = ensure_build_dependency(
             "herramienta", lambda: next(estados), ["pip", "install", "x==1.0"],
         )
 
-        assert resultado is True
-        assert instalaciones == [["pip", "install", "x==1.0"]]
+        assert result is True
+        assert installations == [["pip", "install", "x==1.0"]]
 
     def test_absent_with_required_rejection_aborts(self, monkeypatch):
         monkeypatch.setattr(build_utils.sys.stdin, "isatty", lambda: True)
         monkeypatch.setattr("builtins.input", lambda *a: "n")
-        instalaciones = []
-        monkeypatch.setattr(build_utils.subprocess, "run", lambda *a, **k: instalaciones.append(a))
+        installations = []
+        monkeypatch.setattr(build_utils.subprocess, "run", lambda *a, **k: installations.append(a))
 
         with pytest.raises(SystemExit):
             ensure_build_dependency(
                 "herramienta", lambda: False, ["pip", "install", "x"], required=True,
             )
-        assert instalaciones == []
+        assert installations == []
 
     def test_absent_with_optional_rejection_returns_false(self, monkeypatch):
         monkeypatch.setattr(build_utils.sys.stdin, "isatty", lambda: True)
         monkeypatch.setattr("builtins.input", lambda *a: "n")
-        instalaciones = []
-        monkeypatch.setattr(build_utils.subprocess, "run", lambda *a, **k: instalaciones.append(a))
+        installations = []
+        monkeypatch.setattr(build_utils.subprocess, "run", lambda *a, **k: installations.append(a))
 
-        resultado = ensure_build_dependency(
+        result = ensure_build_dependency(
             "herramienta", lambda: False, ["pip", "install", "x"], required=False,
         )
-        assert resultado is False
-        assert instalaciones == []
+        assert result is False
+        assert installations == []
 
     def test_absent_without_tty_does_not_prompt_and_resolves_by_criticality(self, monkeypatch, capsys):
         monkeypatch.setattr(build_utils.sys.stdin, "isatty", lambda: False)
@@ -100,14 +100,14 @@ class TestEnsureBuildDependency:
             raise AssertionError("no debe preguntar sin TTY")
 
         monkeypatch.setattr("builtins.input", _input_prohibido)
-        instalaciones = []
-        monkeypatch.setattr(build_utils.subprocess, "run", lambda *a, **k: instalaciones.append(a))
+        installations = []
+        monkeypatch.setattr(build_utils.subprocess, "run", lambda *a, **k: installations.append(a))
 
-        resultado = ensure_build_dependency(
+        result = ensure_build_dependency(
             "herramienta", lambda: False, ["pip", "install", "x"], required=False,
         )
-        assert resultado is False
-        assert instalaciones == []
+        assert result is False
+        assert installations == []
         assert "Instalación manual: pip install x" in capsys.readouterr().out
 
         with pytest.raises(SystemExit):
@@ -134,9 +134,9 @@ class TestFetchPinnedAsset:
         url = self._servir(tmp_path)
         dest = tmp_path / "cache" / "asset.bin"
 
-        resultado = fetch_pinned_asset(url, self.SHA_OK, dest)
+        result = fetch_pinned_asset(url, self.SHA_OK, dest)
 
-        assert resultado == dest
+        assert result == dest
         assert dest.read_bytes() == self.CONTENIDO
 
     def test_incorrect_checksum_aborts_and_removes_file(self, tmp_path):
@@ -159,8 +159,8 @@ class TestFetchPinnedAsset:
 
         monkeypatch.setattr(urllib.request, "urlopen", _red_prohibida)
 
-        resultado = fetch_pinned_asset("https://example.invalid/asset.bin", self.SHA_OK, dest)
-        assert resultado == dest
+        result = fetch_pinned_asset("https://example.invalid/asset.bin", self.SHA_OK, dest)
+        assert result == dest
 
     def test_network_timeout_propagates_without_partial_artifact(self, tmp_path, monkeypatch):
         """Un timeout de red al descargar propaga la excepción (el build

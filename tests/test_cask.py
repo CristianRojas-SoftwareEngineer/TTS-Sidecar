@@ -38,48 +38,48 @@ class TestParseDmgSha256:
 
     def test_does_not_match_other_artifacts(self):
         # No debe confundirse con el .exe o los .AppImage de la misma versión.
-        resultado = parse_dmg_sha256(SAMPLE_SUMS, "1.2.3")
-        assert resultado != _sha("exe")
-        assert resultado != _sha("appimage-x86_64")
+        result = parse_dmg_sha256(SAMPLE_SUMS, "1.2.3")
+        assert result != _sha("exe")
+        assert result != _sha("appimage-x86_64")
 
 
 class TestRenderCask:
     def test_stanzas_reflect_version_and_sha256(self):
-        contenido = render_cask("1.2.3", DMG_SHA)
-        assert 'version "1.2.3"' in contenido
-        assert f'sha256 "{DMG_SHA}"' in contenido
-        assert "tts-sidecar-#{version}-arm64.dmg" in contenido
-        assert 'cask "tts-sidecar" do' in contenido
+        content = render_cask("1.2.3", DMG_SHA)
+        assert 'version "1.2.3"' in content
+        assert f'sha256 "{DMG_SHA}"' in content
+        assert "tts-sidecar-#{version}-arm64.dmg" in content
+        assert 'cask "tts-sidecar" do' in content
 
     def test_url_points_to_versioned_tag(self):
-        contenido = render_cask("1.2.3", DMG_SHA)
-        assert "releases/download/v#{version}/" in contenido
+        content = render_cask("1.2.3", DMG_SHA)
+        assert "releases/download/v#{version}/" in content
 
     def test_zap_trash_present_for_clean_uninstall(self):
-        contenido = render_cask("1.2.3", DMG_SHA)
-        assert "zap trash:" in contenido
+        content = render_cask("1.2.3", DMG_SHA)
+        assert "zap trash:" in content
 
     def test_zap_trash_lists_both_model_repos(self):
         # La desinstalación con residuo cero requiere borrar los dos repos que
         # `setup` descarga: el modelo multilingüe y el repo base `chatterbox`
         # (Voice Encoder, ve.safetensors).
-        contenido = render_cask("1.2.3", DMG_SHA)
+        content = render_cask("1.2.3", DMG_SHA)
         assert (
             "~/.cache/huggingface/hub/models--ResembleAI--Chatterbox-Multilingual-es-mx-latam"
-            in contenido
+            in content
         )
-        assert "~/.cache/huggingface/hub/models--ResembleAI--chatterbox" in contenido
+        assert "~/.cache/huggingface/hub/models--ResembleAI--chatterbox" in content
 
     def test_caveats_suggest_setup(self):
-        contenido = render_cask("1.2.3", DMG_SHA)
-        assert "tts-sidecar setup" in contenido
+        content = render_cask("1.2.3", DMG_SHA)
+        assert "tts-sidecar setup" in content
 
 
 class TestRenderCaskFromTag:
     def test_strips_leading_v_from_tag(self):
-        contenido = render_cask_from_tag("v1.2.3", SAMPLE_SUMS)
-        assert 'version "1.2.3"' in contenido
-        assert f'sha256 "{DMG_SHA}"' in contenido
+        content = render_cask_from_tag("v1.2.3", SAMPLE_SUMS)
+        assert 'version "1.2.3"' in content
+        assert f'sha256 "{DMG_SHA}"' in content
 
     def test_regenerating_from_same_inputs_is_idempotent(self):
         first = render_cask_from_tag("v1.2.3", SAMPLE_SUMS)

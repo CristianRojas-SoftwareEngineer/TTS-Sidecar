@@ -543,7 +543,7 @@ class TestEnvironmentChecksAudio:
         monkeypatch.setattr(platform_module, "system", lambda: "Windows")
         monkeypatch.setattr(
             "tts_sidecar.audio.get_audio_devices_with_status",
-            lambda: ([{"id": 0, "name": "Altavoces"}], False),
+            lambda: ([{"id": 0, "name": "Altavoices"}], False),
         )
 
         checks = cli._environment_checks()
@@ -1036,17 +1036,17 @@ class TestExitCodes:
 
     def test_voice_list_filenotfound_points_to_voices_dir_not_setup(self, capsys):
         """El FileNotFoundError de voice list menciona el directorio de
-        voces, no remite a 'setup' (la provisión del modelo no lo arregla)."""
+        voices, no remite a 'setup' (la provisión del modelo no lo arregla)."""
         from tts_sidecar.cli import cmd_voice_list, EXIT_NOT_FOUND
 
         with patch("tts_sidecar.voices.list_voices",
                    side_effect=FileNotFoundError("directorio ilegible")), \
-                patch("tts_sidecar.voices.voices_root", return_value="/ruta/voces"):
+                patch("tts_sidecar.voices.voices_root", return_value="/ruta/voices"):
             with pytest.raises(SystemExit) as exc:
                 cmd_voice_list(MockArgs())
         assert exc.value.code == EXIT_NOT_FOUND
         err = capsys.readouterr().err
-        assert "/ruta/voces" in err
+        assert "/ruta/voices" in err
         assert "setup" not in err
 
     def test_daemon_start_failure_exits_5(self):
@@ -1098,7 +1098,7 @@ class TestCmdCleanup:
 
     def _fake_env(self, tmp_path, monkeypatch):
         """Caché HF sintética con las dos carpetas del proyecto, una ajena,
-        y un directorio de voces de usuario."""
+        y un directorio de voices de usuario."""
         hub = tmp_path / "hub"
         propio1 = hub / "models--ResembleAI--Chatterbox-Multilingual-es-mx-latam"
         propio2 = hub / "models--ResembleAI--chatterbox"
@@ -1108,62 +1108,62 @@ class TestCmdCleanup:
         from huggingface_hub import constants
         monkeypatch.setattr(constants, "HF_HUB_CACHE", str(hub))
 
-        voces = tmp_path / "voces"
-        (voces / "mi_voz").mkdir(parents=True)
-        monkeypatch.setattr("tts_sidecar.voices.voices_root", lambda: str(voces))
-        return propio1, propio2, ajeno, voces
+        voices = tmp_path / "voices"
+        (voices / "mi_voz").mkdir(parents=True)
+        monkeypatch.setattr("tts_sidecar.voices.voices_root", lambda: str(voices))
+        return propio1, propio2, ajeno, voices
 
     def test_dry_run_lists_without_deleting(self, tmp_path, monkeypatch, capsys):
         from tts_sidecar.cli import cmd_cleanup
 
-        propio1, propio2, ajeno, voces = self._fake_env(tmp_path, monkeypatch)
+        propio1, propio2, ajeno, voices = self._fake_env(tmp_path, monkeypatch)
 
         cmd_cleanup(self._args(all=True, dry_run=True))
 
         out = capsys.readouterr().out
         assert "dry-run" in out
-        assert str(propio1) in out and str(propio2) in out and str(voces) in out
-        assert propio1.exists() and propio2.exists() and voces.exists()
+        assert str(propio1) in out and str(propio2) in out and str(voices) in out
+        assert propio1.exists() and propio2.exists() and voices.exists()
 
     def test_selective_model_deletion_with_confirmation(self, tmp_path, monkeypatch, capsys):
         from tts_sidecar.cli import cmd_cleanup
 
-        propio1, propio2, ajeno, voces = self._fake_env(tmp_path, monkeypatch)
+        propio1, propio2, ajeno, voices = self._fake_env(tmp_path, monkeypatch)
         monkeypatch.setattr("builtins.input", lambda _: "s")
 
         cmd_cleanup(self._args(model=True))
 
         assert not propio1.exists() and not propio2.exists()
         assert ajeno.exists(), "cleanup nunca toca carpetas ajenas de la caché HF"
-        assert voces.exists(), "--model no borra las voces de usuario"
+        assert voices.exists(), "--model no borra las voices de usuario"
 
     def test_deleting_voices_does_not_touch_model(self, tmp_path, monkeypatch, capsys):
         from tts_sidecar.cli import cmd_cleanup
 
-        propio1, propio2, ajeno, voces = self._fake_env(tmp_path, monkeypatch)
+        propio1, propio2, ajeno, voices = self._fake_env(tmp_path, monkeypatch)
         monkeypatch.setattr("builtins.input", lambda _: "s")
 
         cmd_cleanup(self._args(voices=True))
 
-        assert not voces.exists()
+        assert not voices.exists()
         assert propio1.exists() and propio2.exists() and ajeno.exists()
 
     def test_negative_confirmation_does_not_delete(self, tmp_path, monkeypatch, capsys):
         from tts_sidecar.cli import cmd_cleanup
 
-        propio1, propio2, ajeno, voces = self._fake_env(tmp_path, monkeypatch)
+        propio1, propio2, ajeno, voices = self._fake_env(tmp_path, monkeypatch)
         monkeypatch.setattr("builtins.input", lambda _: "n")
 
         cmd_cleanup(self._args(all=True))
 
         assert "Cancelado" in capsys.readouterr().out
-        assert propio1.exists() and propio2.exists() and voces.exists()
+        assert propio1.exists() and propio2.exists() and voices.exists()
 
     def test_yes_deletes_without_asking_confirmation(self, tmp_path, monkeypatch, capsys):
         """--yes omite input(); útil para invocación programática."""
         from tts_sidecar.cli import cmd_cleanup
 
-        propio1, propio2, ajeno, voces = self._fake_env(tmp_path, monkeypatch)
+        propio1, propio2, ajeno, voices = self._fake_env(tmp_path, monkeypatch)
 
         def _no_deberia_llamarse(_):
             raise AssertionError("input() no debe llamarse con --yes")
@@ -1171,14 +1171,14 @@ class TestCmdCleanup:
 
         cmd_cleanup(self._args(all=True, yes=True))
 
-        assert not propio1.exists() and not propio2.exists() and not voces.exists()
+        assert not propio1.exists() and not propio2.exists() and not voices.exists()
         assert ajeno.exists()
 
     def test_eof_en_confirmacion_cancela_limpiamente(self, tmp_path, monkeypatch, capsys):
         """stdin cerrado (subprocess sin --yes) no debe producir traceback."""
         from tts_sidecar.cli import cmd_cleanup
 
-        propio1, propio2, ajeno, voces = self._fake_env(tmp_path, monkeypatch)
+        propio1, propio2, ajeno, voices = self._fake_env(tmp_path, monkeypatch)
 
         def _eof(_):
             raise EOFError()
@@ -1187,18 +1187,18 @@ class TestCmdCleanup:
         cmd_cleanup(self._args(all=True))
 
         assert "Cancelado" in capsys.readouterr().out
-        assert propio1.exists() and propio2.exists() and voces.exists()
+        assert propio1.exists() and propio2.exists() and voices.exists()
 
     def test_without_flags_shows_help_and_does_not_delete(self, tmp_path, monkeypatch, capsys):
         from tts_sidecar.cli import cmd_cleanup
 
-        propio1, propio2, ajeno, voces = self._fake_env(tmp_path, monkeypatch)
+        propio1, propio2, ajeno, voices = self._fake_env(tmp_path, monkeypatch)
         args = self._args()
 
         cmd_cleanup(args)
 
         args.cleanup_parser.print_help.assert_called_once()
-        assert propio1.exists() and voces.exists()
+        assert propio1.exists() and voices.exists()
 
 
 class TestSetupUninstall:
@@ -1217,11 +1217,11 @@ class TestSetupUninstall:
         return home
 
     def _fake_cleanup_env(self, tmp_path, monkeypatch, voices_inside_root=True):
-        """Caché HF sintética + voces de usuario + data_root mockeado.
+        """Caché HF sintética + voices de usuario + data_root mockeado.
 
         data_root se mockea a un directorio bajo tmp_path para que el borrado del
         directorio raíz vacío del contrato compartido no toque el HOME real. Con
-        voices_inside_root las voces cuelgan de data_root (como en producción:
+        voices_inside_root las voices cuelgan de data_root (como en producción:
         voices_root() = data_root()/voices), de modo que borrarlas deja data_root
         vacío y comprobable.
         """
@@ -1235,13 +1235,13 @@ class TestSetupUninstall:
 
         data_root = tmp_path / "data_root"
         if voices_inside_root:
-            voces = data_root / "voices"
+            voices = data_root / "voices"
         else:
-            voces = tmp_path / "voces"
-        (voces / "mi_voz").mkdir(parents=True)
+            voices = tmp_path / "voices"
+        (voices / "mi_voz").mkdir(parents=True)
         monkeypatch.setattr("tts_sidecar.paths.data_root", lambda: str(data_root))
-        monkeypatch.setattr("tts_sidecar.voices.voices_root", lambda: str(voces))
-        return propio1, propio2, voces
+        monkeypatch.setattr("tts_sidecar.voices.voices_root", lambda: str(voices))
+        return propio1, propio2, voices
 
     def _fake_macos(self, monkeypatch, tmp_path):
         home = tmp_path / "home"
@@ -1370,7 +1370,7 @@ class TestSetupUninstall:
         from tts_sidecar.cli import cmd_setup
 
         self._fake_home_linux(monkeypatch, tmp_path)
-        propio1, propio2, voces = self._fake_cleanup_env(tmp_path, monkeypatch)
+        propio1, propio2, voices = self._fake_cleanup_env(tmp_path, monkeypatch)
 
         def _no_input(_):
             raise AssertionError("input() no debe llamarse con --yes")
@@ -1378,7 +1378,7 @@ class TestSetupUninstall:
 
         cmd_setup(MockArgs(uninstall=True, yes=True))
 
-        assert not propio1.exists() and not propio2.exists() and not voces.exists()
+        assert not propio1.exists() and not propio2.exists() and not voices.exists()
 
     def test_uninstall_cancelacion_atomica(self, monkeypatch, tmp_path, capsys):
         # El reorden vuelve la cancelación atómica: cancelar el cleanup (primer
@@ -1388,7 +1388,7 @@ class TestSetupUninstall:
         from tts_sidecar.cli import cmd_setup
 
         home = self._fake_home_linux(monkeypatch, tmp_path)
-        propio1, propio2, voces = self._fake_cleanup_env(tmp_path, monkeypatch)
+        propio1, propio2, voices = self._fake_cleanup_env(tmp_path, monkeypatch)
         link = home / ".local" / "bin" / "tts-sidecar"
         link.parent.mkdir(parents=True)
         link.symlink_to(tmp_path)
@@ -1399,7 +1399,7 @@ class TestSetupUninstall:
         cmd_setup(MockArgs(uninstall=True))
 
         # Nada borrado: datos, symlink y directorio intactos.
-        assert propio1.exists() and propio2.exists() and voces.exists()
+        assert propio1.exists() and propio2.exists() and voices.exists()
         assert link.exists() and install_dir.exists()
         assert "cancelada" in capsys.readouterr().err.lower()
 
@@ -1411,7 +1411,7 @@ class TestSetupUninstall:
         from tts_sidecar.cli import cmd_setup
 
         home = self._fake_home_linux(monkeypatch, tmp_path)
-        # Entorno sin caché ni voces preexistentes.
+        # Entorno sin caché ni voices preexistentes.
         hub = tmp_path / "hub"
         hub.mkdir()
         from huggingface_hub import constants
@@ -1439,7 +1439,7 @@ class TestSetupUninstall:
         from tts_sidecar.cli import cmd_setup
 
         home = self._fake_home_linux(monkeypatch, tmp_path)
-        propio1, propio2, voces = self._fake_cleanup_env(tmp_path, monkeypatch)
+        propio1, propio2, voices = self._fake_cleanup_env(tmp_path, monkeypatch)
         link = home / ".local" / "bin" / "tts-sidecar"
         link.parent.mkdir(parents=True)
         link.symlink_to(tmp_path)
@@ -1453,7 +1453,7 @@ class TestSetupUninstall:
         assert "schema_version" in payload
         # Rutas de datos del cleanup encadenado atestiguadas en removed.
         assert str(propio1) in payload["removed"]
-        assert str(voces) in payload["removed"]
+        assert str(voices) in payload["removed"]
         # Symlink y directorio de instalación (borrados en proceso).
         assert str(link) in payload["removed"]
         assert str(install_dir) in payload["removed"]
@@ -1481,7 +1481,7 @@ class TestSetupUninstall:
         from tts_sidecar.cli import cmd_setup
 
         home = self._fake_macos(monkeypatch, tmp_path)
-        propio1, propio2, voces = self._fake_cleanup_env(tmp_path, monkeypatch)
+        propio1, propio2, voices = self._fake_cleanup_env(tmp_path, monkeypatch)
         app, exe = self._make_fake_app(tmp_path)
         monkeypatch.setattr(sys, "executable", str(exe))
         link = home / ".local" / "bin" / "tts-sidecar"
@@ -1492,7 +1492,7 @@ class TestSetupUninstall:
 
         assert not app.exists()
         assert not link.exists()
-        assert not propio1.exists() and not voces.exists()
+        assert not propio1.exists() and not voices.exists()
 
     def test_uninstall_macos_resuelve_symlink_del_ejecutable(self, monkeypatch, tmp_path, capsys):
         if not _symlinks_supported(tmp_path):
@@ -1531,7 +1531,7 @@ class TestSetupUninstall:
         from tts_sidecar.cli import cmd_setup, EXIT_INVALID_INPUT
 
         self._fake_macos(monkeypatch, tmp_path)
-        propio1, propio2, voces = self._fake_cleanup_env(tmp_path, monkeypatch)
+        propio1, propio2, voices = self._fake_cleanup_env(tmp_path, monkeypatch)
         app, exe = self._make_fake_app(tmp_path)
         monkeypatch.setattr(sys, "executable", str(exe))
         # Metadata del Caskroom presente bajo HOMEBREW_PREFIX.
@@ -1543,7 +1543,7 @@ class TestSetupUninstall:
         assert "brew uninstall --cask --zap" in capsys.readouterr().err
         # Aborta sin borrar nada.
         assert app.exists()
-        assert propio1.exists() and voces.exists()
+        assert propio1.exists() and voices.exists()
 
     # ---- Rama Windows --------------------------------------------------------
 
@@ -1552,12 +1552,12 @@ class TestSetupUninstall:
         from tts_sidecar.cli import cmd_setup
 
         exe, popen = self._fake_windows(monkeypatch, tmp_path)
-        propio1, propio2, voces = self._fake_cleanup_env(tmp_path, monkeypatch)
+        propio1, propio2, voices = self._fake_cleanup_env(tmp_path, monkeypatch)
 
         cmd_setup(MockArgs(uninstall=True, yes=True, json=True))
 
         # cleanup corrió en proceso.
-        assert not propio1.exists() and not voces.exists()
+        assert not propio1.exists() and not voices.exists()
         # Desinstalador lanzado desacoplado, sin espera, con el string tal cual.
         popen.assert_called_once()
         assert popen.call_args[0][0] == r'"C:\Programs\tts-sidecar\unins000.exe" /SILENT'
@@ -1573,13 +1573,13 @@ class TestSetupUninstall:
         from tts_sidecar.cli import cmd_setup, EXIT_INVALID_INPUT
 
         exe, popen = self._fake_windows(monkeypatch, tmp_path, key_present=False)
-        propio1, propio2, voces = self._fake_cleanup_env(tmp_path, monkeypatch)
+        propio1, propio2, voices = self._fake_cleanup_env(tmp_path, monkeypatch)
 
         with pytest.raises(SystemExit) as exc:
             cmd_setup(MockArgs(uninstall=True, yes=True))
         assert exc.value.code == EXIT_INVALID_INPUT
         # La validación del registro precede al cleanup: datos intactos.
-        assert propio1.exists() and voces.exists()
+        assert propio1.exists() and voices.exists()
         popen.assert_not_called()
 
 
@@ -1593,7 +1593,7 @@ class TestWriteCommandsJSON:
         import json
         from tts_sidecar.cli import cmd_voice_add, SCHEMA_VERSION
 
-        mock_register.return_value = ("/voces/nueva/reference.wav", "/voces/nueva/speech.wav")
+        mock_register.return_value = ("/voices/nueva/reference.wav", "/voices/nueva/speech.wav")
 
         cmd_voice_add(MockArgs(name="nueva", json=True))
 
@@ -1601,8 +1601,8 @@ class TestWriteCommandsJSON:
         assert payload == {
             "schema_version": SCHEMA_VERSION,
             "name": "nueva",
-            "reference": "/voces/nueva/reference.wav",
-            "speech": "/voces/nueva/speech.wav",
+            "reference": "/voices/nueva/reference.wav",
+            "speech": "/voices/nueva/speech.wav",
         }
 
     @patch("tts_sidecar.voices.remove_voice", return_value=True)
@@ -1663,10 +1663,10 @@ class TestWriteCommandsJSON:
             d.mkdir(parents=True)
         from huggingface_hub import constants
         monkeypatch.setattr(constants, "HF_HUB_CACHE", str(hub))
-        voces = tmp_path / "voces"
-        (voces / "mi_voz").mkdir(parents=True)
-        monkeypatch.setattr("tts_sidecar.voices.voices_root", lambda: str(voces))
-        return propio1, propio2, voces
+        voices = tmp_path / "voices"
+        (voices / "mi_voz").mkdir(parents=True)
+        monkeypatch.setattr("tts_sidecar.voices.voices_root", lambda: str(voices))
+        return propio1, propio2, voices
 
     def _cleanup_args(self, **kw):
         import argparse
@@ -1684,7 +1684,7 @@ class TestWriteCommandsJSON:
         import json
         from tts_sidecar.cli import cmd_cleanup, SCHEMA_VERSION
 
-        propio1, propio2, voces = self._cleanup_env(tmp_path, monkeypatch)
+        propio1, propio2, voices = self._cleanup_env(tmp_path, monkeypatch)
 
         cmd_cleanup(self._cleanup_args(all=True, yes=True, json=True))
 
@@ -1693,28 +1693,28 @@ class TestWriteCommandsJSON:
         assert payload["schema_version"] == SCHEMA_VERSION
         assert payload["dry_run"] is False
         assert sorted(payload["removed"]) == sorted(
-            [str(propio1), str(propio2), str(voces)]
+            [str(propio1), str(propio2), str(voices)]
         )
-        assert not propio1.exists() and not propio2.exists() and not voces.exists()
+        assert not propio1.exists() and not propio2.exists() and not voices.exists()
         assert "Rutas a eliminar" in captured.err  # listados informativos a stderr
 
     def test_cleanup_json_dry_run_lists_without_deleting(self, tmp_path, monkeypatch, capsys):
         import json
         from tts_sidecar.cli import cmd_cleanup
 
-        propio1, propio2, voces = self._cleanup_env(tmp_path, monkeypatch)
+        propio1, propio2, voices = self._cleanup_env(tmp_path, monkeypatch)
 
         cmd_cleanup(self._cleanup_args(all=True, dry_run=True, json=True))
 
         payload = json.loads(capsys.readouterr().out)
         assert payload["dry_run"] is True
         assert len(payload["removed"]) == 3
-        assert propio1.exists() and propio2.exists() and voces.exists()
+        assert propio1.exists() and propio2.exists() and voices.exists()
 
     def test_cleanup_json_without_yes_or_dry_run_exits_4(self, tmp_path, monkeypatch, capsys):
         from tts_sidecar.cli import cmd_cleanup, EXIT_INVALID_INPUT
 
-        propio1, propio2, voces = self._cleanup_env(tmp_path, monkeypatch)
+        propio1, propio2, voices = self._cleanup_env(tmp_path, monkeypatch)
 
         with pytest.raises(SystemExit) as exc:
             cmd_cleanup(self._cleanup_args(all=True, json=True))
@@ -1723,7 +1723,7 @@ class TestWriteCommandsJSON:
         captured = capsys.readouterr()
         assert "--yes" in captured.err and "--dry-run" in captured.err
         assert captured.out == ""  # stdout intacto: sin JSON parcial ni prosa
-        assert propio1.exists() and propio2.exists() and voces.exists()
+        assert propio1.exists() and propio2.exists() and voices.exists()
 
 
 class TestCmdSpeakEmptyText:

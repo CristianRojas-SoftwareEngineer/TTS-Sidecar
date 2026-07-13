@@ -1463,13 +1463,13 @@ def cmd_cleanup(args):
     if not getattr(args, "yes", False):
         # Inalcanzable en modo --json (el gate de arriba exige --yes o --dry-run).
         try:
-            respuesta = input("\n¿Eliminar estas rutas? (s/n): ").strip().lower()
+            response = input("\n¿Eliminar estas rutas? (s/n): ").strip().lower()
         except EOFError:
             # stdin cerrado (invocado vía subprocess sin --yes) no debe
             # producir un traceback crudo indistinguible de un error real.
             print("\nCancelado: no se borró nada.")
             return CleanupResult([], True)
-        if respuesta not in ("s", "si", "sí", "y", "yes"):
+        if response not in ("s", "si", "sí", "y", "yes"):
             print("Cancelado: no se borró nada.")
             return CleanupResult([], True)
 

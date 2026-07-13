@@ -54,15 +54,15 @@ class TestSynthesizeRequest:
 
     def test_excessive_audio_path_rejected(self):
         """voice_audio/speech_audio tienen tope de longitud."""
-        ruta_excesiva = "a" * (MAX_AUDIO_PATH_LENGTH + 1)
+        excessive_path = "a" * (MAX_AUDIO_PATH_LENGTH + 1)
         with pytest.raises(ValueError):
-            SynthesizeRequest(text="hola", voice_audio=ruta_excesiva)
+            SynthesizeRequest(text="hola", voice_audio=excessive_path)
         with pytest.raises(ValueError):
-            SynthesizeRequest(text="hola", speech_audio=ruta_excesiva)
+            SynthesizeRequest(text="hola", speech_audio=excessive_path)
 
     def test_audio_path_at_limit_accepted(self):
-        ruta = "a" * MAX_AUDIO_PATH_LENGTH
-        req = SynthesizeRequest(text="hola", voice_audio=ruta)
+        path = "a" * MAX_AUDIO_PATH_LENGTH
+        req = SynthesizeRequest(text="hola", voice_audio=path)
         assert len(req.voice_audio) == MAX_AUDIO_PATH_LENGTH
 
 
@@ -165,14 +165,14 @@ class TestUnicodeBoundaries:
             SynthesizeRequest(text="😀" * (MAX_TEXT_LENGTH + 1))
 
     def test_unicode_audio_path_at_limit_accepted(self):
-        ruta = "ñ" * MAX_AUDIO_PATH_LENGTH
-        req = SynthesizeRequest(text="hola", voice_audio=ruta)
+        path = "ñ" * MAX_AUDIO_PATH_LENGTH
+        req = SynthesizeRequest(text="hola", voice_audio=path)
         assert len(req.voice_audio) == MAX_AUDIO_PATH_LENGTH
 
     def test_unicode_audio_path_over_limit_rejected(self):
-        ruta = "ñ" * (MAX_AUDIO_PATH_LENGTH + 1)
+        path = "ñ" * (MAX_AUDIO_PATH_LENGTH + 1)
         with pytest.raises(ValueError):
-            SynthesizeRequest(text="hola", voice_audio=ruta)
+            SynthesizeRequest(text="hola", voice_audio=path)
 
     def test_text_with_accents_and_spanish_punctuation_roundtrips(self):
         text = "¿Cómo estás? ¡Qué bien! Ñoño güiro."
@@ -196,14 +196,14 @@ class TestCrossFieldValidation:
         assert req.speech_audio is None
 
     def test_one_field_at_max_other_none(self):
-        ruta = "a" * MAX_AUDIO_PATH_LENGTH
-        req = SynthesizeRequest(text="hola", voice_audio=ruta, speech_audio=None)
+        path = "a" * MAX_AUDIO_PATH_LENGTH
+        req = SynthesizeRequest(text="hola", voice_audio=path, speech_audio=None)
         assert len(req.voice_audio) == MAX_AUDIO_PATH_LENGTH
         assert req.speech_audio is None
 
     def test_both_fields_at_max_simultaneously_accepted(self):
-        ruta = "b" * MAX_AUDIO_PATH_LENGTH
-        req = SynthesizeRequest(text="hola", voice_audio=ruta, speech_audio=ruta)
+        path = "b" * MAX_AUDIO_PATH_LENGTH
+        req = SynthesizeRequest(text="hola", voice_audio=path, speech_audio=path)
         assert len(req.voice_audio) == MAX_AUDIO_PATH_LENGTH
         assert len(req.speech_audio) == MAX_AUDIO_PATH_LENGTH
 
