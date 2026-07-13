@@ -98,12 +98,35 @@ def voice_dir(name: str) -> str:
     return target
 
 
+def _is_symlink(path: str) -> bool:
+    """True si `path` es un symlink, sin seguirlo.
+
+    `os.path.islink` inspecciona solo el segmento nombrado (no sus ancestros),
+    de modo que un enlace en `registry/<nombre>` o en `reference.wav` se detecta
+    sin recorrer el árbol ni rechazar raíces legítimas que el usuario haya
+    enlazado (p. ej. `data_root` mismo). S1-17: es portable a Windows, a
+    diferencia de `O_NOFOLLOW` (POSIX).
+    """
+    return os.path.islink(path)
+
+
 def _is_valid_voice_dir(candidate: str) -> bool:
     """Una voz es válida solo con sus dos audios: reference.wav (timbre) y
-    speech.wav (conditioning), igual que exige `voice add`."""
-    return os.path.exists(os.path.join(candidate, "reference.wav")) and os.path.exists(
-        os.path.join(candidate, "speech.wav")
-    )
+    speech.wav (conditioning), igual que exige `voice add`.
+
+    S1-17: cualquier componente symlink (el directorio de la voz o sus dos
+    `.wav`) la hace inválida, para que `list_voices` y `voice_paths` coincidan
+    en rechazarla — un symlink dentro del registro no puede cargar un `.wav`
+    arbitrario del atacante. La defensa en profundidad de escape ya vive en
+    `voice_dir` (realpath); aquí se cierra la ventana de symlink a la raíz.
+    """
+    if _is_symlink(candidate):
+        return False
+    ref = os.path.join(candidate, "reference.wav")
+    speech = os.path.join(candidate, "speech.wav")
+    if _is_symlink(ref) or _is_symlink(speech):
+        return False
+    return os.path.exists(ref) and os.path.exists(speech)
 
 
 def _resolve_voice_dir(name: str) -> str | None:
@@ -182,7 +205,11 @@ def register_voice_files(
 
     target = voice_dir(name)
     os.makedirs(target, exist_ok=True)
-
+    # S1-17: ni el directorio destino ni los dos WAV pueden ser symlinks;
+    # si lo fueran, copy2 escribiría *a través* del enlace (y voice_paths
+    # ya los rechaza al leer). Se rechaza antes de tocar el filesystem.
+    if _is_symlink(target):
+        raise ValueError(f"La voz '{name}' apunta a un symlink; no se puede registrar.")
     ref_path = os.path.join(target, "reference.wav")
     speech_path = os.path.join(target, "speech.wav")
     shutil.copy2(reference_audio, ref_path)

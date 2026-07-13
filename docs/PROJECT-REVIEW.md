@@ -48,7 +48,7 @@ Conteo por severidad: **0 S4, 2 S3, 18 S2, 18 S1, 5 S0** (43 hallazgos consolida
 | S1-14 | `create_installer_windows.py`: rutas ISCC hardcodeadas | S1 — Bajo | P3 | build / Mantenibilidad | No | Resuelto |
 | S1-15 | `clean_build.py` asume ubicación relativa al repo | S1 — Bajo | P3 | build / Mantenibilidad | No | Resuelto |
 | S1-16 | `build_utils.py` importa PIL duplicado en `ensure_ico`/`ensure_icns` | S1 — Bajo | P3 | build / Calidad | No | Resuelto |
-| S1-17 | Validación de nombre de voz no previene symlinks dentro del dir permitido | S1 — Bajo | P3 | voices / Seguridad | Sí | Pendiente |
+| S1-17 | Validación de nombre de voz no previene symlinks dentro del dir permitido | S1 — Bajo | P3 | voices / Seguridad | Sí | Resuelto |
 | S1-18 | Deriva documental menor (árbol de CLAUDE.md y ruta de voces en DESIGN.md) | S1 — Bajo | P3 | docs / Documentación | No | Resuelto |
 | S0-01 | `bundle_size_mb()` no referenciada externamente | S0 — Informativo | P3 | build / Calidad | No | Resuelto |
 | S0-02 | Estrategia de lockfile CPU-only de Linux no documentada | S0 — Informativo | P3 | build / Dependencias | No | Resuelto |
@@ -638,6 +638,8 @@ _Ninguno._ No se encontró riesgo inaceptable ni fallo arquitectónico que impid
     - *Contras*: un symlink *legítimo* (p. ej. voce enlazada por el usuario) se rechazaría; posible molestia para usuarios avanzados.
   - **Trampa del parche barato**: "documentar" sin más — etiquetar el riesgo y cerrar el hallazgo sin endurecer nada; en seguridad, documentar un riesgo conocido no lo mitiga.
   - **Qué se necesita del humano**: (1) ¿aceptar el riesgo residual (A) o mitigarlo (B/C)?; (2) si mitigar, ¿`O_NOFOLLOW` (B, no portable) o rechazo de symlinks (C, más estricto)?
+- **Decisión tomada**: **Opción C — rechazo de symlinks** (mitigación real y portable a Windows, la plataforma primaria; se descartó B por ser `O_NOFOLLOW` POSIX-only, y A por caer en la trampa de «documentar sin más»).
+- **Remediación aplicada**: `src/tts_sidecar/voices.py` incorpora un guard `_is_symlink` (envuelve `os.path.islink`, que no sigue el enlace y es portable a Windows) integrado en la **frontera de validez** `_is_valid_voice_dir`: una voz cuyo directorio o cualquiera de sus dos `.wav` (`reference.wav`/`speech.wav`) sea un symlink se trata como **inválida**, de modo que `list_voices` (listado) y `_resolve_voice_dir`/`voice_paths` (lectura) coinciden en no resolverla ni leerla — se cierra la ventana de cargar un `.wav` arbitrario del atacante a través de un symlink dentro del registro. El path de escritura también se cubre: `register_voice_files` rechaza un destino symlink antes de tocar el filesystem, para que `shutil.copy2` nunca escriba *a través* del enlace. La defensa en profundidad de escape (`voice_dir` con `realpath`, líneas 93-98) se conserva intacta. Tests: `tests/test_voices.py::TestSymlinkRejection` (dir symlinked no se resuelve ni se lista; `.wav` symlinked no se resuelve) y `TestRegisterVoiceFiles::test_register_rejects_symlink_target`, con un fixture `symlink` que hace `pytest.skip` si la plataforma no permite crear symlinks (Windows sin privilegio). Suite: 460 passed (+4). **Estado: Resuelto.**
 
 #### S1-18 — Deriva documental menor (árbol de CLAUDE.md y ruta de voces en DESIGN.md)
 - **Categoría**: Documentación

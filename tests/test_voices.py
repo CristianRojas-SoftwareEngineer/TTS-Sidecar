@@ -24,6 +24,26 @@ def voice_roots(tmp_path, monkeypatch):
     return user_root, factory_root
 
 
+@pytest.fixture
+def symlink(tmp_path):
+    """`os.symlink` real, o skip si la plataforma no lo permite.
+
+    Crear symlinks en Windows suele requerir privilegio (SeCreateSymbolicLink);
+    sin él, `os.symlink` lanza OSError y el test se omite (no falla). Así los
+    tests de S1-17 corren en Linux/macOS y en Windows con privilegio, y se
+    saltan limpiamente donde no aplique.
+    """
+    probe = tmp_path / "probe" / "t.txt"
+    probe.parent.mkdir(parents=True)
+    probe.write_text("x")
+    link = tmp_path / "probe" / "l.txt"
+    try:
+        os.symlink(probe, link)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks no disponibles sin privilegio (típico en Windows no-admin)")
+    return os.symlink
+
+
 def _make_voice(root, name, reference=True, speech=True):
     voice = root / name
     voice.mkdir()
@@ -96,6 +116,26 @@ class TestRegisterVoiceFiles:
         voices.register_voice_files("existente", str(ref), str(speech), force=True)
 
         assert (user_root / "existente" / "reference.wav").read_bytes() == b"RIFF-ref"
+
+    def test_register_rejects_symlink_target(self, voice_roots, tmp_path, monkeypatch, symlink):
+        """S1-17: no se registra una voz cuyo directorio destino es un symlink.
+
+        Un symlink como destino haría que `shutil.copy2` escribiera *a través*
+        del enlace; `voice_dir`/`register_voice_files` lo rechazan antes de
+        tocar el filesystem.
+        """
+        user_root, _ = voice_roots
+        evil = tmp_path / "evil"
+        evil.mkdir()
+        symlink(evil, user_root / "v")
+        ref = tmp_path / "timbre.wav"
+        speech = tmp_path / "habla.wav"
+        ref.write_bytes(b"RIFF")
+        speech.write_bytes(b"RIFF")
+        self._mock_librosa(monkeypatch)
+
+        with pytest.raises(ValueError):
+            voices.register_voice_files("v", str(ref), str(speech))
 
 
 class TestResolveVoiceDir:
@@ -171,6 +211,44 @@ class TestNameSanitization:
         _make_voice(user_root, "mia")
         assert voices.remove_voice("mia") is True
         assert not (user_root / "mia").exists()
+
+
+class TestSymlinkRejection:
+    """S1-17: una voz cuyo directorio o sus `.wav` sean symlinks se rechaza.
+
+    La ventana que cierra este hallazgo es la de cargar un `.wav` arbitrario
+    del atacante a través de un symlink dentro del registro. Toda voz con
+    cualquier componente symlink se trata como inválida, de modo que
+    `list_voices` y `voice_paths` coinciden en no resolverla ni leerla.
+    """
+
+    def test_symlinked_voice_dir_not_resolved(self, voice_roots, symlink):
+        user_root, _ = voice_roots
+        real = user_root / "real"
+        real.mkdir()
+        (real / "reference.wav").write_bytes(b"RIFF")
+        (real / "speech.wav").write_bytes(b"RIFF")
+        symlink(real, user_root / "v")
+        assert voices._resolve_voice_dir("v") is None
+
+    def test_symlinked_wav_not_resolved(self, voice_roots, symlink):
+        user_root, _ = voice_roots
+        v = user_root / "v"
+        v.mkdir()
+        (v / "speech.wav").write_bytes(b"RIFF")
+        external = user_root / "external_ref.wav"
+        external.write_bytes(b"RIFF")
+        symlink(external, v / "reference.wav")
+        assert voices._resolve_voice_dir("v") is None
+
+    def test_symlinked_voice_dir_not_listed(self, voice_roots, symlink):
+        user_root, _ = voice_roots
+        real = user_root / "real"
+        real.mkdir()
+        (real / "reference.wav").write_bytes(b"RIFF")
+        (real / "speech.wav").write_bytes(b"RIFF")
+        symlink(real, user_root / "v")
+        assert "v" not in voices.list_voices()
 
 
 class TestCmdVoiceRemoveIOErrors:
