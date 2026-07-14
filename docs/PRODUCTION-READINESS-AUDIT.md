@@ -9,12 +9,13 @@
 **Revisión de remediación**: 2026-07-14 — implementadas y verificadas con tests las cuatro soluciones recomendadas de la Dimensión 2 (S2-01, S2-02, S2-05, S2-06); dimensión cerrada con veredicto LISTO.
 **Revisión de remediación (2)**: 2026-07-14 — implementadas y verificadas con tests las tres soluciones recomendadas de las Dimensiones 9 y 10 (S2-14, S1-02, S2-15); ambas dimensiones cerradas con veredicto LISTO. Suite: 547 tests.
 **Revisión de remediación (3)**: 2026-07-14 — implementada y verificada con tests la solución recomendada para S2-09 (job `coverage` independiente en CI, `pytest-cov` pineado vía `pipeline.parameters`, gate por módulo en `scripts/check_coverage.py` con ratchet-desde-lo-medido). Suite: 559 tests.
+**Revisión de remediación (4)**: 2026-07-14 — implementada y verificada con tests la solución recomendada para S2-10 (normalización de la criticidad de Inno Setup a `required=True` en `ensure_build_dependency` con eliminación del `sys.exit` manual redundante, y tests de rama de fallo por build script: Inno ausente → aborta en `tests/test_create_installer_windows.py`, `create-dmg` con `rc != 0` → aborta en `tests/test_build_macos.py`, tooling del AppImage ausente → degrada en `tests/test_build_linux.py`); S2-12 se cierra con S2-10. Dimensiones 5 y 7 cerradas con veredicto LISTO. Quedan 0 S2 abiertos; solo restan S1-01 y S0-01/S0-02.
 
 ---
 
 ## Resumen ejecutivo
 
-Se audió el proyecto completo contra las 10 dimensiones de production-readiness. **El código base es sólido, bien testeado y con arquitectura limpia**. Se identificaron originalmente 0 S4, 1 S3, 15 S2, 2 S1 y 2 S0. Tras la remediación y la **revisión de refinamiento** (2026-07-13, verificación contra código): S3-01 y S2-13 **resueltos** en tests; S2-03 y S2-04 **cerrados por drift de la auditoría** (la evidencia original era incorrecta: `cleanup --json` y `setup --json` ya emitían sus payloads, con tests); S2-11 **consolidado** en S2-15 y S2-12 **subsumido** en S2-10 (misma causa raíz). Una segunda ronda de remediación (2026-07-14) implementó y verificó con tests las cuatro soluciones recomendadas de la Dimensión 2: S2-01, S2-02, S2-05 y S2-06 **resueltos**. Una tercera ronda (2026-07-14) cerró las Dimensiones 9 y 10: S2-14 (`SOURCE-OFFER.md` en los 4 artefactos), S1-02 (verificación lockfile↔`THIRD-PARTY-LICENSES.md` en la suite) y S2-15 (create-dmg pineado por SHA-256 vía `fetch_pinned_asset`) **resueltos**. Una cuarta ronda (2026-07-14) cerró S2-09: job `coverage` independiente en CI con `pytest-cov` pineado y gate por módulo (`scripts/check_coverage.py`) **resuelto**. Una quinta ronda (2026-07-14) cerró S2-07 (piso glibc como invariante única `GLIBC_FLOOR` con aborto fail-fast en `build_linux.py` y test de consistencia contra `install-linux.sh`) y S2-08 (check WARN de OneDrive en `doctor`). Quedan **1 S2 abierto**, **1 S1** y **2 S0**. Los gaps abiertos: ramas de fallo de build sin test. Cada hallazgo abierto incluye ahora análisis de alternativas con trade-offs y una solución recomendada con criterio arquitectónico. **Veredicto global: LISTO-CON-RESERVAS** — apto para release 0.6.1 con plan de hardening pre-1.0.0.
+Se audió el proyecto completo contra las 10 dimensiones de production-readiness. **El código base es sólido, bien testeado y con arquitectura limpia**. Se identificaron originalmente 0 S4, 1 S3, 15 S2, 2 S1 y 2 S0. Tras la remediación y la **revisión de refinamiento** (2026-07-13, verificación contra código): S3-01 y S2-13 **resueltos** en tests; S2-03 y S2-04 **cerrados por drift de la auditoría** (la evidencia original era incorrecta: `cleanup --json` y `setup --json` ya emitían sus payloads, con tests); S2-11 **consolidado** en S2-15 y S2-12 **subsumido** en S2-10 (misma causa raíz). Una segunda ronda de remediación (2026-07-14) implementó y verificó con tests las cuatro soluciones recomendadas de la Dimensión 2: S2-01, S2-02, S2-05 y S2-06 **resueltos**. Una tercera ronda (2026-07-14) cerró las Dimensiones 9 y 10: S2-14 (`SOURCE-OFFER.md` en los 4 artefactos), S1-02 (verificación lockfile↔`THIRD-PARTY-LICENSES.md` en la suite) y S2-15 (create-dmg pineado por SHA-256 vía `fetch_pinned_asset`) **resueltos**. Una cuarta ronda (2026-07-14) cerró S2-09: job `coverage` independiente en CI con `pytest-cov` pineado y gate por módulo (`scripts/check_coverage.py`) **resuelto**. Una quinta ronda (2026-07-14) cerró S2-07 (piso glibc como invariante única `GLIBC_FLOOR` con aborto fail-fast en `build_linux.py` y test de consistencia contra `install-linux.sh`) y S2-08 (check WARN de OneDrive en `doctor`). Una sexta ronda (2026-07-14) cerró S2-10 (normalización de la criticidad de Inno Setup a `required=True` y ramas de fallo de los build scripts testeadas: Inno ausente → aborta, `create-dmg` con `rc != 0` → aborta, tooling AppImage ausente → degrada), cerrando también S2-12 con él. Quedan **0 S2 abiertos**, **1 S1** y **2 S0**. Los gaps abiertos: DAEMON-MODE.md desactualizado (cancelación cooperativa, S1-01) y dos S0 documentales (anchor roto USAGE.md:175, orden de flags USAGE vs cli.py). Cada hallazgo abierto incluye ahora análisis de alternativas con trade-offs y una solución recomendada con criterio arquitectónico. **Veredicto global: LISTO-CON-RESERVAS** — apto para release 0.6.1 con plan de hardening pre-1.0.0.
 
 ### Conteo por severidad
 
@@ -22,18 +23,18 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 |-----------|--------|-----------------|
 | **S4 — Crítico** | 0 | — |
 | **S3 — Alto** | 0 | — |
-| **S2 — Medio** | 1 | Ramas de fallo de build sin test (S2-10, incl. S2-12) |
+| **S2 — Medio** | 0 | — (S2-10 resuelto el 2026-07-14: normalización de criticidad de Inno Setup + ramas de fallo de build testeadas; S2-12 cerrado con S2-10) |
 | **S1 — Bajo** | 1 | DAEMON-MODE.md desactualizado (cancelación cooperativa) |
 | **S0 — Informativo** | 2 | Anchor roto USAGE.md, orden de flags USAGE vs cli.py |
 
-*Cerrados desde la emisión: S3-01 y S2-13 (resueltos en tests), S2-03 y S2-04 (drift de la auditoría — la evidencia era incorrecta), S2-11 → S2-15 y S2-12 → S2-10 (consolidados por causa raíz común), S2-01/S2-02/S2-05/S2-06 (implementados y verificados con tests en la remediación del 2026-07-14), S2-14/S1-02/S2-15 (implementados y verificados con tests en la remediación de compliance/supply-chain del 2026-07-14), S2-09 (job `coverage` + gate por módulo, implementado y verificado con tests en la remediación del 2026-07-14), S2-07 (piso glibc como invariante única `GLIBC_FLOOR` con verificación fail-fast en `build_linux.py`, test de consistencia en `test_pin_consistency.py`) y S2-08 (check WARN de OneDrive en `doctor`, con tests en `test_cli.py`) resueltos el 2026-07-14.*
+*Cerrados desde la emisión: S3-01 y S2-13 (resueltos en tests), S2-03 y S2-04 (drift de la auditoría — la evidencia era incorrecta), S2-11 → S2-15 y S2-12 → S2-10 (consolidados por causa raíz común), S2-01/S2-02/S2-05/S2-06 (implementados y verificados con tests en la remediación del 2026-07-14), S2-14/S1-02/S2-15 (implementados y verificados con tests en la remediación de compliance/supply-chain del 2026-07-14), S2-09 (job `coverage` + gate por módulo, implementado y verificado con tests en la remediación del 2026-07-14), S2-07 (piso glibc como invariante única `GLIBC_FLOOR` con verificación fail-fast en `build_linux.py`, test de consistencia en `test_pin_consistency.py`) y S2-08 (check WARN de OneDrive en `doctor`, con tests en `test_cli.py`) resueltos el 2026-07-14, S2-10 (normalización de la criticidad de Inno Setup a `required=True` en `ensure_build_dependency` con eliminación del `sys.exit` manual, y tests de rama de fallo de build: Inno ausente → aborta en `tests/test_create_installer_windows.py`, `create-dmg` con `rc != 0` → aborta en `tests/test_build_macos.py`, tooling AppImage ausente → degrada en `tests/test_build_linux.py`; S2-12 se cierra con S2-10) resuelto el 2026-07-14.*
 
 ### Conteo por prioridad recomendada
 
 | Prioridad | Cuenta | Descripción |
 |-----------|--------|-------------|
 | **P0** | 0 | — *coverage por módulo (S2-09) y create-dmg pin (S2-15) resueltos el 2026-07-14* |
-| **P1** | 1 | ramas de fallo de build + normalización de criticidad (S2-10) — *piso glibc como invariante (S2-07) y check OneDrive en doctor (S2-08) resueltos el 2026-07-14; SOURCE-OFFER en artefactos (S2-14) resuelto el 2026-07-14* |
+| **P1** | 0 | — *ramas de fallo de build + normalización de criticidad (S2-10) resueltas el 2026-07-14; piso glibc (S2-07), check OneDrive (S2-08) y SOURCE-OFFER en artefactos (S2-14) resueltos el 2026-07-14* |
 | **P2** | 1 | DAEMON-MODE.md cancelación cooperativa (S1-01) — *verificación THIRD-PARTY-LICENSES (S1-02) resuelta el 2026-07-14* |
 | **P3** | 2 | S0 residuales (anchor + orden de flags; corregir junto a S1-01) |
 
@@ -45,15 +46,15 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 | 2. Programmatic contract (--json) | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
 | 3. Daemon lifecycle & concurrency | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
 | 4. Model & on-disk state management | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
-| 5. Real cross-platform compatibility | 0 | 0 | 2 | 0 | 0 | 2 | ⚠️ GAPS MEDIOS |
+| 5. Real cross-platform compatibility | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
 | 6. End-to-end install/uninstall UX | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
-| 7. Test quality & coverage | 0 | 0 | 1 | 0 | 0 | 1 | ⚠️ GAPS MENORES |
+| 7. Test quality & coverage | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
 | 8. Documentation as product | 0 | 0 | 0 | 1 | 2 | 3 | ⚠️ GAPS MENORES |
 | 9. Licensing & compliance | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
 | 10. Supply chain & CI | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
-| **TOTAL** | **0** | **0** | **3** | **1** | **2** | **6** | **LISTO-CON-RESERVAS** |
+| **TOTAL** | **0** | **0** | **0** | **1** | **2** | **3** | **LISTO-CON-RESERVAS** |
 
-*Dimensión 2: 4 → 0 (S2-01/S2-02/S2-05/S2-06 implementados y verificados en la remediación del 2026-07-14). Dimensión 7: 4 → 2 → 1 (S2-11 consolidado en S2-15 de la Dimensión 10; S2-12 subsumido en S2-10; S2-09 implementado y verificado en la remediación del 2026-07-14). Dimensiones 9 y 10: 3 → 0 (S2-14/S1-02/S2-15 implementados y verificados en la remediación de compliance/supply-chain del 2026-07-14).*
+*Dimensión 2: 4 → 0 (S2-01/S2-02/S2-05/S2-06 implementados y verificados en la remediación del 2026-07-14). Dimensión 5: 2 → 0 (S2-07 piso glibc como invariante única `GLIBC_FLOOR`, S2-08 check WARN OneDrive en `doctor`, ambos resueltos el 2026-07-14). Dimensión 7: 4 → 2 → 1 → 0 (S2-11 consolidado en S2-15 de la Dimensión 10; S2-12 subsumido en S2-10; S2-09 implementado y verificado el 2026-07-14; S2-10 resuelto el 2026-07-14, cerrando la dimensión). Dimensiones 9 y 10: 3 → 0 (S2-14/S1-02/S2-15 implementados y verificados en la remediación de compliance/supply-chain del 2026-07-14).*
 
 ---
 
@@ -187,7 +188,7 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 
 ---
 
-### 5. Real cross-platform compatibility — GAPS MEDIOS
+### 5. Real cross-platform compatibility — [LISTO]
 
 **Qué está listo:**
 - data_root() user-data-dir por SO, igual en 3 modos (paths.py:51-65)
@@ -251,7 +252,7 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 
 ---
 
-### 7. Test quality & coverage — GAPS MEDIOS
+### 7. Test quality & coverage — [LISTO]
 
 **Qué está listo:**
 - 559 tests, 100% deterministas (zero network, zero hardware, zero timing flakiness)
@@ -266,9 +267,9 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 |----|--------|--------|
 | S3-01 | **Resuelto** | PyInstaller timeout sin test — cubierto por `tests/test_build_utils.py::TestRunPyinstaller::test_timeout_kills_tree_and_returns_1` |
 | S2-09 | **Resuelto** | Sin herramienta de coverage: la cobertura se afirma, no se mide — cubierto por el job `coverage` de CI y `scripts/check_coverage.py` |
-| S2-10 | Abierto | Ramas de fallo de los build scripts sin test |
+| S2-10 | **Resuelto** | Ramas de fallo de los build scripts sin test — cubierto por `tests/test_create_installer_windows.py::test_main_inno_missing_is_fatal` (Inno ausente → aborta), `tests/test_build_macos.py::test_create_dmg_failure_is_fatal` (`create-dmg` `rc != 0` → aborta) y `tests/test_build_linux.py::test_appimage_tooling_missing_degrades_without_abort` (tooling AppImage ausente → degrada); normalización de criticidad de Inno a `required=True` (S2-12 cerrado con S2-10) |
 | S2-11 | **Resuelto** | create-dmg sin pin (consolidado con S2-15 — misma causa raíz; resuelto con S2-15 el 2026-07-14, ver Dimensión 10) |
-| S2-12 | Abierto | Rama «Inno Setup ausente» sin test (subcaso de S2-10) |
+| S2-12 | **Resuelto** | Rama «Inno Setup ausente» sin test (subcaso de S2-10) — cerrado con S2-10 el 2026-07-14 (`test_main_inno_missing_is_fatal` + `required=True`) |
 | S2-13 | **Resuelto** | `scripts/pyinstaller_wrapper.py` sin test dedicado — cubierto por `tests/test_build_utils.py::TestPyinstallerWrapper` (`main()` propaga `returncode` vía `os._exit` y limpia el temporal; `_BOOTSTRAP` fija `coinit_flags` antes del import) |
 
 #### S2-09 — Sin herramienta de coverage: la cobertura se afirma, no se mide
@@ -285,7 +286,7 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 
 **Solución implementada (2026-07-14): (2).** `[tool.coverage.run/report/json/xml]` en `pyproject.toml` como fuente única de configuración (medición de `tts_sidecar`, `branch = true`, exclusión de ramas por-SO inalcanzables desde un runner Linux); coverage queda opt-in (no está en `addopts`), así que `pytest tests/ -v` sigue verde sin `pytest-cov` instalado. `scripts/check_coverage.py` implementa el gate por módulo: `MODULE_FLOORS` es la fuente única de los pisos, fijados por ratchet-desde-lo-medido (`floor()` del `percent_covered` observado) para los módulos de contrato (`cli.py`, `daemon/*`, `model_cache.py`, `voices.py`, `paths.py`); el resto se reporta sin gatear. `pytest-cov` se pinea vía el nuevo `pipeline.parameter` `pytest_cov_version` (mismo mecanismo que `pytest_version`), vigilado contra deriva por `tests/test_pin_consistency.py::test_pytest_cov_version_declared_once`. El job independiente `coverage` de `.circleci/config.yml` (Docker `cimg/python:3.13`, mismo pin que `test-linux`) corre `pytest tests/ --cov --cov-report=xml --cov-report=json --cov-report=term-missing`, aplica el gate con `python scripts/check_coverage.py coverage.json` y publica `coverage.xml` como artefacto; los tres jobs de test (`test-linux`/`test-windows`/`test-macos`) siguen corriendo `pytest` plano, sin el plugin. Tests: `tests/test_check_coverage.py` (parser de `coverage.json`, lógica de umbrales, CLI), deterministas con fixtures sintéticas.
 
-#### S2-10 — Ramas de fallo de los build scripts sin test (incluye S2-12)
+#### S2-10 — Ramas de fallo de los build scripts sin test (incluye S2-12) — [Resuelto]
 
 **Problema (refinado).** Los caminos felices de los 3 build scripts están testeados (`test_build_linux.py`, `test_build_macos.py`, `test_build_windows.py`), pero las ramas de fallo — las que protegen al pipeline cuando el entorno se degrada — no: `create_installer_windows.py:247-260` aborta si falta Inno Setup (S2-12), `build_macos.py:211-214` aborta si `create-dmg` falla, y las degradaciones opcionales (tooling AppImage no provisionable) solo warnean. Son precisamente las ramas que se ejecutan cuando algo ya va mal, es decir, cuando un bug en ellas cuesta más (enmascara la causa raíz o convierte un abort limpio en un traceback). Hay además una incoherencia de diseño detectada al auditar: tanto Inno como create-dmg se declaran `required=False` en `ensure_build_dependency` pero su ausencia/fallo es fatal de facto vía `sys.exit(1)` manual — la criticidad real vive fuera del mecanismo que existe para declararla.
 
@@ -295,6 +296,8 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 2. **Primero normalizar la semántica de criticidad, luego testearla**: declarar `required=True` donde el fallo es fatal (Inno, create-dmg) eliminando los `sys.exit(1)` manuales redundantes — la política de abort queda en un solo lugar (`ensure_build_dependency`, ya testeado exhaustivamente en `TestEnsureBuildDependency`) — y añadir los tests de rama de fallo por script: Inno ausente → abort con mensaje accionable (S2-12), `create-dmg` con returncode ≠ 0 → abort, tooling AppImage no disponible → degradación con warning (no abort). Mismo patrón de mocks/fakes ya establecido en `TestRunPyinstaller`/`TestPyinstallerWrapper`.
 
 **Solución recomendada: (2).** Criterio: testear una rama de fallo incoherente la fosiliza; alinear primero la declaración de criticidad con el comportamiento real reduce el código a testear (menos ramas ad hoc) y concentra la política en el componente compartido cuyo contrato ya está verificado. S2-12 deja de ser un hallazgo aparte: es el caso Inno de esta misma corrección, y se cierra con ella.
+
+**Solución implementada (2026-07-14): (2).** La criticidad de Inno Setup se normalizó a `required=True` en `ensure_build_dependency` (`create_installer_windows.py`), eliminando el `sys.exit(1)` manual redundante; el aborto por dependencia faltante queda gobernado en un único punto, igual que PyInstaller y sounddevice. Se añadieron los tests de rama de fallo por build script: `tests/test_create_installer_windows.py::test_main_inno_missing_is_fatal` (Inno ausente → `SystemExit(1)`, gobernado por `ensure_build_dependency`, no por un `sys.exit` manual — bloquea la regresión que degrade Inno a opcional), `tests/test_build_macos.py::test_create_dmg_failure_is_fatal` (`create-dmg` con `rc != 0` → `SystemExit(1)`) y `tests/test_build_linux.py::test_appimage_tooling_missing_degrades_without_abort` (tooling del AppImage no provisionable → degradación con warning, sin abortar). S2-12 se cierra con S2-10 (su caso Windows queda cubierto por `test_main_inno_missing_is_fatal` + `required=True`), y se corrigió el drift de `docs/BUILD.md`, que aún clasificaba a Inno Setup como empaquetador que degrada. Commits: e5c17fb (normalización Inno + tests Inno/AppImage) y 2350a78 (test de fallo de `create-dmg`).
 
 #### S2-11 — create-dmg sin pin
 
@@ -434,7 +437,7 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 | Hallazgo | Severidad | Debe resolverse antes de release |
 |----------|-----------|----------------------------------|
 | S3-01 | S3 — Alto | **Resuelto** — cubierto por `tests/test_build_utils.py::TestRunPyinstaller` (timeout) y `tests/test_build_utils.py::TestPyinstallerWrapper` (wrapper COM) |
-| S2 abiertos (3) | S2 — Medio | **RECOMENDADO** — No bloquean técnicamente, pero degradan calidad y operabilidad |
+| S2-10 (último S2 abierto) | S2 — Medio | **Resuelto** el 2026-07-14 (normalización de criticidad de Inno Setup a `required=True` + ramas de fallo de build testeadas; S2-12 cerrado con S2-10). No bloquea release. |
 | S1-01 | S1 — Bajo | No — solo docs menor (S1-02 resuelto el 2026-07-14) |
 | S0 | S0 — Info | No — solo pulido |
 
@@ -442,12 +445,12 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 
 ## Recomendación global de madurez
 
-**LISTO-CON-RESERVAS** — El proyecto **cumple funcionalmente** para un release 0.6.1 (todas las brechas accionables de PARITY.md cerradas en código/tests, paridad UX completa en 3 SO). Los hallazgos S2 abiertos son **de hardening pre-1.0.0**, no bloquean release de mantenimiento.
+**LISTO-CON-RESERVAS** — El proyecto **cumple funcionalmente** para un release 0.6.1 (todas las brechas accionables de PARITY.md cerradas en código/tests, paridad UX completa en 3 SO). Los hallazgos abiertos (S1-01 + S0-01/S0-02) son de **pulido documental**, no bloquean release de mantenimiento.
 
 **Plan sugerido** (con las dependencias entre soluciones refinadas):
 1. Release 0.6.1 con fixes P0: ~~pin de create-dmg vía `fetch_pinned_asset` (S2-15)~~ — **completado el 2026-07-14** (ver Dimensión 10) — y ~~coverage por módulo con `pytest-cov` pineado (S2-09)~~ — **completado el 2026-07-14** (ver Dimensión 7).
 2. ~~Sprint 0.7.0 — contrato `--json` completo~~ — **completado el 2026-07-14**: helper `emit_json` + `--json` en `daemon start/stop/restart` (S2-02), `speak --json` acoplado a `--output` sobre `SynthesisResult` (S2-01), test estructural del contrato derivado de `build_parser()` (S2-06), y clase base versionada del protocolo NDJSON + `version` en `/health` + política de compatibilidad en DAEMON-MODE.md (S2-05). Ver detalle y evidencia en la Dimensión 2.
-3. Sprint 0.7.x — P1 restante: normalización de criticidad en `ensure_build_dependency` + tests de ramas de fallo (S2-10, cierra S2-12). ~~`GLIBC_FLOOR` como invariante única del build (S2-07)~~ — **completado el 2026-07-14**; ~~check OneDrive en `doctor` (S2-08)~~ — **completado el 2026-07-14**. ~~`SOURCE-OFFER.md` en los 4 artefactos (S2-14)~~ — **completado el 2026-07-14** (ver Dimensión 9).
+3. Sprint 0.7.x — P1 restante: ~~normalización de criticidad en `ensure_build_dependency` + tests de ramas de fallo (S2-10, cierra S2-12)~~ — **completado el 2026-07-14**. ~~`GLIBC_FLOOR` como invariante única del build (S2-07)~~ — **completado el 2026-07-14**; ~~check OneDrive en `doctor` (S2-08)~~ — **completado el 2026-07-14**. ~~`SOURCE-OFFER.md` en los 4 artefactos (S2-14)~~ — **completado el 2026-07-14** (ver Dimensión 9).
 4. Pasada documental única: DAEMON-MODE.md cancelación cooperativa (S1-01) + anchor y orden de flags (S0-01/S0-02). ~~Verificación de THIRD-PARTY-LICENSES (S1-02)~~ — **completada el 2026-07-14** como test de la suite (ver Dimensión 9).
 5. 1.0.0 cuando P1/P2 cerrados + validación E2E usuarios reales Linux/macOS (criterio aceptación 10 GOAL.md).
 
@@ -460,7 +463,7 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 | S2-09 coverage | **Implementado.** `pytest --cov` con `[tool.coverage.*]` en pyproject.toml; gate por módulo (`scripts/check_coverage.py`) en los módulos de contrato; job `coverage` independiente (no test-linux) publica `coverage.xml` como artefacto; `pytest-cov` pineado vía `pipeline.parameters.pytest_cov_version`, vigilado por `test_pin_consistency.py` |
 | S2-15 create-dmg pin | **Implementado.** `provision_create_dmg` descarga vía `fetch_pinned_asset` (log muestra SHA-256 verificado); step `brew install create-dmg` eliminado del job; `TestProvisionCreateDmg` confirma el provisioning en los 3 jobs de test |
 | S3-01/S2-13 wrapper | Implementado (`TestPyinstallerWrapper` y `TestRunPyinstaller` pasan en CI) |
-| S2-10 (incl. S2-12) | Tests de ramas de fallo por build script (Inno ausente → abort; create-dmg falla → abort; tooling AppImage ausente → degradación); `required=True` donde el fallo es fatal |
+| S2-10 (incl. S2-12) | **Implementado.** Inno ausente → aborta (`tests/test_create_installer_windows.py::test_main_inno_missing_is_fatal`, gobernado por `required=True` en `ensure_build_dependency`); `create-dmg` con `rc != 0` → aborta (`tests/test_build_macos.py::test_create_dmg_failure_is_fatal`); tooling AppImage ausente → degrada sin abortar (`tests/test_build_linux.py::test_appimage_tooling_missing_degrades_without_abort`); `required=True` donde el fallo es fatal (Inno, create-dmg), eliminando `sys.exit` manual redundante. Commits e5c17fb y 2350a78. |
 | S2-01/S2-02/S2-06 | **Implementado.** `TestSpeakJSON`/`TestDaemonVerbsJSON` validan los payloads exactos; `TestJSONContractStructure` descubre todo subcomando con `--json` desde `build_parser()` y valida: stdout = exactamente 1 objeto JSON, `schema_version` presente, stderr sin JSON |
 | S2-05 | **Implementado.** `TestProtocolVersioning` valida `schema_version` en los 5 modelos vía `ProtocolModel` y `version` en `/health`; tests de rolling upgrade (payload con campos extra → cliente no falla; payload sin schema_version/version → defaults completan) |
 | S2-07 | **Implementado.** `build_linux.py` falla si la glibc del host de build > `GLIBC_FLOOR` declarado (test `TestHostGlibcFloor`); `GLIBC_FLOOR = (2, 35)` en `build_utils.py` es fuente única; el test de consistencia `TestGlibcFloorConsistency` valida que `install-linux.sh` deriva del mismo valor |
