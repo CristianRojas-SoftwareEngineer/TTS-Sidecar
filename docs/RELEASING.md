@@ -21,6 +21,19 @@ humano.
   "No publicado"), con las entradas reales de esa versión. **El job de release
   falla si no encuentra la sección `[X.Y.Z]`** (X.Y.Z = tag sin la `v`), así que
   este corte es obligatorio antes de taggear.
+- `SOURCE-OFFER.md` (oferta de fuente GPLv3 §6, viaja dentro de los 4
+  artefactos) está regenerado para la versión a publicar: tras el bump de
+  `__version__`, correr `python scripts/render_source_offer.py >
+  SOURCE-OFFER.md` y commitear el resultado antes del tag. El test de
+  consistencia (`tests/test_pin_consistency.py::TestSourceOfferVersion`) falla
+  si el archivo commiteado diverge del generador, así que un bump sin
+  regenerar no pasa la suite.
+- `THIRD-PARTY-LICENSES.md` está en sincronía con `requirements-lock.txt`:
+  ante altas/bajas de dependencias, regenerar el inventario con `pip-licenses`
+  (ver §Regeneración del propio `THIRD-PARTY-LICENSES.md`). El test de
+  sincronía (`tests/test_third_party_licenses.py::TestRealSync`) falla ante
+  cualquier faltante o sobrante; `python scripts/check_third_party_licenses.py`
+  imprime el diff legible.
 - La suite pasa localmente (`pytest tests/ -v`) en el commit a taggear. **No
   hay forma de verificar esto en CircleCI antes de taggear**: el workflow
   `build-all` tiene `branches: ignore: /.*/` en todos sus jobs, así que

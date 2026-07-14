@@ -26,6 +26,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import build_utils  # noqa: E402
 import render_cask  # noqa: E402
+import render_source_offer  # noqa: E402
 
 CONFIG_TEXT = (ROOT / ".circleci" / "config.yml").read_text(encoding="utf-8")
 
@@ -108,3 +109,18 @@ class TestGitHubRepoSlug:
                 "(fuente: render_cask.GITHUB_REPO); si el slug cambió, "
                 "actualiza todos los consumidores a la vez."
             )
+
+
+class TestSourceOfferVersion:
+    """SOURCE-OFFER.md (oferta GPLv3 §6, commiteado en la raíz) debe ser
+    byte-idéntico a la salida del generador para la versión actual: cubre a la
+    vez el drift de versión (bump sin regenerar) y el drift de plantilla."""
+
+    def test_committed_offer_matches_generator(self):
+        committed = (ROOT / "SOURCE-OFFER.md").read_text(encoding="utf-8")
+        expected = render_source_offer.render_source_offer(build_utils.get_version())
+        assert committed == expected, (
+            "SOURCE-OFFER.md diverge del generador para la versión "
+            f"{build_utils.get_version()}; regenera con: "
+            "python scripts/render_source_offer.py > SOURCE-OFFER.md"
+        )

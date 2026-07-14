@@ -15,7 +15,7 @@
 |------------|-------------|-------------|
 | Windows | Inno Setup 6 | `choco install innosetup -y --version=6.3.3` o [jrsoftware.org](https://jrsoftware.org/isdl.php) |
 | Linux | appimagetool + runtime estático (type2-runtime) | Descarga automática pineada por URL + SHA-256 (`build_linux.py`); sin instalación manual |
-| macOS | create-dmg | `brew install create-dmg` (script de shell de Homebrew, no existe en PyPI) |
+| macOS | create-dmg | Descarga automática pineada por URL + SHA-256 del tarball del release (`build_macos.py::provision_create_dmg`); sin instalación manual |
 
 ### Política interactiva de dependencias de build
 
@@ -27,8 +27,11 @@ pregunta, emite la instrucción manual y resuelve según criticidad:
 
 - **Requeridas** (PyInstaller, sounddevice en Linux y macOS): sin ellas el
   build no tiene sentido; el script aborta si no se resuelven.
-- **Empaquetadores** (appimagetool, create-dmg, Inno Setup): sin ellos el
-  bundle onedir/.app sigue siendo usable; el stage degrada con warning.
+- **Empaquetadores** (appimagetool, Inno Setup): sin ellos el bundle
+  onedir/.app sigue siendo usable; el stage degrada con warning. create-dmg
+  es distinto: se provisiona pineado dentro del propio build
+  (`provision_create_dmg`) y su fallo de descarga aborta (dependencia dura:
+  el stage DMG es obligatorio para publicar).
 
 Las versiones pineadas viven como constantes en `scripts/build_utils.py`
 (`PYINSTALLER_PIN=6.21.0`, `INNOSETUP_PIN=6.3.3`), espejo de las que instala
@@ -39,7 +42,10 @@ estático de type2-runtime (`TYPE2_RUNTIME_PIN=20251108`) con su SHA-256 por
 arquitectura; `build_linux.py` los descarga a `build/appimage-tooling/`
 verificando el checksum (`fetch_pinned_asset`). El runtime estático arranca
 sin `libfuse2` (ausente por defecto en distros modernas), garantizando el
-primer arranque del AppImage en cualquier distro.
+primer arranque del AppImage en cualquier distro. En macOS, create-dmg sigue
+la misma política: `CREATE_DMG_TOOLING` pinea la URL del tarball del release
+(`CREATE_DMG_PIN=1.3.0`) con su SHA-256, y `build_macos.py` lo descarga y
+extrae en `build/create-dmg-tooling/` verificando el checksum.
 
 ---
 
@@ -179,7 +185,7 @@ python scripts/build_windows.py --arch x86_64 --no-installer   # solo el onedir 
 # Linux (descarga appimagetool + runtime estático, pineados por SHA-256)
 python scripts/build_linux.py --arch x86_64
 
-# macOS (requiere create-dmg)
+# macOS (descarga create-dmg pineado por SHA-256)
 python scripts/build_macos.py --arch arm64
 ```
 
@@ -463,9 +469,7 @@ tipos de cache, con claves independientes:
 
 Los caches de CircleCI son **inmutables por clave**: para invalidar todo el
 conjunto manualmente, incrementar el prefijo versionado (`v1-` → `v2-`) en
-`.circleci/config.yml`. Además, `build-darwin-arm64` instala create-dmg con
-`HOMEBREW_NO_AUTO_UPDATE=1` para suprimir el `brew update` implícito (minutos
-de wall-time que no aportan: create-dmg no se pinea).
+`.circleci/config.yml`.
 
 ### Reproducibilidad: pines por digest y sus implicaciones
 
@@ -486,9 +490,6 @@ Para cerrar las fuentes de deriva controlables, el CI fija:
   una versión de pyenv, y el upgrade es funcionalmente necesario para que
   `python-build` conozca la definición del parche fijado (3.13.14). No afecta
   la reproducibilidad del artefacto: el CPython resultante ya está pineado.
-- `create-dmg` (job macOS): Homebrew no soporta pinear versiones; se instala
-  con `HOMEBREW_NO_AUTO_UPDATE=1` para al menos suprimir la actualización
-  implícita del índice.
 
 **Costo de mantenimiento de la decisión** (asumido de forma explícita):
 

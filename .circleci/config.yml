@@ -822,19 +822,11 @@ jobs:
             python -m pip install -r requirements-lock-build.txt --require-hashes
             echo "[STEP] Install PyInstaller into venv (post-cache) - FIN"
       - run:
-          # create-dmg es un script de shell distribuido por Homebrew, no un
-          # paquete de PyPI: `pip3 install create-dmg` fallaba siempre
-          # (con o sin pin), independientemente de esta auditoría. Homebrew
-          # no soporta fijar una versión exacta de forma simple (a diferencia
-          # de pip), así que se deja sin pin explícito; y como no se pinea,
-          # el `brew update` implícito (minutos de wall-time) tampoco aporta:
-          # HOMEBREW_NO_AUTO_UPDATE=1 lo suprime.
-          name: Install create-dmg via Homebrew (no auto-update)
-          command: |
-            echo "[STEP] Install create-dmg via Homebrew (no auto-update) - INICIO"
-            HOMEBREW_NO_AUTO_UPDATE=1 brew install create-dmg
-            echo "[STEP] Install create-dmg via Homebrew (no auto-update) - FIN"
-      - run:
+          # create-dmg lo provisiona el propio build (scripts/build_macos.py::
+          # provision_create_dmg): tarball del release en GitHub pineado por
+          # SHA-256 vía fetch_pinned_asset (CREATE_DMG_PIN/CREATE_DMG_TOOLING
+          # en build_utils.py), sin Homebrew — misma política de supply chain
+          # que appimagetool en el build de Linux.
           name: Build macOS arm64 .app via PyInstaller
           no_output_timeout: 20m
           command: |

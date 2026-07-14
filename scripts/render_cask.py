@@ -51,6 +51,11 @@ cask "{cask_name}" do
     El modelo de voz (es-mx-latam, varios cientos de MB) no viene incluido:
     descargalo una sola vez con:
       tts-sidecar setup
+
+    Licencia: GPL-3.0-or-later. La oferta de codigo fuente (GPLv3 seccion 6)
+    y las atribuciones de terceros viajan dentro del bundle instalado:
+      #{{appdir}}/tts-sidecar-arm64.app/Contents/Resources/SOURCE-OFFER.md
+      #{{appdir}}/tts-sidecar-arm64.app/Contents/Resources/THIRD-PARTY-LICENSES.md
   EOS
 end
 """

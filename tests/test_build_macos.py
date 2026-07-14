@@ -4,6 +4,7 @@ Aserciones de cadena sobre las funciones puras: _path_install_script,
 _path_uninstall_script, _info_plist_content.
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -119,7 +120,77 @@ def test_create_dmg_failure_is_fatal(tmp_path, monkeypatch):
 
     monkeypatch.setattr(build_macos.subprocess, "run", fake_run)
 
+    fake_create_dmg = tmp_path / "create-dmg"
+    fake_create_dmg.write_text("x", encoding="utf-8")
+
     with pytest.raises(SystemExit) as exc:
-        build_macos.build_macos("arm64")
+        build_macos.build_macos("arm64", create_dmg_path=fake_create_dmg)
     assert exc.value.code == 1
     assert "capture_output" not in captured
+
+
+class TestProvisionCreateDmg:
+    """provision_create_dmg descarga el tarball pineado, lo extrae de forma
+    idempotente y devuelve la ruta del script ejecutable — sin red en tests
+    (fetch_pinned_asset mockeado con un tarball sintético local)."""
+
+    @staticmethod
+    def _make_tarball(tmp_path):
+        """Construye un tarball sintético con la estructura del release real
+        (create-dmg-<PIN>/create-dmg) y lo deja donde provision_create_dmg
+        espera la descarga."""
+        import tarfile
+        from build_utils import CREATE_DMG_PIN
+
+        src_root = tmp_path / "src" / f"create-dmg-{CREATE_DMG_PIN}"
+        src_root.mkdir(parents=True)
+        (src_root / "create-dmg").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+        tarball = tmp_path / f"create-dmg-{CREATE_DMG_PIN}.tar.gz"
+        with tarfile.open(tarball, "w:gz") as tf:
+            tf.add(src_root, arcname=src_root.name)
+        return tarball
+
+    def test_extracts_and_returns_script_path(self, tmp_path, monkeypatch):
+        import build_macos
+        from build_utils import CREATE_DMG_PIN
+
+        tarball = self._make_tarball(tmp_path)
+        cache_dir = tmp_path / "cache"
+        monkeypatch.setattr(
+            build_macos, "fetch_pinned_asset", lambda url, sha, dest: tarball
+        )
+
+        script = build_macos.provision_create_dmg(cache_dir)
+        assert script == cache_dir / f"create-dmg-{CREATE_DMG_PIN}" / "create-dmg"
+        assert script.exists()
+        if sys.platform != "win32":
+            assert os.access(script, os.X_OK)
+
+    def test_extraction_is_idempotent(self, tmp_path, monkeypatch):
+        import build_macos
+
+        tarball = self._make_tarball(tmp_path)
+        cache_dir = tmp_path / "cache"
+        monkeypatch.setattr(
+            build_macos, "fetch_pinned_asset", lambda url, sha, dest: tarball
+        )
+
+        script = build_macos.provision_create_dmg(cache_dir)
+        # Segunda invocación con el script ya extraído: no debe re-extraer
+        # (se marca el archivo y se verifica que sobrevive intacto).
+        script.write_text("marcado", encoding="utf-8")
+        script_again = build_macos.provision_create_dmg(cache_dir)
+        assert script_again == script
+        assert script.read_text(encoding="utf-8") == "marcado"
+
+    def test_download_failure_aborts(self, tmp_path, monkeypatch):
+        import urllib.error
+        import build_macos
+
+        def _falla(url, sha, dest):
+            raise urllib.error.URLError("sin red")
+
+        monkeypatch.setattr(build_macos, "fetch_pinned_asset", _falla)
+        with pytest.raises(SystemExit) as exc:
+            build_macos.provision_create_dmg(tmp_path / "cache")
+        assert exc.value.code == 1

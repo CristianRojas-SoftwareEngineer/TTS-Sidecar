@@ -9,7 +9,9 @@ description = "TTS Sidecar - 100% local voice cloning TTS (Chatterbox Multilingu
 readme = "README.md"
 requires-python = ">=3.13"
 license = "GPL-3.0-or-later"
-license-files = ["LICENSE"]
+# Además de LICENSE: la oferta de fuente GPLv3 §6 y las atribuciones de
+# terceros deben viajar también en el canal PyPI (wheel y sdist).
+license-files = ["LICENSE", "SOURCE-OFFER.md", "THIRD-PARTY-LICENSES.md"]
 keywords = ["tts", "text-to-speech", "voice-cloning", "chatterbox", "offline", "español"]
 classifiers = [
     "Programming Language :: Python :: 3.13",

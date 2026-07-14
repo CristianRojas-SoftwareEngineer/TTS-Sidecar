@@ -30,6 +30,24 @@ y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
   el parser real qué subcomandos declaran `--json` y lo compara contra la
   cobertura declarada en los tests, rompiendo ante un comando nuevo sin cubrir
   o un flag retirado.
+- **Oferta de código fuente GPLv3 §6 en los 4 artefactos** (S2-14):
+  `SOURCE-OFFER.md` (generado por `scripts/render_source_offer.py` desde la
+  versión single-source, con la URL del tarball del tag y el enlace al
+  release) viaja ahora dentro de los 3 bundles nativos (vía `LICENSE_FILES`)
+  y del wheel/sdist de PyPI (vía `license-files`), de modo que la oferta
+  acompaña al binario por cualquier vía de redistribución. Un test de
+  consistencia byte-exacto falla si el archivo commiteado diverge del
+  generador o de la versión.
+- **Verificación automatizada del inventario de licencias** (S1-02):
+  `scripts/check_third_party_licenses.py` compara el conjunto de paquetes de
+  `requirements-lock.txt` contra la tabla de `THIRD-PARTY-LICENSES.md`
+  (nombres normalizados PEP 503) y un test de la suite falla con diff legible
+  ante cualquier faltante o sobrante — la desincronización del inventario
+  legal deja de ser silenciosa.
+- **Caveats de licencia en el Cask de Homebrew**: el Cask informa la licencia
+  GPL-3.0-or-later y la ubicación de `SOURCE-OFFER.md` y
+  `THIRD-PARTY-LICENSES.md` dentro del `.app` instalado (la stanza `license`
+  no existe en el DSL de Casks).
 
 ### Cambiado
 
@@ -41,6 +59,16 @@ y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
   unificando la fuente de métricas de ambas rutas de síntesis; y los emisores
   `--json` existentes del CLI se migraron a un helper único `emit_json()`
   (mismos payloads, sin cambios de clave).
+- **create-dmg pineado por contenido** (S2-15): el build de macOS ya no
+  instala create-dmg vía `brew install` sin versión; `build_macos.py` descarga
+  el tarball del release v1.3.0 pineado por URL + SHA-256 (`fetch_pinned_asset`,
+  misma política que appimagetool) y ejecuta el script extraído. El step de
+  Homebrew desapareció de `.circleci/config.yml` y la dependencia pasa a ser
+  dura (su fallo aborta el build en vez de degradar con warning): el 100% del
+  tooling de build queda fijado por contenido.
+- **Wheel PyPI con inventario legal completo**: `THIRD-PARTY-LICENSES.md`
+  (antes ausente del canal PyPI) y `SOURCE-OFFER.md` se incluyen ahora en el
+  wheel y el sdist junto a `LICENSE`.
 
 ### Arreglado
 

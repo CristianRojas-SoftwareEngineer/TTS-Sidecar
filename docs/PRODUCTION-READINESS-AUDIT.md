@@ -6,13 +6,14 @@
 **Commit**: 39137bc  
 **Versión actual**: 0.6.0  
 **Revisión de refinamiento**: 2026-07-13 — cada hallazgo abierto re-verificado contra el código, con análisis de alternativas, trade-offs y solución recomendada con criterio arquitectónico. Los hallazgos cuya evidencia original resultó incorrecta se marcan «Resuelto (drift)»; los duplicados por causa raíz común se consolidan.  
-**Revisión de remediación**: 2026-07-14 — implementadas y verificadas con tests las cuatro soluciones recomendadas de la Dimensión 2 (S2-01, S2-02, S2-05, S2-06); dimensión cerrada con veredicto LISTO. Suite: 536 tests.
+**Revisión de remediación**: 2026-07-14 — implementadas y verificadas con tests las cuatro soluciones recomendadas de la Dimensión 2 (S2-01, S2-02, S2-05, S2-06); dimensión cerrada con veredicto LISTO.
+**Revisión de remediación (2)**: 2026-07-14 — implementadas y verificadas con tests las tres soluciones recomendadas de las Dimensiones 9 y 10 (S2-14, S1-02, S2-15); ambas dimensiones cerradas con veredicto LISTO. Suite: 547 tests.
 
 ---
 
 ## Resumen ejecutivo
 
-Se audió el proyecto completo contra las 10 dimensiones de production-readiness. **El código base es sólido, bien testeado y con arquitectura limpia**. Se identificaron originalmente 0 S4, 1 S3, 15 S2, 2 S1 y 2 S0. Tras la remediación y la **revisión de refinamiento** (2026-07-13, verificación contra código): S3-01 y S2-13 **resueltos** en tests; S2-03 y S2-04 **cerrados por drift de la auditoría** (la evidencia original era incorrecta: `cleanup --json` y `setup --json` ya emitían sus payloads, con tests); S2-11 **consolidado** en S2-15 y S2-12 **subsumido** en S2-10 (misma causa raíz). Una segunda ronda de remediación (2026-07-14) implementó y verificó con tests las cuatro soluciones recomendadas de la Dimensión 2: S2-01, S2-02, S2-05 y S2-06 **resueltos**. Quedan **6 S2 abiertos**, **2 S1** y **2 S0**. Los gaps abiertos: cobertura sin instrumento de medición, ramas de fallo de build sin test, create-dmg sin pin, piso de glibc implícito en el build, riesgo OneDrive, y oferta de fuente GPLv3 §6 ausente de los artefactos nativos. Cada hallazgo abierto incluye ahora análisis de alternativas con trade-offs y una solución recomendada con criterio arquitectónico. **Veredicto global: LISTO-CON-RESERVAS** — apto para release 0.6.1 con plan de hardening pre-1.0.0.
+Se audió el proyecto completo contra las 10 dimensiones de production-readiness. **El código base es sólido, bien testeado y con arquitectura limpia**. Se identificaron originalmente 0 S4, 1 S3, 15 S2, 2 S1 y 2 S0. Tras la remediación y la **revisión de refinamiento** (2026-07-13, verificación contra código): S3-01 y S2-13 **resueltos** en tests; S2-03 y S2-04 **cerrados por drift de la auditoría** (la evidencia original era incorrecta: `cleanup --json` y `setup --json` ya emitían sus payloads, con tests); S2-11 **consolidado** en S2-15 y S2-12 **subsumido** en S2-10 (misma causa raíz). Una segunda ronda de remediación (2026-07-14) implementó y verificó con tests las cuatro soluciones recomendadas de la Dimensión 2: S2-01, S2-02, S2-05 y S2-06 **resueltos**. Una tercera ronda (2026-07-14) cerró las Dimensiones 9 y 10: S2-14 (`SOURCE-OFFER.md` en los 4 artefactos), S1-02 (verificación lockfile↔`THIRD-PARTY-LICENSES.md` en la suite) y S2-15 (create-dmg pineado por SHA-256 vía `fetch_pinned_asset`) **resueltos**. Quedan **4 S2 abiertos**, **1 S1** y **2 S0**. Los gaps abiertos: cobertura sin instrumento de medición, ramas de fallo de build sin test, piso de glibc implícito en el build, y riesgo OneDrive. Cada hallazgo abierto incluye ahora análisis de alternativas con trade-offs y una solución recomendada con criterio arquitectónico. **Veredicto global: LISTO-CON-RESERVAS** — apto para release 0.6.1 con plan de hardening pre-1.0.0.
 
 ### Conteo por severidad
 
@@ -20,19 +21,19 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 |-----------|--------|-----------------|
 | **S4 — Crítico** | 0 | — |
 | **S3 — Alto** | 0 | — |
-| **S2 — Medio** | 6 | Coverage sin instrumento (S2-09), ramas de fallo de build sin test (S2-10, incl. S2-12), create-dmg unpinned (S2-15, incl. S2-11), piso glibc implícito (S2-07), OneDrive (S2-08), GPL source offer (S2-14) |
-| **S1 — Bajo** | 2 | DAEMON-MODE.md desactualizado (cancelación cooperativa), THIRD-PARTY-LICENSES sin verificación automatizada |
+| **S2 — Medio** | 4 | Coverage sin instrumento (S2-09), ramas de fallo de build sin test (S2-10, incl. S2-12), piso glibc implícito (S2-07), OneDrive (S2-08) |
+| **S1 — Bajo** | 1 | DAEMON-MODE.md desactualizado (cancelación cooperativa) |
 | **S0 — Informativo** | 2 | Anchor roto USAGE.md, orden de flags USAGE vs cli.py |
 
-*Cerrados desde la emisión: S3-01 y S2-13 (resueltos en tests), S2-03 y S2-04 (drift de la auditoría — la evidencia era incorrecta), S2-11 → S2-15 y S2-12 → S2-10 (consolidados por causa raíz común), S2-01/S2-02/S2-05/S2-06 (implementados y verificados con tests en la remediación del 2026-07-14).*
+*Cerrados desde la emisión: S3-01 y S2-13 (resueltos en tests), S2-03 y S2-04 (drift de la auditoría — la evidencia era incorrecta), S2-11 → S2-15 y S2-12 → S2-10 (consolidados por causa raíz común), S2-01/S2-02/S2-05/S2-06 (implementados y verificados con tests en la remediación del 2026-07-14), S2-14/S1-02/S2-15 (implementados y verificados con tests en la remediación de compliance/supply-chain del 2026-07-14).*
 
 ### Conteo por prioridad recomendada
 
 | Prioridad | Cuenta | Descripción |
 |-----------|--------|-------------|
-| **P0** | 2 | create-dmg pin (S2-15), coverage por módulo (S2-09) |
-| **P1** | 4 | piso glibc como invariante del build (S2-07), check OneDrive en doctor (S2-08), ramas de fallo de build + normalización de criticidad (S2-10), SOURCE-OFFER en artefactos (S2-14) |
-| **P2** | 2 | DAEMON-MODE.md cancelación cooperativa (S1-01), verificación THIRD-PARTY-LICENSES en CI (S1-02) |
+| **P0** | 1 | coverage por módulo (S2-09) — *create-dmg pin (S2-15) resuelto el 2026-07-14* |
+| **P1** | 3 | piso glibc como invariante del build (S2-07), check OneDrive en doctor (S2-08), ramas de fallo de build + normalización de criticidad (S2-10) — *SOURCE-OFFER en artefactos (S2-14) resuelto el 2026-07-14* |
+| **P2** | 1 | DAEMON-MODE.md cancelación cooperativa (S1-01) — *verificación THIRD-PARTY-LICENSES (S1-02) resuelta el 2026-07-14* |
 | **P3** | 2 | S0 residuales (anchor + orden de flags; corregir junto a S1-01) |
 
 ### Conteo por dimensión (10 canónicas)
@@ -47,11 +48,11 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 | 6. End-to-end install/uninstall UX | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
 | 7. Test quality & coverage | 0 | 0 | 2 | 0 | 0 | 2 | ⚠️ GAPS MEDIOS |
 | 8. Documentation as product | 0 | 0 | 0 | 1 | 2 | 3 | ⚠️ GAPS MENORES |
-| 9. Licensing & compliance | 0 | 0 | 1 | 1 | 0 | 2 | ⚠️ GAPS MENORES |
-| 10. Supply chain & CI | 0 | 0 | 1 | 0 | 0 | 1 | ⚠️ GAPS MEDIOS |
-| **TOTAL** | **0** | **0** | **6** | **2** | **2** | **10** | **LISTO-CON-RESERVAS** |
+| 9. Licensing & compliance | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
+| 10. Supply chain & CI | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
+| **TOTAL** | **0** | **0** | **4** | **1** | **2** | **7** | **LISTO-CON-RESERVAS** |
 
-*Dimensión 2: 4 → 0 (S2-01/S2-02/S2-05/S2-06 implementados y verificados en la remediación del 2026-07-14). Dimensión 7: 4 → 2 (S2-11 consolidado en S2-15 de la Dimensión 10; S2-12 subsumido en S2-10).*
+*Dimensión 2: 4 → 0 (S2-01/S2-02/S2-05/S2-06 implementados y verificados en la remediación del 2026-07-14). Dimensión 7: 4 → 2 (S2-11 consolidado en S2-15 de la Dimensión 10; S2-12 subsumido en S2-10). Dimensiones 9 y 10: 3 → 0 (S2-14/S1-02/S2-15 implementados y verificados en la remediación de compliance/supply-chain del 2026-07-14).*
 
 ---
 
@@ -252,7 +253,7 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 ### 7. Test quality & coverage — GAPS MEDIOS
 
 **Qué está listo:**
-- 536 tests, 100% deterministas (zero network, zero hardware, zero timing flakiness)
+- 547 tests, 100% deterministas (zero network, zero hardware, zero timing flakiness)
 - CI triple-platform simétrico: test-linux (Docker), test-windows (Server 2022), test-macos (M4 Pro) — misma suite, gates obligatorios
 - Smoke test binario congelado en cada build job: version + voice list \| grep 'default'
 - Contract tests exhaustivos: exit codes, JSON schema_version, stdout/stderr separation, NDJSON events
@@ -265,13 +266,13 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 | S3-01 | **Resuelto** | PyInstaller timeout sin test — cubierto por `tests/test_build_utils.py::TestRunPyinstaller::test_timeout_kills_tree_and_returns_1` |
 | S2-09 | Abierto | Sin herramienta de coverage: la cobertura se afirma, no se mide |
 | S2-10 | Abierto | Ramas de fallo de los build scripts sin test |
-| S2-11 | Abierto | create-dmg sin pin (consolidado con S2-15 — misma causa raíz, ver Dimensión 10) |
+| S2-11 | **Resuelto** | create-dmg sin pin (consolidado con S2-15 — misma causa raíz; resuelto con S2-15 el 2026-07-14, ver Dimensión 10) |
 | S2-12 | Abierto | Rama «Inno Setup ausente» sin test (subcaso de S2-10) |
 | S2-13 | **Resuelto** | `scripts/pyinstaller_wrapper.py` sin test dedicado — cubierto por `tests/test_build_utils.py::TestPyinstallerWrapper` (`main()` propaga `returncode` vía `os._exit` y limpia el temporal; `_BOOTSTRAP` fija `coinit_flags` antes del import) |
 
 #### S2-09 — Sin herramienta de coverage: la cobertura se afirma, no se mide
 
-**Problema (refinado).** La suite (536 tests, determinista, triple-plataforma) es fuerte, pero su cobertura es una afirmación sin instrumento: ni `pyproject.toml` tiene `pytest-cov`/`[tool.coverage.*]`, ni ningún job de CI lo ejecuta (comentario explícito en `.circleci/config.yml`: «Hoy el proyecto NO usa plugins de pytest»). Sin medición, los huecos son invisibles precisamente donde más duele: las ramas de fallo (S2-10) existieron durante meses sin que nadie pudiera verlas. El riesgo del remedio también es real y debe gobernar el diseño: un umbral global mal calibrado convierte coverage en ruido (tests triviales para «subir el número») o en fricción (PRs bloqueados por líneas inalcanzables).
+**Problema (refinado).** La suite (547 tests, determinista, triple-plataforma) es fuerte, pero su cobertura es una afirmación sin instrumento: ni `pyproject.toml` tiene `pytest-cov`/`[tool.coverage.*]`, ni ningún job de CI lo ejecuta (comentario explícito en `.circleci/config.yml`: «Hoy el proyecto NO usa plugins de pytest»). Sin medición, los huecos son invisibles precisamente donde más duele: las ramas de fallo (S2-10) existieron durante meses sin que nadie pudiera verlas. El riesgo del remedio también es real y debe gobernar el diseño: un umbral global mal calibrado convierte coverage en ruido (tests triviales para «subir el número») o en fricción (PRs bloqueados por líneas inalcanzables).
 
 **Alternativas evaluadas:**
 
@@ -294,7 +295,7 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 
 #### S2-11 — create-dmg sin pin
 
-Consolidado con **S2-15** (Dimensión 10): son el mismo defecto observado desde dos lentes (test/supply-chain). Análisis y solución únicos en S2-15 para evitar que dos correcciones divergentes ataquen la misma causa.
+Consolidado con **S2-15** (Dimensión 10): son el mismo defecto observado desde dos lentes (test/supply-chain). Análisis y solución únicos en S2-15 para evitar que dos correcciones divergentes ataquen la misma causa. **Resuelto** con S2-15 (2026-07-14); el provisioning pineado queda cubierto por `tests/test_build_macos.py::TestProvisionCreateDmg`.
 
 #### S2-12 — Rama «Inno Setup ausente» sin test
 
@@ -338,14 +339,15 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 
 ---
 
-### 9. Licensing & compliance — GAPS MENORES
+### 9. Licensing & compliance — [LISTO]
 
 **Qué está listo:**
 - Código GPL-3.0-or-later, deps compatibles ✅
 - Chatterbox MIT confirmado compatible ✅
 - Watermark bypass documentado en README/USAGE/SECURITY ✅
 - GPLv3 §6 source offer inyectado en Release notes (RELEASING.md:101-105) ✅
-- THIRD-PARTY-LICENSES.md vs lockfiles: no verificado exhaustivamente ⚠️
+- GPLv3 §6 source offer dentro de los 4 artefactos: `SOURCE-OFFER.md` vía `LICENSE_FILES`/`license-files` ✅ (2026-07-14)
+- THIRD-PARTY-LICENSES.md vs lockfile: verificación mecánica en la suite (`check_third_party_licenses.py`) ✅ (2026-07-14)
 - Voice cloning ethics notice presente ✅
 - SECURITY.md: política reporte, unsigned artifacts note, supply chain ✅
 
@@ -353,8 +355,8 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 
 | ID | Estado | Severidad | Título |
 |----|--------|-----------|--------|
-| S2-14 | Abierto | S2 — Medio | GPLv3 §6 source offer solo en GitHub Release, no en los artefactos nativos |
-| S1-02 | Abierto | S1 — Bajo | THIRD-PARTY-LICENSES.md sin verificación automatizada contra los lockfiles |
+| S2-14 | **Resuelto** (2026-07-14) | S2 — Medio | GPLv3 §6 source offer solo en GitHub Release, no en los artefactos nativos |
+| S1-02 | **Resuelto** (2026-07-14) | S1 — Bajo | THIRD-PARTY-LICENSES.md sin verificación automatizada contra los lockfiles |
 
 #### S2-14 — La oferta de código fuente GPLv3 §6 no viaja con los artefactos nativos
 
@@ -368,6 +370,8 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 
 **Solución recomendada: (2).** Criterio: el compliance debe ser una propiedad del artefacto, no del canal de distribución — un archivo dentro del bundle sobrevive a cualquier vía de redistribución, cubre los 4 formatos con un mecanismo que ya existe y ya está testeado, y tiene un único punto de verdad (la plantilla + la versión, ambas ya únicas en el build). La stanza `license "GPL-3.0-or-later"` del Cask (`render_cask.py`) es un complemento trivial del mismo cambio: metadata correcta en el índice de Homebrew, aunque no sustituye la oferta.
 
+**Solución implementada (2026-07-14): (2), con una variante deliberada.** `scripts/render_source_offer.py` (generador puro: versión single-source + `render_cask.GITHUB_REPO`) renderiza la oferta con la URL del tarball del tag y el enlace al release; su salida se commitea como `SOURCE-OFFER.md` en la raíz — archivo commiteado + test de consistencia byte-exacto (`tests/test_pin_consistency.py::TestSourceOfferVersion`), no generación en build, para que el drift de versión rompa la suite. Distribución: los 3 bundles nativos vía `LICENSE_FILES`/`copy_license_files` (`build_utils.py`) y el wheel/sdist vía `license-files` de `pyproject.toml` (que ahora incluye también `THIRD-PARTY-LICENSES.md`, antes ausente del canal PyPI; verificado con build real en `.dist-info/licenses/`). **Desviación respecto a la recomendación**: la stanza `license` sugerida **no existe en el DSL de Casks** (deprecada sin reemplazo en 2016; hoy es exclusiva de fórmulas) — en su lugar los `caveats` del Cask informan la licencia y la ubicación de `SOURCE-OFFER.md`/`THIRD-PARTY-LICENSES.md` dentro del `.app` (`tests/test_cask.py::test_caveats_inform_license_and_source_offer`). La oferta de las Release notes se conserva intacta como superficie complementaria. Runbook: regeneración registrada como prerequisito en `docs/RELEASING.md`.
+
 #### S1-02 — THIRD-PARTY-LICENSES.md sin verificación automatizada
 
 **Problema (refinado).** El inventario se regenera **manualmente** con `pip-licenses` desde `requirements-lock.txt` (las instrucciones viven dentro del propio archivo, líneas 337-339); `docs/RELEASING.md` ni siquiera lo menciona como paso del release. Consecuencia estructural: cada cambio de dependencias puede desincronizar el inventario en silencio — es exactamente la misma clase de drift documental que esta auditoría encontró en sí misma (S2-03/S2-04), aplicada a un documento con peso legal (GPLv3 exige atribuciones correctas de lo que se redistribuye).
@@ -380,14 +384,16 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 
 **Solución recomendada: (2).** Criterio: distinguir entre *generar* (proceso humano, deliberado, con revisión — apropiado para un documento legal) y *verificar* (proceso mecánico, barato, sin juicio — apropiado para CI). El gate convierte el contrato «el inventario refleja el lockfile» en propiedad verificada con el mismo patrón que el proyecto ya usa para pins (`test_pin_consistency.py`), sin ceder la autoría del documento al pipeline.
 
+**Solución implementada (2026-07-14): (2), como test pytest en vez de step de CI.** `scripts/check_third_party_licenses.py` deriva el conjunto de paquetes de `requirements-lock.txt` (deduplicando variantes por marcador de entorno), lo compara con la tabla de inventario de `THIRD-PARTY-LICENSES.md` (parser anclado en el header `| Paquete | Versión |` para no confundirse con las otras tablas; nombres normalizados PEP 503) y su CLI falla con diff legible. La verificación corre como test (`tests/test_third_party_licenses.py::TestRealSync`) — el pipeline solo corre en tags, mientras la suite corre en cada pytest local y en los 3 jobs de test —, con tests unitarios de ambos parsers sobre fixtures sintéticas. La verificación inicial confirmó el inventario actual **en sincronía** con el lock (sin correcciones necesarias). Runbook: sincronía registrada como prerequisito en `docs/RELEASING.md`.
+
 ---
 
-### 10. Supply chain & CI — GAPS MEDIOS
+### 10. Supply chain & CI — [LISTO]
 
 **Qué está listo:**
 - 3 lockfiles totalmente pinned con hashes, --require-hashes en CI ✅
 - Tooling pins: appimagetool+runtime (SHA256), Inno 6.3.3, pyenv git tag ✅
-- create-dmg sin pin (Homebrew) ❌ (S2)
+- create-dmg pineado por SHA-256 sobre el tarball del release (`CREATE_DMG_PIN`/`provision_create_dmg`) ✅ (2026-07-14)
 - Build reproducibility: lockfiles + --noupx + single-source version ✅
 - Unsigned artifacts: solo SHA-256 en Release logs, mitigación documentada (one-liners, PyPI) ⚠️
 - Post-build validation: smoke test en todos los 4 builds ✅
@@ -401,7 +407,7 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 
 | ID | Estado | Título |
 |----|--------|--------|
-| S2-15 | Abierto | create-dmg sin pin — única dependencia de build no reproducible (consolida S2-11) |
+| S2-15 | **Resuelto** (2026-07-14) | create-dmg sin pin — única dependencia de build no reproducible (consolida S2-11) |
 
 #### S2-15 — create-dmg sin pin: la única dependencia de build fuera de la política de reproducibilidad
 
@@ -416,6 +422,8 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 
 **Solución recomendada: (3).** Criterio: reutilizar el patrón de pinning que el proyecto ya tiene implementado, testeado (`TestFetchPinnedAsset`) y documentado, aplicado al origen canónico del tool (su release en GitHub) en lugar de a un empaquetador intermedio (Homebrew) que no ofrece pinning. Uniformiza la política de supply chain — toda dependencia de build queda fijada por contenido, no por «lo último que Homebrew tenga» — y de paso permite eliminar el step `brew install` del job macOS (menos superficie de red y menos tiempo de job). El cambio debe acompañarse de la normalización de criticidad de S2-10 (`required=True`, ya que sin create-dmg no hay `.dmg`) y del bump documentado del pin en `docs/BUILD.md` §Reproducibilidad, donde hoy la excepción de create-dmg está reconocida como deuda («Homebrew no pinea»). (4) queda registrada como salida de emergencia si upstream create-dmg quedara sin mantenimiento: el formato del volumen es estable y `hdiutil` es API del SO.
 
+**Solución implementada (2026-07-14): (3).** `CREATE_DMG_PIN = "1.3.0"` y `CREATE_DMG_TOOLING` (URL del tarball del tag + SHA-256 computado del artefacto real) en `build_utils.py`, junto a los pins de appimagetool; `build_macos.py::provision_create_dmg` descarga vía `fetch_pinned_asset`, extrae idempotentemente con `tarfile` (`filter="data"`), aplica `chmod 0o755` y devuelve la ruta del script, que `build_macos()` recibe como parámetro (fin del argv `"create-dmg"` por PATH). La dependencia es **dura por construcción** (fallo de descarga → abort), resolviendo también la incoherencia `required=False`+abort-manual señalada aquí y en S2-10 para el caso create-dmg. El step `brew install create-dmg` desapareció de `.circleci/config.yml` y `docs/BUILD.md` §Reproducibilidad ya no lista la excepción. Tests: `tests/test_build_macos.py::TestProvisionCreateDmg` (tarball sintético local, extracción idempotente, chmod, abort sin red), deterministas en los 3 SO.
+
 ---
 
 ## Release gate (S4 + S3 mínimos para release)
@@ -423,8 +431,8 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 | Hallazgo | Severidad | Debe resolverse antes de release |
 |----------|-----------|----------------------------------|
 | S3-01 | S3 — Alto | **Resuelto** — cubierto por `tests/test_build_utils.py::TestRunPyinstaller` (timeout) y `tests/test_build_utils.py::TestPyinstallerWrapper` (wrapper COM) |
-| S2 abiertos (6) | S2 — Medio | **RECOMENDADO** — No bloquean técnicamente, pero degradan calidad y operabilidad |
-| S1-01, S1-02 | S1 — Bajo | No — solo docs/compliance menor |
+| S2 abiertos (4) | S2 — Medio | **RECOMENDADO** — No bloquean técnicamente, pero degradan calidad y operabilidad |
+| S1-01 | S1 — Bajo | No — solo docs menor (S1-02 resuelto el 2026-07-14) |
 | S0 | S0 — Info | No — solo pulido |
 
 ---
@@ -434,10 +442,10 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 **LISTO-CON-RESERVAS** — El proyecto **cumple funcionalmente** para un release 0.6.1 (todas las brechas accionables de PARITY.md cerradas en código/tests, paridad UX completa en 3 SO). Los hallazgos S2 abiertos son **de hardening pre-1.0.0**, no bloquean release de mantenimiento.
 
 **Plan sugerido** (con las dependencias entre soluciones refinadas):
-1. Release 0.6.1 con fixes P0: pin de create-dmg vía `fetch_pinned_asset` (S2-15) + coverage por módulo con `pytest-cov` pineado (S2-09).
+1. Release 0.6.1 con fixes P0: ~~pin de create-dmg vía `fetch_pinned_asset` (S2-15)~~ — **completado el 2026-07-14** (ver Dimensión 10) — + coverage por módulo con `pytest-cov` pineado (S2-09).
 2. ~~Sprint 0.7.0 — contrato `--json` completo~~ — **completado el 2026-07-14**: helper `emit_json` + `--json` en `daemon start/stop/restart` (S2-02), `speak --json` acoplado a `--output` sobre `SynthesisResult` (S2-01), test estructural del contrato derivado de `build_parser()` (S2-06), y clase base versionada del protocolo NDJSON + `version` en `/health` + política de compatibilidad en DAEMON-MODE.md (S2-05). Ver detalle y evidencia en la Dimensión 2.
-3. Sprint 0.7.x — P1 restante: normalización de criticidad en `ensure_build_dependency` + tests de ramas de fallo (S2-10, cierra S2-12); `GLIBC_FLOOR` como invariante única del build (S2-07); check OneDrive en `doctor` (S2-08); `SOURCE-OFFER.md` en los 4 artefactos (S2-14).
-4. Pasada documental única: DAEMON-MODE.md cancelación cooperativa (S1-01) + anchor y orden de flags (S0-01/S0-02); verificación de THIRD-PARTY-LICENSES en CI (S1-02).
+3. Sprint 0.7.x — P1 restante: normalización de criticidad en `ensure_build_dependency` + tests de ramas de fallo (S2-10, cierra S2-12); `GLIBC_FLOOR` como invariante única del build (S2-07); check OneDrive en `doctor` (S2-08). ~~`SOURCE-OFFER.md` en los 4 artefactos (S2-14)~~ — **completado el 2026-07-14** (ver Dimensión 9).
+4. Pasada documental única: DAEMON-MODE.md cancelación cooperativa (S1-01) + anchor y orden de flags (S0-01/S0-02). ~~Verificación de THIRD-PARTY-LICENSES (S1-02)~~ — **completada el 2026-07-14** como test de la suite (ver Dimensión 9).
 5. 1.0.0 cuando P1/P2 cerrados + validación E2E usuarios reales Linux/macOS (criterio aceptación 10 GOAL.md).
 
 ---
@@ -447,16 +455,16 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 | Hallazgo | Cómo se confirmará en CI |
 |----------|---------------------------|
 | S2-09 coverage | `pytest --cov` con `[tool.coverage.*]` en pyproject.toml; gate por módulo en módulos de contrato; `coverage.xml` como artefacto del job test-linux |
-| S2-15 create-dmg pin | Build macOS obtiene create-dmg vía `fetch_pinned_asset` (log muestra SHA-256 verificado); step `brew install create-dmg` eliminado del job |
+| S2-15 create-dmg pin | **Implementado.** `provision_create_dmg` descarga vía `fetch_pinned_asset` (log muestra SHA-256 verificado); step `brew install create-dmg` eliminado del job; `TestProvisionCreateDmg` confirma el provisioning en los 3 jobs de test |
 | S3-01/S2-13 wrapper | Implementado (`TestPyinstallerWrapper` y `TestRunPyinstaller` pasan en CI) |
 | S2-10 (incl. S2-12) | Tests de ramas de fallo por build script (Inno ausente → abort; create-dmg falla → abort; tooling AppImage ausente → degradación); `required=True` donde el fallo es fatal |
 | S2-01/S2-02/S2-06 | **Implementado.** `TestSpeakJSON`/`TestDaemonVerbsJSON` validan los payloads exactos; `TestJSONContractStructure` descubre todo subcomando con `--json` desde `build_parser()` y valida: stdout = exactamente 1 objeto JSON, `schema_version` presente, stderr sin JSON |
 | S2-05 | **Implementado.** `TestProtocolVersioning` valida `schema_version` en los 5 modelos vía `ProtocolModel` y `version` en `/health`; tests de rolling upgrade (payload con campos extra → cliente no falla; payload sin schema_version/version → defaults completan) |
 | S2-07 | `build_linux.py` falla si la glibc del host de build > `GLIBC_FLOOR` declarado; test de consistencia valida que installer y docs derivan del mismo valor |
 | S2-08 | Test de `doctor` con `data_root` simulado bajo OneDrive → check WARN presente; log muestra `[WARN]` con mitigación |
-| S2-14 | Los 4 artefactos contienen `SOURCE-OFFER.md` con la URL del tarball del tag (verificable en el smoke test post-build); Cask con stanza `license` |
+| S2-14 | **Implementado.** `SOURCE-OFFER.md` en `LICENSE_FILES` (3 bundles nativos) y en `license-files` de pyproject.toml (wheel/sdist, verificado con build real); `TestSourceOfferVersion` confirma la consistencia byte-exacta con el generador; caveats del Cask en vez de la stanza `license` (inexistente en el DSL de Casks), cubiertos por `test_cask.py` |
 | S1-01 | PR incluye sección «Cancelación cooperativa del cliente» en DAEMON-MODE.md |
-| S1-02 | Script de verificación lockfile ↔ THIRD-PARTY-LICENSES.md corre en job test-linux; falla con diff legible |
+| S1-02 | **Implementado.** `check_third_party_licenses.py` verifica lockfile ↔ THIRD-PARTY-LICENSES.md; corre como test (`TestRealSync`) en los 3 jobs de test y falla con diff legible |
 
 ---
 

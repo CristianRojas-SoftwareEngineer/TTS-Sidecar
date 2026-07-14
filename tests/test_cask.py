@@ -74,6 +74,15 @@ class TestRenderCask:
         content = render_cask("1.2.3", DMG_SHA)
         assert "tts-sidecar setup" in content
 
+    def test_caveats_inform_license_and_source_offer(self):
+        # La stanza `license` no existe en el DSL de Casks (deprecada sin
+        # reemplazo en 2016, hoy exclusiva de fórmulas): la licencia y la
+        # ubicación de la oferta de fuente GPLv3 §6 se informan vía caveats.
+        content = render_cask("1.2.3", DMG_SHA)
+        assert "GPL-3.0-or-later" in content
+        assert "Contents/Resources/SOURCE-OFFER.md" in content
+        assert "Contents/Resources/THIRD-PARTY-LICENSES.md" in content
+
 
 class TestRenderCaskFromTag:
     def test_strips_leading_v_from_tag(self):

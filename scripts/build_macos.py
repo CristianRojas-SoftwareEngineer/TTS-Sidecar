@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import sysconfig
+import tarfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -28,9 +29,47 @@ sys.path.insert(0, str(Path(__file__).parent))
 from build_utils import (
     log, StageTimer, BuildTimer, copy_license_files, get_version,
     check_pyinstaller, common_pyinstaller_args, bundle_size_mb, run_pyinstaller,
-    ensure_icns, check_sounddevice, ensure_build_dependency,
+    ensure_icns, check_sounddevice, fetch_pinned_asset,
     install_lockfile_dependencies, BUILD_SUBPROCESS_TIMEOUT, PYINSTALLER_TIMEOUT,
+    CREATE_DMG_PIN, CREATE_DMG_TOOLING,
 )
+
+
+def provision_create_dmg(cache_dir=None):
+    """Provisiona create-dmg pineado (tarball del release + SHA-256) y devuelve
+    la ruta del script ejecutable.
+
+    create-dmg es un script de shell puro distribuido como release en GitHub:
+    se descarga (o reutiliza de la caché en build/) el tarball del tag fijado
+    en CREATE_DMG_TOOLING, verificado por SHA-256 vía fetch_pinned_asset —
+    misma política de supply chain que appimagetool en build_linux.py, sin
+    Homebrew de por medio. Dependencia dura: el stage DMG es obligatorio
+    (publish-release exige el artefacto), así que un fallo de descarga aborta
+    el build en vez de degradar con warning. La extracción es idempotente
+    (se omite si el script ya existe extraído).
+    """
+    import urllib.error
+
+    cache_dir = Path(cache_dir) if cache_dir else BUILD_DIR / "create-dmg-tooling"
+    tarball_dest = cache_dir / f"create-dmg-{CREATE_DMG_PIN}.tar.gz"
+    script_path = cache_dir / f"create-dmg-{CREATE_DMG_PIN}" / "create-dmg"
+
+    try:
+        tarball = fetch_pinned_asset(
+            CREATE_DMG_TOOLING["url"], CREATE_DMG_TOOLING["sha256"], tarball_dest)
+    except (urllib.error.URLError, OSError) as exc:
+        log(f"ERROR: no se pudo descargar create-dmg pineado ({exc})")
+        log(f"  URL: {CREATE_DMG_TOOLING['url']}")
+        sys.exit(1)
+
+    if not script_path.exists():
+        with tarfile.open(tarball, "r:gz") as tf:
+            # filter="data" neutraliza rutas absolutas/traversal del tarball
+            # (y evita el DeprecationWarning de Python 3.14).
+            tf.extractall(cache_dir, filter="data")
+        log(f"create-dmg {CREATE_DMG_PIN} extraído en {script_path.parent}")
+    os.chmod(script_path, 0o755)
+    return script_path
 
 
 def check_dependencies():
@@ -39,6 +78,8 @@ def check_dependencies():
     La instalación del lockfile en sí (existencia, pip --require-hashes,
     manejo de timeout/fallo) vive en build_utils.install_lockfile_dependencies,
     fuente única compartida con build_windows.py y build_linux.py.
+    Devuelve la ruta del script create-dmg provisionado (pineado por SHA-256),
+    que build_macos() recibe como parámetro.
     """
     check_pyinstaller()
     install_lockfile_dependencies(PROJECT_ROOT / "requirements-lock.txt")
@@ -51,25 +92,18 @@ def check_dependencies():
         # build_linux.py.
         check_sounddevice()
 
-        # create-dmg es un script de shell (Homebrew), no un paquete de
-        # PyPI: se invoca como binario vía subprocess, no se importa como
-        # módulo Python. Es herramienta del empaquetador (opcional): sin
-        # ella el .app sigue siendo usable y el stage DMG degrada con warning.
-        # brew no soporta pin simple de versión, así que se instala sin pin;
-        # sin brew disponible solo queda el mensaje de instalación manual.
-        has_brew = shutil.which("brew") is not None
-        present = ensure_build_dependency(
-            "create-dmg",
-            lambda: shutil.which("create-dmg") is not None,
-            install_cmd=["brew", "install", "create-dmg"] if has_brew else None,
-            required=False,
-        )
-        if not present and not has_brew:
-            log("Instalación manual: brew install create-dmg (requiere Homebrew)")
+        # create-dmg se provisiona pineado (tarball del release + SHA-256),
+        # no vía Homebrew: dependencia dura del stage DMG.
+        return provision_create_dmg()
 
 
-def build_macos(target_arch="arm64"):
-    """Build macOS .app bundle with PyInstaller --onedir."""
+def build_macos(target_arch="arm64", create_dmg_path="create-dmg"):
+    """Build macOS .app bundle with PyInstaller --onedir.
+
+    `create_dmg_path` es la ruta del script create-dmg provisionado por
+    check_dependencies() (pineado por SHA-256); el default "create-dmg"
+    (resolución por PATH) solo aplica si el llamador omite el provisioning.
+    """
     arch_options = {"arm64": "arm64"}
     arch_flag = arch_options.get(target_arch, "arm64")
 
@@ -180,7 +214,7 @@ def build_macos(target_arch="arm64"):
             os.chmod(uninstall_script, 0o755)
 
             create_dmg_args = [
-                "create-dmg",
+                str(create_dmg_path),
                 "--volname", "tts-sidecar",
                 "--window-pos", "200", "120",
                 "--icon-size", "100",
@@ -210,7 +244,8 @@ def build_macos(target_arch="arm64"):
             )
             if result.returncode != 0:
                 log(f"ERROR: La creación del .dmg falló (rc={result.returncode}; "
-                    "create-dmg puede requerir brew install create-dmg)")
+                    f"create-dmg {CREATE_DMG_PIN} pineado en "
+                    f"{CREATE_DMG_TOOLING['url']})")
                 sys.exit(1)
             log(f".dmg creado: {dmg_path}")
 
@@ -390,5 +425,5 @@ if __name__ == "__main__":
         help="Target architecture (default: arm64; Mac Intel no está soportado)",
     )
     args = parser.parse_args()
-    check_dependencies()
-    build_macos(args.arch)
+    create_dmg_path = check_dependencies()
+    build_macos(args.arch, create_dmg_path)

@@ -16,7 +16,9 @@ from pathlib import Path
 
 # Archivos de cumplimiento de licencia que deben viajar dentro de cada artefacto
 # distribuible (PyInstaller elimina los avisos de licencia de las dependencias).
-LICENSE_FILES = ("LICENSE", "THIRD-PARTY-LICENSES.md")
+# SOURCE-OFFER.md es la oferta escrita de código fuente (GPLv3 §6): acompaña al
+# binario para que sobreviva a cualquier vía de redistribución.
+LICENSE_FILES = ("LICENSE", "THIRD-PARTY-LICENSES.md", "SOURCE-OFFER.md")
 
 # Fuente única del logo del proyecto (PNG 256×256), del que los tres builds
 # derivan su icono nativo: PNG directo en Linux, .ico en Windows, .icns en macOS.
@@ -97,6 +99,17 @@ APPIMAGE_TOOLING = {
             "00cbdfcf917cc6c0ff6d3347d59e0ca1f7f45a6df1a428a0d6d8a78664d87444",
         ),
     },
+}
+
+# Tooling pineado del empaquetado .dmg de macOS (S2-15): create-dmg es un
+# script de shell puro distribuido como release en GitHub, así que se fija por
+# URL de tarball del tag + SHA-256 (fetch_pinned_asset lo verifica), igual que
+# appimagetool — eliminando la instalación sin pin vía `brew install`.
+# Actualizar deliberadamente URL y hash a la vez.
+CREATE_DMG_PIN = "1.3.0"
+CREATE_DMG_TOOLING = {
+    "url": f"https://github.com/create-dmg/create-dmg/archive/refs/tags/v{CREATE_DMG_PIN}.tar.gz",
+    "sha256": "c50d2bc97c3d6292642bac55f530d247eaf4bf65ee605f26b4caf339383e381c",
 }
 
 
@@ -347,7 +360,7 @@ def bundle_size_mb(onedir) -> float:
 
 
 def copy_license_files(dest_dir) -> None:
-    """Copia LICENSE y THIRD-PARTY-LICENSES.md desde la raíz del proyecto a dest_dir.
+    """Copia los LICENSE_FILES desde la raíz del proyecto a dest_dir.
 
     Se invoca tras PyInstaller en cada plataforma para que el bundle distribuible
     (onedir de Windows/Linux, .app de macOS) incluya los avisos de licencia que
