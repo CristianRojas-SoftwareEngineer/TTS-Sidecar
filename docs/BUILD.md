@@ -335,6 +335,13 @@ Así, un bug específico de plataforma —Windows
 (pycaw/COM, winsound, generación del `.iss`) o macOS (afplay/sounddevice, rutas y señales
 POSIX)— se detecta en el gate en lugar de llegar al usuario.
 
+Un séptimo job, `coverage`, se suma como `requires` de los 4 builds y de `publish-pypi` sin
+formar parte de la triple puerta por-SO: mide y gatea la cobertura (S2-09), una preocupación
+**por módulo de contrato**, no por plataforma — correrlo en Linux una sola vez basta, tal
+como `test-linux` fija la arquitectura de referencia arch-independiente para la suite
+mockeada (ver «Por qué el runner de `test-linux` es x86_64» más abajo). Duplicarlo en los
+tres SO triplicaría el coste sin aportar señal nueva sobre las líneas cubiertas.
+
 > **Mockeo deliberado de los smoke-tests de instaladores.** Los tres jobs
 > `test-installer-*` mockean por PATH las herramientas con efectos externos (`curl`,
 > `sha256sum`, `hdiutil`, `xattr`, …): validan la lógica del script (parsing del
@@ -399,6 +406,7 @@ Los tests (3) y los builds (4) no están desalineados: responden a **ejes distin
 | `test-linux` | Linux x64 | docker `cimg/python:3.13` | `pytest tests/` en Linux (puerta previa) |
 | `test-windows` | Windows x64 | `win/server-2022` | `pytest tests/` en Windows nativo (puerta previa) |
 | `test-macos` | macOS arm64 (Apple Silicon) | macos `m4pro.medium` (Xcode 26.4.0) | `pytest tests/` en macOS nativo (puerta previa) |
+| `coverage` | Linux x64 | docker `cimg/python:3.13` | `pytest tests/ --cov` + gate por módulo (`scripts/check_coverage.py`); publica `coverage.xml` como artefacto (puerta previa, independiente de la triple puerta por-SO) |
 | `build-windows-x64` | Windows x64 | `win/server-2022` | **Tres steps:** «Build Windows x64 onedir via PyInstaller» (`--no-installer`, `no_output_timeout: 20m`), «Generate Windows x64 installer via Inno Setup» (`create_installer_windows.py`, `no_output_timeout: 25m`), e «Install Inno Setup via choco (pinned 6.3.3)» como step propio separado de las deps Python |
 | `build-linux-x64` | Linux x64 | docker `cimg/python:3.13` (`large`) | PyInstaller onedir + AppImage |
 | `build-linux-arm64` | Linux ARM64 | docker `cimg/python:3.13` (`arm.medium`) | PyInstaller onedir + AppImage |
@@ -412,7 +420,7 @@ generación del instalador Inno Setup son dos steps distintos: el primero corre
 ninguna de las dos etapas largas comparte el presupuesto de silencio de la otra ni cae en
 el default de 10 min.
 
-**Logging homogéneo `[STEP] … INICIO/FIN`.** Todos los run-steps de los 7 jobs enmarcan su
+**Logging homogéneo `[STEP] … INICIO/FIN`.** Todos los run-steps de los 8 jobs enmarcan su
 comando con marcadores `[STEP] <nombre> - INICIO` / `- FIN` (`echo` en los jobs bash,
 `Write-Host` en los PowerShell). En PowerShell, cada invocación que puede fallar va seguida
 de un chequeo `if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }` **antes** del marcador FIN:
@@ -422,7 +430,7 @@ declaran `no_output_timeout` explícito.
 
 ### Cacheo de dependencias y toolchain
 
-Los 7 jobs con Python usan `save_cache`/`restore_cache` de CircleCI para no
+Los 8 jobs con Python usan `save_cache`/`restore_cache` de CircleCI para no
 descargar ~1.5–2.5 GB de wheels ni recompilar CPython en cada corrida. Hay dos
 tipos de cache, con claves independientes:
 
@@ -476,13 +484,14 @@ conjunto manualmente, incrementar el prefijo versionado (`v1-` → `v2-`) en
 Recompilar el mismo tag semanas después debe producir los mismos artefactos.
 Para cerrar las fuentes de deriva controlables, el CI fija:
 
-- **Imágenes Docker por digest**: las tres referencias `cimg/python:3.13` de
-  los jobs Docker (`test-linux`, `build-linux-x64`, `build-linux-arm64`) llevan
-  la forma `cimg/python:3.13@sha256:<digest>`. El digest es el del **manifest
-  list** del tag (multi-arch), así que el mismo pin sirve para amd64 y arm64.
-- **pip con versión exacta**: los siete `pip install pip==<versión>` de los
-  jobs reemplazan al antiguo `--upgrade pip` sin versión, que instalaba «lo
-  último» en cada corrida.
+- **Imágenes Docker por digest**: las referencias `cimg/python:3.13` de los
+  jobs Docker (`test-linux`, `coverage`, `build-linux-x64`, `build-linux-arm64`)
+  llevan la forma `cimg/python:3.13@sha256:<digest>`. El digest es el del
+  **manifest list** del tag (multi-arch), así que el mismo pin sirve para
+  amd64 y arm64.
+- **pip con versión exacta**: los ocho `pip install pip==<versión>` de los
+  jobs (incluye `coverage`) reemplazan al antiguo `--upgrade pip` sin versión,
+  que instalaba «lo último» en cada corrida.
 
 **Excepciones conscientes** (documentadas en el propio config):
 
@@ -583,8 +592,8 @@ Los siguientes paquetes no se usan en runtime y están excluidos del bundle:
 El CI y los builds **no** instalan desde `requirements.txt` (límites `>=` de
 desarrollo), sino desde `requirements-lock.txt`: un **lock universal con hashes**
 que fija la versión exacta de cada dependencia de runtime (directa y transitiva)
-para builds reproducibles e íntegros. Los 7 jobs de CI con Python instalan su
-lockfile (el universal, o el CPU-only de Linux en `test-linux` y
+para builds reproducibles e íntegros. Los 8 jobs de CI con Python instalan su
+lockfile (el universal, o el CPU-only de Linux en `test-linux`, `coverage` y
 `build-linux-x64` — ver la sección siguiente) con `--require-hashes`, que
 rechaza cualquier paquete cuyo contenido no coincida con el hash fijado
 (barrera de supply-chain).
@@ -626,10 +635,11 @@ El lock universal resuelve, para `sys_platform == 'linux' and platform_machine
 defecto con `torch` en esa combinación de plataforma/arquitectura — el AppImage
 lo arrastraba vía `--collect-all torch` aunque el proyecto no usa GPU NVIDIA.
 `arm64` no se ve afectado (esos marcadores excluyen `platform_machine !=
-'x86_64'`), así que instalan desde este lock alternativo los dos jobs de esa
-plataforma: `build-linux-x64` y `test-linux` (la suite mockea el engine — torch
-no se ejercita — y el build de la misma plataforma ya usa exactamente este
-lock, así que el stack CUDA solo agregaría varios GB sin señal adicional).
+'x86_64'`), así que instalan desde este lock alternativo los jobs de esa
+plataforma: `build-linux-x64`, `test-linux` y `coverage` (la suite mockea el
+engine — torch no se ejercita — y el build de la misma plataforma ya usa
+exactamente este lock, así que el stack CUDA solo agregaría varios GB sin
+señal adicional).
 `build-linux-arm64`, `test-windows`, `test-macos` y los builds de
 Windows/macOS siguen usando `requirements-lock.txt`.
 

@@ -38,6 +38,17 @@ y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
   acompaña al binario por cualquier vía de redistribución. Un test de
   consistencia byte-exacto falla si el archivo commiteado diverge del
   generador o de la versión.
+- **Cobertura de tests medida y gateada por módulo** (S2-09): `pytest-cov`
+  pineado vía `pipeline.parameters.pytest_cov_version` (mismo mecanismo que el
+  pin de `pytest`), configuración única en `[tool.coverage.*]` de
+  `pyproject.toml`. Nuevo job `coverage` independiente en CI (Linux, no
+  duplicado en los tres SO) que corre la suite bajo `pytest --cov` y aplica
+  `scripts/check_coverage.py`, un gate diferenciado por módulo (`MODULE_FLOORS`
+  como fuente única de los pisos, fijados por ratchet-desde-lo-medido) para los
+  módulos de contrato (`cli.py`, `daemon/*`, `model_cache.py`, `voices.py`,
+  `paths.py`); el resto se reporta sin gatear. Publica `coverage.xml` como
+  artefacto. Coverage queda opt-in: `pytest tests/ -v` sigue verde sin
+  `pytest-cov` instalado.
 - **Verificación automatizada del inventario de licencias** (S1-02):
   `scripts/check_third_party_licenses.py` compara el conjunto de paquetes de
   `requirements-lock.txt` contra la tabla de `THIRD-PARTY-LICENSES.md`

@@ -48,6 +48,25 @@ pytest tests/ -v
   (en CI corren completos en Linux/macOS).
 - Verificación rápida de sintaxis: `python -m compileall src/`.
 
+### Cobertura
+
+La cobertura es **opt-in**: no forma parte de `pytest tests/ -v` (no depende de
+`pytest-cov`). El job `coverage` de CI la mide y aplica un gate por módulo sobre los
+módulos de contrato (`cli.py`, `daemon/*`, `model_cache.py`, `voices.py`, `paths.py`).
+Para reproducirlo en local:
+
+```bash
+pip install pytest-cov
+pytest tests/ --cov --cov-report=json --cov-report=term-missing
+python scripts/check_coverage.py coverage.json
+```
+
+Los pisos por módulo viven en `scripts/check_coverage.py::MODULE_FLOORS` (fuente
+única). Si tu cambio baja deliberadamente la cobertura de un módulo de contrato,
+ajusta el piso correspondiente en el mismo PR con justificación en el mensaje de
+commit; si el gate falla por una regresión no intencional, sube la cobertura en vez
+de bajar el piso.
+
 ### Smoke-tests de instaladores
 
 Además de la suite pytest, los instaladores de una línea tienen smoke-tests

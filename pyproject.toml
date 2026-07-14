@@ -59,3 +59,29 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+
+# Coverage es opt-in (S2-09): no va en addopts para que `pytest tests/ -v`
+# siga funcionando sin pytest-cov instalado. El job `coverage` de CI lo activa
+# explícitamente con `--cov --cov-report=xml --cov-report=json`; el gate por
+# módulo lo aplica scripts/check_coverage.py (coverage.py solo ofrece un
+# fail_under global, insuficiente para diferenciar módulos de contrato).
+[tool.coverage.run]
+source = ["tts_sidecar"]
+branch = true
+omit = ["tests/*", "scripts/*"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    # Ramas por-SO estructuralmente inalcanzables desde un runner Linux (el
+    # job `coverage` corre en cimg/python Docker, x86_64 Linux).
+    "sys.platform == .win32.",
+    "sys.platform == .darwin.",
+]
+
+[tool.coverage.json]
+output = "coverage.json"
+
+[tool.coverage.xml]
+output = "coverage.xml"

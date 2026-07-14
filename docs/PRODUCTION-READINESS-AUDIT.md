@@ -8,12 +8,13 @@
 **Revisión de refinamiento**: 2026-07-13 — cada hallazgo abierto re-verificado contra el código, con análisis de alternativas, trade-offs y solución recomendada con criterio arquitectónico. Los hallazgos cuya evidencia original resultó incorrecta se marcan «Resuelto (drift)»; los duplicados por causa raíz común se consolidan.  
 **Revisión de remediación**: 2026-07-14 — implementadas y verificadas con tests las cuatro soluciones recomendadas de la Dimensión 2 (S2-01, S2-02, S2-05, S2-06); dimensión cerrada con veredicto LISTO.
 **Revisión de remediación (2)**: 2026-07-14 — implementadas y verificadas con tests las tres soluciones recomendadas de las Dimensiones 9 y 10 (S2-14, S1-02, S2-15); ambas dimensiones cerradas con veredicto LISTO. Suite: 547 tests.
+**Revisión de remediación (3)**: 2026-07-14 — implementada y verificada con tests la solución recomendada para S2-09 (job `coverage` independiente en CI, `pytest-cov` pineado vía `pipeline.parameters`, gate por módulo en `scripts/check_coverage.py` con ratchet-desde-lo-medido). Suite: 559 tests.
 
 ---
 
 ## Resumen ejecutivo
 
-Se audió el proyecto completo contra las 10 dimensiones de production-readiness. **El código base es sólido, bien testeado y con arquitectura limpia**. Se identificaron originalmente 0 S4, 1 S3, 15 S2, 2 S1 y 2 S0. Tras la remediación y la **revisión de refinamiento** (2026-07-13, verificación contra código): S3-01 y S2-13 **resueltos** en tests; S2-03 y S2-04 **cerrados por drift de la auditoría** (la evidencia original era incorrecta: `cleanup --json` y `setup --json` ya emitían sus payloads, con tests); S2-11 **consolidado** en S2-15 y S2-12 **subsumido** en S2-10 (misma causa raíz). Una segunda ronda de remediación (2026-07-14) implementó y verificó con tests las cuatro soluciones recomendadas de la Dimensión 2: S2-01, S2-02, S2-05 y S2-06 **resueltos**. Una tercera ronda (2026-07-14) cerró las Dimensiones 9 y 10: S2-14 (`SOURCE-OFFER.md` en los 4 artefactos), S1-02 (verificación lockfile↔`THIRD-PARTY-LICENSES.md` en la suite) y S2-15 (create-dmg pineado por SHA-256 vía `fetch_pinned_asset`) **resueltos**. Quedan **4 S2 abiertos**, **1 S1** y **2 S0**. Los gaps abiertos: cobertura sin instrumento de medición, ramas de fallo de build sin test, piso de glibc implícito en el build, y riesgo OneDrive. Cada hallazgo abierto incluye ahora análisis de alternativas con trade-offs y una solución recomendada con criterio arquitectónico. **Veredicto global: LISTO-CON-RESERVAS** — apto para release 0.6.1 con plan de hardening pre-1.0.0.
+Se audió el proyecto completo contra las 10 dimensiones de production-readiness. **El código base es sólido, bien testeado y con arquitectura limpia**. Se identificaron originalmente 0 S4, 1 S3, 15 S2, 2 S1 y 2 S0. Tras la remediación y la **revisión de refinamiento** (2026-07-13, verificación contra código): S3-01 y S2-13 **resueltos** en tests; S2-03 y S2-04 **cerrados por drift de la auditoría** (la evidencia original era incorrecta: `cleanup --json` y `setup --json` ya emitían sus payloads, con tests); S2-11 **consolidado** en S2-15 y S2-12 **subsumido** en S2-10 (misma causa raíz). Una segunda ronda de remediación (2026-07-14) implementó y verificó con tests las cuatro soluciones recomendadas de la Dimensión 2: S2-01, S2-02, S2-05 y S2-06 **resueltos**. Una tercera ronda (2026-07-14) cerró las Dimensiones 9 y 10: S2-14 (`SOURCE-OFFER.md` en los 4 artefactos), S1-02 (verificación lockfile↔`THIRD-PARTY-LICENSES.md` en la suite) y S2-15 (create-dmg pineado por SHA-256 vía `fetch_pinned_asset`) **resueltos**. Una cuarta ronda (2026-07-14) cerró S2-09: job `coverage` independiente en CI con `pytest-cov` pineado y gate por módulo (`scripts/check_coverage.py`) **resuelto**. Quedan **3 S2 abiertos**, **1 S1** y **2 S0**. Los gaps abiertos: ramas de fallo de build sin test, piso de glibc implícito en el build, y riesgo OneDrive. Cada hallazgo abierto incluye ahora análisis de alternativas con trade-offs y una solución recomendada con criterio arquitectónico. **Veredicto global: LISTO-CON-RESERVAS** — apto para release 0.6.1 con plan de hardening pre-1.0.0.
 
 ### Conteo por severidad
 
@@ -21,17 +22,17 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 |-----------|--------|-----------------|
 | **S4 — Crítico** | 0 | — |
 | **S3 — Alto** | 0 | — |
-| **S2 — Medio** | 4 | Coverage sin instrumento (S2-09), ramas de fallo de build sin test (S2-10, incl. S2-12), piso glibc implícito (S2-07), OneDrive (S2-08) |
+| **S2 — Medio** | 3 | Ramas de fallo de build sin test (S2-10, incl. S2-12), piso glibc implícito (S2-07), OneDrive (S2-08) |
 | **S1 — Bajo** | 1 | DAEMON-MODE.md desactualizado (cancelación cooperativa) |
 | **S0 — Informativo** | 2 | Anchor roto USAGE.md, orden de flags USAGE vs cli.py |
 
-*Cerrados desde la emisión: S3-01 y S2-13 (resueltos en tests), S2-03 y S2-04 (drift de la auditoría — la evidencia era incorrecta), S2-11 → S2-15 y S2-12 → S2-10 (consolidados por causa raíz común), S2-01/S2-02/S2-05/S2-06 (implementados y verificados con tests en la remediación del 2026-07-14), S2-14/S1-02/S2-15 (implementados y verificados con tests en la remediación de compliance/supply-chain del 2026-07-14).*
+*Cerrados desde la emisión: S3-01 y S2-13 (resueltos en tests), S2-03 y S2-04 (drift de la auditoría — la evidencia era incorrecta), S2-11 → S2-15 y S2-12 → S2-10 (consolidados por causa raíz común), S2-01/S2-02/S2-05/S2-06 (implementados y verificados con tests en la remediación del 2026-07-14), S2-14/S1-02/S2-15 (implementados y verificados con tests en la remediación de compliance/supply-chain del 2026-07-14), S2-09 (job `coverage` + gate por módulo, implementado y verificado con tests en la remediación del 2026-07-14).*
 
 ### Conteo por prioridad recomendada
 
 | Prioridad | Cuenta | Descripción |
 |-----------|--------|-------------|
-| **P0** | 1 | coverage por módulo (S2-09) — *create-dmg pin (S2-15) resuelto el 2026-07-14* |
+| **P0** | 0 | — *coverage por módulo (S2-09) y create-dmg pin (S2-15) resueltos el 2026-07-14* |
 | **P1** | 3 | piso glibc como invariante del build (S2-07), check OneDrive en doctor (S2-08), ramas de fallo de build + normalización de criticidad (S2-10) — *SOURCE-OFFER en artefactos (S2-14) resuelto el 2026-07-14* |
 | **P2** | 1 | DAEMON-MODE.md cancelación cooperativa (S1-01) — *verificación THIRD-PARTY-LICENSES (S1-02) resuelta el 2026-07-14* |
 | **P3** | 2 | S0 residuales (anchor + orden de flags; corregir junto a S1-01) |
@@ -46,13 +47,13 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 | 4. Model & on-disk state management | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
 | 5. Real cross-platform compatibility | 0 | 0 | 2 | 0 | 0 | 2 | ⚠️ GAPS MEDIOS |
 | 6. End-to-end install/uninstall UX | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
-| 7. Test quality & coverage | 0 | 0 | 2 | 0 | 0 | 2 | ⚠️ GAPS MEDIOS |
+| 7. Test quality & coverage | 0 | 0 | 1 | 0 | 0 | 1 | ⚠️ GAPS MENORES |
 | 8. Documentation as product | 0 | 0 | 0 | 1 | 2 | 3 | ⚠️ GAPS MENORES |
 | 9. Licensing & compliance | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
 | 10. Supply chain & CI | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
-| **TOTAL** | **0** | **0** | **4** | **1** | **2** | **7** | **LISTO-CON-RESERVAS** |
+| **TOTAL** | **0** | **0** | **3** | **1** | **2** | **6** | **LISTO-CON-RESERVAS** |
 
-*Dimensión 2: 4 → 0 (S2-01/S2-02/S2-05/S2-06 implementados y verificados en la remediación del 2026-07-14). Dimensión 7: 4 → 2 (S2-11 consolidado en S2-15 de la Dimensión 10; S2-12 subsumido en S2-10). Dimensiones 9 y 10: 3 → 0 (S2-14/S1-02/S2-15 implementados y verificados en la remediación de compliance/supply-chain del 2026-07-14).*
+*Dimensión 2: 4 → 0 (S2-01/S2-02/S2-05/S2-06 implementados y verificados en la remediación del 2026-07-14). Dimensión 7: 4 → 2 → 1 (S2-11 consolidado en S2-15 de la Dimensión 10; S2-12 subsumido en S2-10; S2-09 implementado y verificado en la remediación del 2026-07-14). Dimensiones 9 y 10: 3 → 0 (S2-14/S1-02/S2-15 implementados y verificados en la remediación de compliance/supply-chain del 2026-07-14).*
 
 ---
 
@@ -253,7 +254,7 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 ### 7. Test quality & coverage — GAPS MEDIOS
 
 **Qué está listo:**
-- 547 tests, 100% deterministas (zero network, zero hardware, zero timing flakiness)
+- 559 tests, 100% deterministas (zero network, zero hardware, zero timing flakiness)
 - CI triple-platform simétrico: test-linux (Docker), test-windows (Server 2022), test-macos (M4 Pro) — misma suite, gates obligatorios
 - Smoke test binario congelado en cada build job: version + voice list \| grep 'default'
 - Contract tests exhaustivos: exit codes, JSON schema_version, stdout/stderr separation, NDJSON events
@@ -264,7 +265,7 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 | ID | Estado | Título |
 |----|--------|--------|
 | S3-01 | **Resuelto** | PyInstaller timeout sin test — cubierto por `tests/test_build_utils.py::TestRunPyinstaller::test_timeout_kills_tree_and_returns_1` |
-| S2-09 | Abierto | Sin herramienta de coverage: la cobertura se afirma, no se mide |
+| S2-09 | **Resuelto** | Sin herramienta de coverage: la cobertura se afirma, no se mide — cubierto por el job `coverage` de CI y `scripts/check_coverage.py` |
 | S2-10 | Abierto | Ramas de fallo de los build scripts sin test |
 | S2-11 | **Resuelto** | create-dmg sin pin (consolidado con S2-15 — misma causa raíz; resuelto con S2-15 el 2026-07-14, ver Dimensión 10) |
 | S2-12 | Abierto | Rama «Inno Setup ausente» sin test (subcaso de S2-10) |
@@ -281,6 +282,8 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 3. **Coverage diferencial (solo líneas nuevas del PR)**: excelente régimen de crucero, pero requiere infraestructura de comparación base-vs-PR que el pipeline actual no tiene; prematuro como primer paso.
 
 **Solución recomendada: (2), con (3) como evolución natural pos-1.0.0.** Criterio: el propósito de coverage aquí no es un número sino un detector de huecos en los módulos donde un hueco es un bug de contrato. Umbrales por módulo alinean el gate con el riesgo real; la config en `pyproject.toml` mantiene la fuente única que el proyecto ya practica (lockfiles, versión, pins); pinear `pytest-cov` preserva la política de supply chain existente. El comentario de CI que documenta «sin plugins» debe actualizarse en el mismo cambio — es parte del contrato del pipeline, no un detalle.
+
+**Solución implementada (2026-07-14): (2).** `[tool.coverage.run/report/json/xml]` en `pyproject.toml` como fuente única de configuración (medición de `tts_sidecar`, `branch = true`, exclusión de ramas por-SO inalcanzables desde un runner Linux); coverage queda opt-in (no está en `addopts`), así que `pytest tests/ -v` sigue verde sin `pytest-cov` instalado. `scripts/check_coverage.py` implementa el gate por módulo: `MODULE_FLOORS` es la fuente única de los pisos, fijados por ratchet-desde-lo-medido (`floor()` del `percent_covered` observado) para los módulos de contrato (`cli.py`, `daemon/*`, `model_cache.py`, `voices.py`, `paths.py`); el resto se reporta sin gatear. `pytest-cov` se pinea vía el nuevo `pipeline.parameter` `pytest_cov_version` (mismo mecanismo que `pytest_version`), vigilado contra deriva por `tests/test_pin_consistency.py::test_pytest_cov_version_declared_once`. El job independiente `coverage` de `.circleci/config.yml` (Docker `cimg/python:3.13`, mismo pin que `test-linux`) corre `pytest tests/ --cov --cov-report=xml --cov-report=json --cov-report=term-missing`, aplica el gate con `python scripts/check_coverage.py coverage.json` y publica `coverage.xml` como artefacto; los tres jobs de test (`test-linux`/`test-windows`/`test-macos`) siguen corriendo `pytest` plano, sin el plugin. Tests: `tests/test_check_coverage.py` (parser de `coverage.json`, lógica de umbrales, CLI), deterministas con fixtures sintéticas.
 
 #### S2-10 — Ramas de fallo de los build scripts sin test (incluye S2-12)
 
@@ -431,7 +434,7 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 | Hallazgo | Severidad | Debe resolverse antes de release |
 |----------|-----------|----------------------------------|
 | S3-01 | S3 — Alto | **Resuelto** — cubierto por `tests/test_build_utils.py::TestRunPyinstaller` (timeout) y `tests/test_build_utils.py::TestPyinstallerWrapper` (wrapper COM) |
-| S2 abiertos (4) | S2 — Medio | **RECOMENDADO** — No bloquean técnicamente, pero degradan calidad y operabilidad |
+| S2 abiertos (3) | S2 — Medio | **RECOMENDADO** — No bloquean técnicamente, pero degradan calidad y operabilidad |
 | S1-01 | S1 — Bajo | No — solo docs menor (S1-02 resuelto el 2026-07-14) |
 | S0 | S0 — Info | No — solo pulido |
 
@@ -442,7 +445,7 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 **LISTO-CON-RESERVAS** — El proyecto **cumple funcionalmente** para un release 0.6.1 (todas las brechas accionables de PARITY.md cerradas en código/tests, paridad UX completa en 3 SO). Los hallazgos S2 abiertos son **de hardening pre-1.0.0**, no bloquean release de mantenimiento.
 
 **Plan sugerido** (con las dependencias entre soluciones refinadas):
-1. Release 0.6.1 con fixes P0: ~~pin de create-dmg vía `fetch_pinned_asset` (S2-15)~~ — **completado el 2026-07-14** (ver Dimensión 10) — + coverage por módulo con `pytest-cov` pineado (S2-09).
+1. Release 0.6.1 con fixes P0: ~~pin de create-dmg vía `fetch_pinned_asset` (S2-15)~~ — **completado el 2026-07-14** (ver Dimensión 10) — y ~~coverage por módulo con `pytest-cov` pineado (S2-09)~~ — **completado el 2026-07-14** (ver Dimensión 7).
 2. ~~Sprint 0.7.0 — contrato `--json` completo~~ — **completado el 2026-07-14**: helper `emit_json` + `--json` en `daemon start/stop/restart` (S2-02), `speak --json` acoplado a `--output` sobre `SynthesisResult` (S2-01), test estructural del contrato derivado de `build_parser()` (S2-06), y clase base versionada del protocolo NDJSON + `version` en `/health` + política de compatibilidad en DAEMON-MODE.md (S2-05). Ver detalle y evidencia en la Dimensión 2.
 3. Sprint 0.7.x — P1 restante: normalización de criticidad en `ensure_build_dependency` + tests de ramas de fallo (S2-10, cierra S2-12); `GLIBC_FLOOR` como invariante única del build (S2-07); check OneDrive en `doctor` (S2-08). ~~`SOURCE-OFFER.md` en los 4 artefactos (S2-14)~~ — **completado el 2026-07-14** (ver Dimensión 9).
 4. Pasada documental única: DAEMON-MODE.md cancelación cooperativa (S1-01) + anchor y orden de flags (S0-01/S0-02). ~~Verificación de THIRD-PARTY-LICENSES (S1-02)~~ — **completada el 2026-07-14** como test de la suite (ver Dimensión 9).
@@ -454,7 +457,7 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 
 | Hallazgo | Cómo se confirmará en CI |
 |----------|---------------------------|
-| S2-09 coverage | `pytest --cov` con `[tool.coverage.*]` en pyproject.toml; gate por módulo en módulos de contrato; `coverage.xml` como artefacto del job test-linux |
+| S2-09 coverage | **Implementado.** `pytest --cov` con `[tool.coverage.*]` en pyproject.toml; gate por módulo (`scripts/check_coverage.py`) en los módulos de contrato; job `coverage` independiente (no test-linux) publica `coverage.xml` como artefacto; `pytest-cov` pineado vía `pipeline.parameters.pytest_cov_version`, vigilado por `test_pin_consistency.py` |
 | S2-15 create-dmg pin | **Implementado.** `provision_create_dmg` descarga vía `fetch_pinned_asset` (log muestra SHA-256 verificado); step `brew install create-dmg` eliminado del job; `TestProvisionCreateDmg` confirma el provisioning en los 3 jobs de test |
 | S3-01/S2-13 wrapper | Implementado (`TestPyinstallerWrapper` y `TestRunPyinstaller` pasan en CI) |
 | S2-10 (incl. S2-12) | Tests de ramas de fallo por build script (Inno ausente → abort; create-dmg falla → abort; tooling AppImage ausente → degradación); `required=True` donde el fallo es fatal |

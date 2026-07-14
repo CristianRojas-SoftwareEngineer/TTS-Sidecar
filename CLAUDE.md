@@ -35,7 +35,7 @@ python scripts/build_windows.py --arch x86_64 --no-installer
 # Regenerar el lockfile de dependencias (universal, con hashes) tras editar pyproject.toml
 uv pip compile --universal --generate-hashes --python-version 3.13 pyproject.toml -o requirements-lock.txt
 
-# Regenerar el lock CPU-only de Linux (torch/torchaudio +cpu, sin nvidia-*; usado solo por build-linux-x64)
+# Regenerar el lock CPU-only de Linux (torch/torchaudio +cpu, sin nvidia-*; usado por build-linux-x64, test-linux y coverage)
 uv pip compile --generate-hashes --python-version 3.13 \
     --python-platform x86_64-unknown-linux-gnu \
     --extra-index-url https://download.pytorch.org/whl/cpu \
@@ -44,6 +44,11 @@ uv pip compile --generate-hashes --python-version 3.13 \
 
 # Ejecutar tests
 pytest tests/ -v
+
+# Medir cobertura (opt-in: requiere pip install pytest-cov) y aplicar el gate por
+# módulo de contrato (scripts/check_coverage.py::MODULE_FLOORS, fuente única de los pisos)
+pytest tests/ --cov --cov-report=json --cov-report=term-missing
+python scripts/check_coverage.py coverage.json
 
 # Verificar sintaxis Python
 python -m py_compile src/tts_sidecar/engine.py
@@ -243,7 +248,7 @@ src/tts_sidecar/         # Código fuente Python
 └── daemon/              # Daemon mode
 # Las voces de USUARIO viven en el user-data-dir por SO (no en el repo)
 
-tests/                   # Tests pytest (~547 tests) + smoke-tests de instaladores
+tests/                   # Tests pytest (~559 tests) + smoke-tests de instaladores
 ├── conftest.py
 ├── installer/           # Smoke-tests de los instaladores de una línea (corren en CI, no en pytest)
 │   ├── install-linux.bats     # install-linux.sh (bats, job test-installer-linux)
@@ -255,6 +260,7 @@ tests/                   # Tests pytest (~547 tests) + smoke-tests de instalador
 ├── test_build_utils.py
 ├── test_build_windows.py
 ├── test_cask.py
+├── test_check_coverage.py
 ├── test_ci_smoke.py
 ├── test_cli.py
 ├── test_create_installer_windows.py
@@ -307,4 +313,5 @@ conservan intactas:
 - `docs/ARCHITECTURE.md` - Arquitectura del sistema
 - `scripts/build_windows.py` - Build PyInstaller para Windows
 - `scripts/pyinstaller_wrapper.py` - Wrapper COM que evita el cuelgue de PyInstaller en Windows (COINIT_MULTITHREADED + os._exit)
+- `scripts/check_coverage.py` - Gate de cobertura por módulo (job `coverage` de CI; `MODULE_FLOORS` es la fuente única de los pisos)
 <!-- </related_docs> -->

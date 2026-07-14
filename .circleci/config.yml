@@ -20,6 +20,13 @@ parameters:
     type: string
     default: "9.1.1"
     description: Versión de pytest instalada en los jobs de test.
+  pytest_cov_version:
+    type: string
+    default: "7.1.0"
+    description: >
+      Versión de pytest-cov instalada SOLO en el job `coverage` (S2-09); los
+      tres jobs de test (Linux/Windows/macOS) siguen corriendo pytest plano,
+      sin plugins.
   pyenv_version:
     type: string
     default: "v2.5.3"
@@ -117,15 +124,15 @@ jobs:
           # el venv ya poblado: así queda fuera del material cacheado y la caché de
           # venv la comparten test y build de esta plataforma. Reinstalarla cuesta
           # segundos (sin dependencias pesadas).
-          # Política de pins: pytest va pineado a versión exacta. Hoy el
-          # proyecto NO usa plugins de pytest, así que no hay nada más que fijar;
-          # esta política es deliberadamente solo documental (un guard automático
-          # de plugins sería sobreingeniería sin valor actual). Si en el futuro se
-          # añade un plugin (pytest-xdist, pytest-timeout, ...), la propuesta de
-          # diseño es: declararlo PINNADO en una única fuente de verdad (p.ej.
-          # PYTEST_PLUGINS) e instalarlo desde ahí, y añadir un guard en CI que
-          # falle si aparece un plugin pytest-* no declarado. Mantener los TRES
-          # jobs de test (Linux/Windows/macOS) alineados para evitar drift.
+          # Política de pins: pytest va pineado a versión exacta. El único
+          # plugin de pytest del proyecto (pytest-cov, S2-09) va pineado vía
+          # el pipeline parameter `pytest_cov_version` y se instala SOLO en el
+          # job `coverage` (mide y gatea la suite por módulo); este job de
+          # test sigue corriendo pytest plano, sin plugins. Un guard de
+          # plugins pytest-* no declarados sigue diferido (sobreingeniería
+          # para un único plugin, ya vigilado por test_pin_consistency.py).
+          # Mantener los TRES jobs de test (Linux/Windows/macOS) alineados
+          # para evitar drift.
           name: Install pytest into venv (post-cache)
           command: |
             echo "[STEP] Install pytest into venv (post-cache) - INICIO"
@@ -204,15 +211,15 @@ jobs:
           # La herramienta de test (pytest) se instala DESPUÉS del save_cache, sobre
           # el venv ya poblado: así queda fuera del material cacheado y la caché de
           # venv la comparten test y build de esta plataforma.
-          # Política de pins: pytest va pineado a versión exacta. Hoy el
-          # proyecto NO usa plugins de pytest, así que no hay nada más que fijar;
-          # esta política es deliberadamente solo documental (un guard automático
-          # de plugins sería sobreingeniería sin valor actual). Si en el futuro se
-          # añade un plugin (pytest-xdist, pytest-timeout, ...), la propuesta de
-          # diseño es: declararlo PINNADO en una única fuente de verdad (p.ej.
-          # PYTEST_PLUGINS) e instalarlo desde ahí, y añadir un guard en CI que
-          # falle si aparece un plugin pytest-* no declarado. Mantener los TRES
-          # jobs de test (Linux/Windows/macOS) alineados para evitar drift.
+          # Política de pins: pytest va pineado a versión exacta. El único
+          # plugin de pytest del proyecto (pytest-cov, S2-09) va pineado vía
+          # el pipeline parameter `pytest_cov_version` y se instala SOLO en el
+          # job `coverage` (mide y gatea la suite por módulo); este job de
+          # test sigue corriendo pytest plano, sin plugins. Un guard de
+          # plugins pytest-* no declarados sigue diferido (sobreingeniería
+          # para un único plugin, ya vigilado por test_pin_consistency.py).
+          # Mantener los TRES jobs de test (Linux/Windows/macOS) alineados
+          # para evitar drift.
           name: Install pytest into venv (post-cache)
           command: |
             Write-Host "[STEP] Install pytest into venv (post-cache) - INICIO"
@@ -305,15 +312,15 @@ jobs:
           # La herramienta de test (pytest) se instala DESPUÉS del save_cache, sobre
           # el venv ya poblado: así queda fuera del material cacheado y la caché de
           # venv la comparten test y build de esta plataforma.
-          # Política de pins: pytest va pineado a versión exacta. Hoy el
-          # proyecto NO usa plugins de pytest, así que no hay nada más que fijar;
-          # esta política es deliberadamente solo documental (un guard automático
-          # de plugins sería sobreingeniería sin valor actual). Si en el futuro se
-          # añade un plugin (pytest-xdist, pytest-timeout, ...), la propuesta de
-          # diseño es: declararlo PINNADO en una única fuente de verdad (p.ej.
-          # PYTEST_PLUGINS) e instalarlo desde ahí, y añadir un guard en CI que
-          # falle si aparece un plugin pytest-* no declarado. Mantener los TRES
-          # jobs de test (Linux/Windows/macOS) alineados para evitar drift.
+          # Política de pins: pytest va pineado a versión exacta. El único
+          # plugin de pytest del proyecto (pytest-cov, S2-09) va pineado vía
+          # el pipeline parameter `pytest_cov_version` y se instala SOLO en el
+          # job `coverage` (mide y gatea la suite por módulo); este job de
+          # test sigue corriendo pytest plano, sin plugins. Un guard de
+          # plugins pytest-* no declarados sigue diferido (sobreingeniería
+          # para un único plugin, ya vigilado por test_pin_consistency.py).
+          # Mantener los TRES jobs de test (Linux/Windows/macOS) alineados
+          # para evitar drift.
           name: Install pytest into venv (post-cache)
           command: |
             echo "[STEP] Install pytest into venv (post-cache) - INICIO"
@@ -325,6 +332,76 @@ jobs:
             echo "[STEP] Run pytest suite over tests/ - INICIO"
             python -m pytest tests/ -v
             echo "[STEP] Run pytest suite over tests/ - FIN"
+
+  coverage:
+    # Job independiente (S2-09): medir en un solo job de test sería asimétrico
+    # (¿por qué Linux y no Windows/macOS?) y medir en los tres, redundante sin
+    # señal adicional (misma suite mockeada, coverage.py es agnóstico de SO).
+    # Docker Linux, mismo pin que test-linux; reusa su caché de venv (misma
+    # clave: plataforma + lockfile CPU-only). pytest-cov se instala SOLO aquí
+    # (pin propio << pipeline.parameters.pytest_cov_version >>), los tres jobs
+    # de test siguen sin plugins.
+    docker:
+      - image: cimg/python:3.13@sha256:9d189f873178a2bea234b7d51e31e1ae01a73646e962cf697f757b588f8d77b6
+    steps:
+      - checkout
+      - run:
+          name: Install apt build deps (libasound2-dev)
+          command: |
+            echo "[STEP] Install apt build deps (libasound2-dev) - INICIO"
+            sudo apt-get update
+            sudo apt-get install -y libasound2-dev
+            echo "[STEP] Install apt build deps (libasound2-dev) - FIN"
+      - run:
+          name: Compute venv cache key (python --version)
+          command: |
+            echo "[STEP] Compute venv cache key (python --version) - INICIO"
+            python --version > cache-key.txt
+            cat cache-key.txt
+            echo "[STEP] Compute venv cache key (python --version) - FIN"
+      - restore_cache:
+          keys:
+            - venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock-linux-cpu.txt" }}
+      - run:
+          name: Install runtime deps from CPU-only lock (require-hashes)
+          command: |
+            echo "[STEP] Install runtime deps from CPU-only lock (require-hashes) - INICIO"
+            python -m venv ~/.venv
+            echo "source ~/.venv/bin/activate" >> $BASH_ENV
+            source ~/.venv/bin/activate
+            pip install pip==26.1.2
+            pip install -r requirements-lock-linux-cpu.txt --require-hashes --extra-index-url https://download.pytorch.org/whl/cpu
+            echo "[STEP] Install runtime deps from CPU-only lock (require-hashes) - FIN"
+      - save_cache:
+          key: venv-v1-{{ arch }}-{{ checksum "cache-key.txt" }}-{{ checksum "requirements-lock-linux-cpu.txt" }}
+          paths:
+            - ~/.venv
+      - run:
+          # pytest + pytest-cov se instalan DESPUÉS del save_cache, igual que
+          # en test-linux: quedan fuera del material cacheado y la caché de
+          # venv la comparten test-linux y este job.
+          name: Install pytest + pytest-cov into venv (post-cache)
+          command: |
+            echo "[STEP] Install pytest + pytest-cov into venv (post-cache) - INICIO"
+            pip install pytest==<< pipeline.parameters.pytest_version >> pytest-cov==<< pipeline.parameters.pytest_cov_version >>
+            echo "[STEP] Install pytest + pytest-cov into venv (post-cache) - FIN"
+      - run:
+          name: Run pytest suite over tests/ with coverage
+          command: |
+            echo "[STEP] Run pytest suite over tests/ with coverage - INICIO"
+            pytest tests/ --cov --cov-report=xml --cov-report=json --cov-report=term-missing
+            echo "[STEP] Run pytest suite over tests/ with coverage - FIN"
+      - run:
+          # Gate por módulo (S2-09): coverage.py solo ofrece un fail_under
+          # global; scripts/check_coverage.py diferencia los módulos de
+          # contrato (ver MODULE_FLOORS) del resto, que se reporta sin gatear.
+          name: Check per-module coverage floors (scripts/check_coverage.py)
+          command: |
+            echo "[STEP] Check per-module coverage floors (scripts/check_coverage.py) - INICIO"
+            python scripts/check_coverage.py coverage.json
+            echo "[STEP] Check per-module coverage floors (scripts/check_coverage.py) - FIN"
+      - store_artifacts:
+          path: coverage.xml
 
   test-installer-linux:
     # Smoke-test de install-linux.sh (docs/SELF-HOSTED-INSTALL.md): valida el
@@ -1162,6 +1239,12 @@ workflows:
               only: /^v.*/
             branches:
               ignore: /.*/
+      - coverage:
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
       - build-windows-x64:
           filters:
             tags:
@@ -1175,6 +1258,7 @@ workflows:
             - test-installer-linux
             - test-installer-windows
             - test-installer-macos
+            - coverage
       - build-linux-x64:
           filters:
             tags:
@@ -1188,6 +1272,7 @@ workflows:
             - test-installer-linux
             - test-installer-windows
             - test-installer-macos
+            - coverage
       - build-linux-arm64:
           filters:
             tags:
@@ -1201,6 +1286,7 @@ workflows:
             - test-installer-linux
             - test-installer-windows
             - test-installer-macos
+            - coverage
       - build-darwin-arm64:
           filters:
             tags:
@@ -1214,6 +1300,7 @@ workflows:
             - test-installer-linux
             - test-installer-windows
             - test-installer-macos
+            - coverage
       - publish-release:
           context:
             - github-release
@@ -1250,3 +1337,4 @@ workflows:
             - test-linux
             - test-windows
             - test-macos
+            - coverage

@@ -63,10 +63,20 @@ class TestPipelineParameterSingleSource:
             "interpolarse con << pipeline.parameters.pytest_version >>"
         )
 
+    def test_pytest_cov_version_declared_once(self):
+        version = _param_default("pytest_cov_version")
+        occurrences = CONFIG_TEXT.count(version)
+        assert occurrences == 1, (
+            f"la versión de pytest-cov {version!r} aparece {occurrences} veces en "
+            "config.yml; debe declararse solo en el pipeline parameter e "
+            "interpolarse con << pipeline.parameters.pytest_cov_version >>"
+        )
+
     def test_pins_are_interpolated_not_hardcoded(self):
         # Prueba de humo del mecanismo: las referencias interpoladas existen.
         assert "<< pipeline.parameters.python_version >>" in CONFIG_TEXT
         assert "<< pipeline.parameters.pytest_version >>" in CONFIG_TEXT
+        assert "<< pipeline.parameters.pytest_cov_version >>" in CONFIG_TEXT
 
 
 class TestInnoSetupPin:
