@@ -95,6 +95,32 @@ class TestInnoSetupPin:
         )
 
 
+class TestGlibcFloorConsistency:
+    """El piso glibc declarado en build_utils.GLIBC_FLOOR debe coincidir con el
+    que valida install-linux.sh. Sin esto, el instalador y el AppImage divergen
+    en el piso real y el binario falla en runtime en sistemas validados como
+    compatibles (S2-07)."""
+
+    def test_glibc_floor_matches_install_script(self):
+        floor = build_utils.GLIBC_FLOOR
+        assert isinstance(floor, tuple) and len(floor) == 2, (
+            "build_utils.GLIBC_FLOOR debe ser una tupla (major, minor)"
+        )
+        major, minor = floor
+
+        install_text = (ROOT / "install-linux.sh").read_text(encoding="utf-8")
+        assert f"GLIBC_FLOOR_MAJOR={major}" in install_text, (
+            f"install-linux.sh debe declarar GLIBC_FLOOR_MAJOR={major} "
+            f"(coincidente con build_utils.GLIBC_FLOOR={floor}); el instalador "
+            "y el AppImage divergerían en el piso glibc."
+        )
+        assert f"GLIBC_FLOOR_MINOR={minor}" in install_text, (
+            f"install-linux.sh debe declarar GLIBC_FLOOR_MINOR={minor} "
+            f"(coincidente con build_utils.GLIBC_FLOOR={floor}); el instalador "
+            "y el AppImage divergerían en el piso glibc."
+        )
+
+
 class TestGitHubRepoSlug:
     """El slug del repo es único: render_cask.GITHUB_REPO. Vigilamos que cada
     consumidor lo referencie, sin forzar imports entre shell/YAML/Python."""

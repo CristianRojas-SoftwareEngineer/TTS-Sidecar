@@ -14,7 +14,7 @@
 
 ## Resumen ejecutivo
 
-Se audió el proyecto completo contra las 10 dimensiones de production-readiness. **El código base es sólido, bien testeado y con arquitectura limpia**. Se identificaron originalmente 0 S4, 1 S3, 15 S2, 2 S1 y 2 S0. Tras la remediación y la **revisión de refinamiento** (2026-07-13, verificación contra código): S3-01 y S2-13 **resueltos** en tests; S2-03 y S2-04 **cerrados por drift de la auditoría** (la evidencia original era incorrecta: `cleanup --json` y `setup --json` ya emitían sus payloads, con tests); S2-11 **consolidado** en S2-15 y S2-12 **subsumido** en S2-10 (misma causa raíz). Una segunda ronda de remediación (2026-07-14) implementó y verificó con tests las cuatro soluciones recomendadas de la Dimensión 2: S2-01, S2-02, S2-05 y S2-06 **resueltos**. Una tercera ronda (2026-07-14) cerró las Dimensiones 9 y 10: S2-14 (`SOURCE-OFFER.md` en los 4 artefactos), S1-02 (verificación lockfile↔`THIRD-PARTY-LICENSES.md` en la suite) y S2-15 (create-dmg pineado por SHA-256 vía `fetch_pinned_asset`) **resueltos**. Una cuarta ronda (2026-07-14) cerró S2-09: job `coverage` independiente en CI con `pytest-cov` pineado y gate por módulo (`scripts/check_coverage.py`) **resuelto**. Quedan **3 S2 abiertos**, **1 S1** y **2 S0**. Los gaps abiertos: ramas de fallo de build sin test, piso de glibc implícito en el build, y riesgo OneDrive. Cada hallazgo abierto incluye ahora análisis de alternativas con trade-offs y una solución recomendada con criterio arquitectónico. **Veredicto global: LISTO-CON-RESERVAS** — apto para release 0.6.1 con plan de hardening pre-1.0.0.
+Se audió el proyecto completo contra las 10 dimensiones de production-readiness. **El código base es sólido, bien testeado y con arquitectura limpia**. Se identificaron originalmente 0 S4, 1 S3, 15 S2, 2 S1 y 2 S0. Tras la remediación y la **revisión de refinamiento** (2026-07-13, verificación contra código): S3-01 y S2-13 **resueltos** en tests; S2-03 y S2-04 **cerrados por drift de la auditoría** (la evidencia original era incorrecta: `cleanup --json` y `setup --json` ya emitían sus payloads, con tests); S2-11 **consolidado** en S2-15 y S2-12 **subsumido** en S2-10 (misma causa raíz). Una segunda ronda de remediación (2026-07-14) implementó y verificó con tests las cuatro soluciones recomendadas de la Dimensión 2: S2-01, S2-02, S2-05 y S2-06 **resueltos**. Una tercera ronda (2026-07-14) cerró las Dimensiones 9 y 10: S2-14 (`SOURCE-OFFER.md` en los 4 artefactos), S1-02 (verificación lockfile↔`THIRD-PARTY-LICENSES.md` en la suite) y S2-15 (create-dmg pineado por SHA-256 vía `fetch_pinned_asset`) **resueltos**. Una cuarta ronda (2026-07-14) cerró S2-09: job `coverage` independiente en CI con `pytest-cov` pineado y gate por módulo (`scripts/check_coverage.py`) **resuelto**. Una quinta ronda (2026-07-14) cerró S2-07 (piso glibc como invariante única `GLIBC_FLOOR` con aborto fail-fast en `build_linux.py` y test de consistencia contra `install-linux.sh`) y S2-08 (check WARN de OneDrive en `doctor`). Quedan **1 S2 abierto**, **1 S1** y **2 S0**. Los gaps abiertos: ramas de fallo de build sin test. Cada hallazgo abierto incluye ahora análisis de alternativas con trade-offs y una solución recomendada con criterio arquitectónico. **Veredicto global: LISTO-CON-RESERVAS** — apto para release 0.6.1 con plan de hardening pre-1.0.0.
 
 ### Conteo por severidad
 
@@ -22,18 +22,18 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 |-----------|--------|-----------------|
 | **S4 — Crítico** | 0 | — |
 | **S3 — Alto** | 0 | — |
-| **S2 — Medio** | 3 | Ramas de fallo de build sin test (S2-10, incl. S2-12), piso glibc implícito (S2-07), OneDrive (S2-08) |
+| **S2 — Medio** | 1 | Ramas de fallo de build sin test (S2-10, incl. S2-12) |
 | **S1 — Bajo** | 1 | DAEMON-MODE.md desactualizado (cancelación cooperativa) |
 | **S0 — Informativo** | 2 | Anchor roto USAGE.md, orden de flags USAGE vs cli.py |
 
-*Cerrados desde la emisión: S3-01 y S2-13 (resueltos en tests), S2-03 y S2-04 (drift de la auditoría — la evidencia era incorrecta), S2-11 → S2-15 y S2-12 → S2-10 (consolidados por causa raíz común), S2-01/S2-02/S2-05/S2-06 (implementados y verificados con tests en la remediación del 2026-07-14), S2-14/S1-02/S2-15 (implementados y verificados con tests en la remediación de compliance/supply-chain del 2026-07-14), S2-09 (job `coverage` + gate por módulo, implementado y verificado con tests en la remediación del 2026-07-14).*
+*Cerrados desde la emisión: S3-01 y S2-13 (resueltos en tests), S2-03 y S2-04 (drift de la auditoría — la evidencia era incorrecta), S2-11 → S2-15 y S2-12 → S2-10 (consolidados por causa raíz común), S2-01/S2-02/S2-05/S2-06 (implementados y verificados con tests en la remediación del 2026-07-14), S2-14/S1-02/S2-15 (implementados y verificados con tests en la remediación de compliance/supply-chain del 2026-07-14), S2-09 (job `coverage` + gate por módulo, implementado y verificado con tests en la remediación del 2026-07-14), S2-07 (piso glibc como invariante única `GLIBC_FLOOR` con verificación fail-fast en `build_linux.py`, test de consistencia en `test_pin_consistency.py`) y S2-08 (check WARN de OneDrive en `doctor`, con tests en `test_cli.py`) resueltos el 2026-07-14.*
 
 ### Conteo por prioridad recomendada
 
 | Prioridad | Cuenta | Descripción |
 |-----------|--------|-------------|
 | **P0** | 0 | — *coverage por módulo (S2-09) y create-dmg pin (S2-15) resueltos el 2026-07-14* |
-| **P1** | 3 | piso glibc como invariante del build (S2-07), check OneDrive en doctor (S2-08), ramas de fallo de build + normalización de criticidad (S2-10) — *SOURCE-OFFER en artefactos (S2-14) resuelto el 2026-07-14* |
+| **P1** | 1 | ramas de fallo de build + normalización de criticidad (S2-10) — *piso glibc como invariante (S2-07) y check OneDrive en doctor (S2-08) resueltos el 2026-07-14; SOURCE-OFFER en artefactos (S2-14) resuelto el 2026-07-14* |
 | **P2** | 1 | DAEMON-MODE.md cancelación cooperativa (S1-01) — *verificación THIRD-PARTY-LICENSES (S1-02) resuelta el 2026-07-14* |
 | **P3** | 2 | S0 residuales (anchor + orden de flags; corregir junto a S1-01) |
 
@@ -203,8 +203,8 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 
 | ID | Estado | Título |
 |----|--------|--------|
-| S2-07 | Abierto (re-alcance) | El piso de glibc del AppImage no está declarado como invariante del build |
-| S2-08 | Abierto | OneDrive puede redirigir el user-data-dir de Windows sin detección |
+| S2-07 | Resuelto (2026-07-14) | El piso de glibc del AppImage no está declarado como invariante del build |
+| S2-08 | Resuelto (2026-07-14) | OneDrive puede redirigir el user-data-dir de Windows sin detección |
 
 #### S2-07 — El piso de glibc del AppImage es implícito, no una invariante declarada del build
 
@@ -447,7 +447,7 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 **Plan sugerido** (con las dependencias entre soluciones refinadas):
 1. Release 0.6.1 con fixes P0: ~~pin de create-dmg vía `fetch_pinned_asset` (S2-15)~~ — **completado el 2026-07-14** (ver Dimensión 10) — y ~~coverage por módulo con `pytest-cov` pineado (S2-09)~~ — **completado el 2026-07-14** (ver Dimensión 7).
 2. ~~Sprint 0.7.0 — contrato `--json` completo~~ — **completado el 2026-07-14**: helper `emit_json` + `--json` en `daemon start/stop/restart` (S2-02), `speak --json` acoplado a `--output` sobre `SynthesisResult` (S2-01), test estructural del contrato derivado de `build_parser()` (S2-06), y clase base versionada del protocolo NDJSON + `version` en `/health` + política de compatibilidad en DAEMON-MODE.md (S2-05). Ver detalle y evidencia en la Dimensión 2.
-3. Sprint 0.7.x — P1 restante: normalización de criticidad en `ensure_build_dependency` + tests de ramas de fallo (S2-10, cierra S2-12); `GLIBC_FLOOR` como invariante única del build (S2-07); check OneDrive en `doctor` (S2-08). ~~`SOURCE-OFFER.md` en los 4 artefactos (S2-14)~~ — **completado el 2026-07-14** (ver Dimensión 9).
+3. Sprint 0.7.x — P1 restante: normalización de criticidad en `ensure_build_dependency` + tests de ramas de fallo (S2-10, cierra S2-12). ~~`GLIBC_FLOOR` como invariante única del build (S2-07)~~ — **completado el 2026-07-14**; ~~check OneDrive en `doctor` (S2-08)~~ — **completado el 2026-07-14**. ~~`SOURCE-OFFER.md` en los 4 artefactos (S2-14)~~ — **completado el 2026-07-14** (ver Dimensión 9).
 4. Pasada documental única: DAEMON-MODE.md cancelación cooperativa (S1-01) + anchor y orden de flags (S0-01/S0-02). ~~Verificación de THIRD-PARTY-LICENSES (S1-02)~~ — **completada el 2026-07-14** como test de la suite (ver Dimensión 9).
 5. 1.0.0 cuando P1/P2 cerrados + validación E2E usuarios reales Linux/macOS (criterio aceptación 10 GOAL.md).
 
@@ -463,8 +463,8 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 | S2-10 (incl. S2-12) | Tests de ramas de fallo por build script (Inno ausente → abort; create-dmg falla → abort; tooling AppImage ausente → degradación); `required=True` donde el fallo es fatal |
 | S2-01/S2-02/S2-06 | **Implementado.** `TestSpeakJSON`/`TestDaemonVerbsJSON` validan los payloads exactos; `TestJSONContractStructure` descubre todo subcomando con `--json` desde `build_parser()` y valida: stdout = exactamente 1 objeto JSON, `schema_version` presente, stderr sin JSON |
 | S2-05 | **Implementado.** `TestProtocolVersioning` valida `schema_version` en los 5 modelos vía `ProtocolModel` y `version` en `/health`; tests de rolling upgrade (payload con campos extra → cliente no falla; payload sin schema_version/version → defaults completan) |
-| S2-07 | `build_linux.py` falla si la glibc del host de build > `GLIBC_FLOOR` declarado; test de consistencia valida que installer y docs derivan del mismo valor |
-| S2-08 | Test de `doctor` con `data_root` simulado bajo OneDrive → check WARN presente; log muestra `[WARN]` con mitigación |
+| S2-07 | **Implementado.** `build_linux.py` falla si la glibc del host de build > `GLIBC_FLOOR` declarado (test `TestHostGlibcFloor`); `GLIBC_FLOOR = (2, 35)` en `build_utils.py` es fuente única; el test de consistencia `TestGlibcFloorConsistency` valida que `install-linux.sh` deriva del mismo valor |
+| S2-08 | **Implementado.** `TestCheckOnedrive`/`TestDoctorOnedrive` validan el check WARN con `data_root` simulado bajo OneDrive (vía variable `OneDrive` o patrón de ruta) y su presencia en el payload `--json`; log muestra `[WARN]` con mitigación |
 | S2-14 | **Implementado.** `SOURCE-OFFER.md` en `LICENSE_FILES` (3 bundles nativos) y en `license-files` de pyproject.toml (wheel/sdist, verificado con build real); `TestSourceOfferVersion` confirma la consistencia byte-exacta con el generador; caveats del Cask en vez de la stanza `license` (inexistente en el DSL de Casks), cubiertos por `test_cask.py` |
 | S1-01 | PR incluye sección «Cancelación cooperativa del cliente» en DAEMON-MODE.md |
 | S1-02 | **Implementado.** `check_third_party_licenses.py` verifica lockfile ↔ THIRD-PARTY-LICENSES.md; corre como test (`TestRealSync`) en los 3 jobs de test y falla con diff legible |

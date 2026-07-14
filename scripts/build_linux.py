@@ -6,6 +6,7 @@ in an AppImage for distribution.
 """
 
 import os
+import re
 import shutil
 import sys
 import subprocess
@@ -21,7 +22,7 @@ from build_utils import (
     check_pyinstaller, common_pyinstaller_args, bundle_size_mb, run_pyinstaller,
     ensure_png_icon, check_sounddevice,
     install_lockfile_dependencies, fetch_pinned_asset, APPIMAGE_TOOLING,
-    BUILD_SUBPROCESS_TIMEOUT, PYINSTALLER_TIMEOUT,
+    BUILD_SUBPROCESS_TIMEOUT, PYINSTALLER_TIMEOUT, GLIBC_FLOOR,
 )
 
 # Mapea la arquitectura del CLI (--arch) a la clave del tooling de upstream de
@@ -109,6 +110,56 @@ def ensure_runtime_dependencies(target_arch="x86_64"):
     else:
         lockfile = PROJECT_ROOT / "requirements-lock.txt"
     install_lockfile_dependencies(lockfile)
+
+
+def get_host_glibc_version() -> "tuple[int, int] | None":
+    """Obtiene la versión (major, minor) de glibc del host vía `ldd --version`.
+
+    La primera línea de `ldd --version` es del estilo
+    «ldd (Ubuntu GLIBC 2.35-0ubuntu3.1) 2.35»; se parsea el primer par
+    `major.minor`. Retorna None si `ldd` falta, falla o su salida no tiene el
+    patrón esperado —en ese caso la verificación del piso no bloquea el build.
+    """
+    try:
+        result = subprocess.run(
+            ["ldd", "--version"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    first_line = result.stdout.splitlines()[0] if result.stdout else ""
+    m = re.search(r"(\d+)\.(\d+)", first_line)
+    if not m:
+        return None
+    return (int(m.group(1)), int(m.group(2)))
+
+
+def check_host_glibc_floor() -> None:
+    """Aborta el build si la glibc del host supera el piso documentado (S2-07).
+
+    El AppImage se enlaza contra la glibc del runner de build; si ese runner
+    migrara a una imagen con glibc mayor a GLIBC_FLOOR, el binario resultante
+    requeriría esa glibc en runtime y fallaría en los usuarios objetivo sin que
+    nada lo detectara hoy. Convertimos ese riesgo en un error de build explícito:
+    subir GLIBC_FLOOR es una decisión deliberada (en build_utils.py, aquí y en
+    install-linux.sh a la vez), no un efecto colateral silencioso de la
+    infraestructura de CI.
+    """
+    host = get_host_glibc_version()
+    if host is None:
+        # No se pudo medir la glibc del host (p. ej. no es Linux): no bloqueamos.
+        return
+    if host > GLIBC_FLOOR:
+        log(
+            "ERROR: la glibc del host de build "
+            f"({host[0]}.{host[1]}) es mayor que el piso documentado "
+            f"({GLIBC_FLOOR[0]}.{GLIBC_FLOOR[1]}); el AppImage resultante "
+            "requeriría glibc > piso documentado: sube GLIBC_FLOOR "
+            "deliberadamente o compila en la base correcta."
+        )
+        sys.exit(1)
 
 
 def check_dependencies(target_arch="x86_64"):
@@ -243,5 +294,6 @@ if __name__ == "__main__":
         help="Target architecture",
     )
     args = parser.parse_args()
+    check_host_glibc_floor()
     check_dependencies(args.arch)
     build_linux(args.arch)

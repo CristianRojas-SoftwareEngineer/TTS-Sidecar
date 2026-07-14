@@ -112,6 +112,17 @@ CREATE_DMG_TOOLING = {
     "sha256": "c50d2bc97c3d6292642bac55f530d247eaf4bf65ee605f26b4caf339383e381c",
 }
 
+# Piso mínimo de glibc del AppImage, declarado como fuente única (S2-07).
+# El AppImage se enlaza contra la glibc del runner de build (base Ubuntu 22.04,
+# glibc 2.35); si el runner migrara a una imagen con glibc mayor, el binario
+# resultante exigiría esa glibc en runtime y fallaría en los usuarios objetivo
+# sin que nada lo detectara hoy. build_linux.py verifica la glibc del host
+# contra este piso (aborto fail-fast), y
+# tests/test_pin_consistency.py.TestGlibcFloorConsistency vigila que
+# install-linux.sh declare el mismo piso. Subirlo es una decisión deliberada en
+# los tres lugares a la vez (aquí, build_linux.py, install-linux.sh).
+GLIBC_FLOOR = (2, 35)
+
 
 def module_available(module_name: str) -> bool:
     """Comprueba si un módulo Python es importable, sin importarlo.

@@ -659,6 +659,56 @@ def _check_avx2() -> tuple[str, str, str]:
     )
 
 
+def _check_onedrive() -> tuple[str, str, str]:
+    """Chequeo informativo (WARN) de data_root() bajo OneDrive en Windows (S2-08).
+
+    En perfiles corporativos, LOCALAPPDATA puede caer bajo una jerarquía de
+    OneDrive, exponiendo las voces de usuario a file locks y placeholders
+    «a petición» (Files On-Demand) que causan fallos de lectura esporádicos e
+    inatribuibles. El software no controla ese entorno, así que el chequeo solo
+    da visibilidad en el punto de provisión (doctor): es puramente advisory,
+    como el de AVX2 y la RAM — nunca altera el exit code ni la invariante de
+    rutas (data_root sigue siendo LOCALAPPDATA).
+    """
+    if sys.platform != "win32":
+        return ("SKIP", "OneDrive user-data-dir", "no aplica fuera de Windows")
+
+    from . import paths
+
+    data_root = paths.data_root()
+    resolved = os.path.abspath(data_root).lower()
+
+    # Raíz de sincronización de OneDrive desde las variables de entorno que el
+    # cliente de OneDrive expone; si data_root() es prefijo de alguna, las voces
+    # de usuario quedan bajo sincronización.
+    onedrive_roots = [
+        os.environ.get("OneDrive"),
+        os.environ.get("OneDriveCommercial"),
+    ]
+    for root in onedrive_roots:
+        if root and resolved.startswith(os.path.abspath(root).lower()):
+            return (
+                "WARN", "OneDrive user-data-dir",
+                f"data_root() ({data_root}) está bajo la sincronización de OneDrive "
+                f"({root}); excluye la carpeta de la sincronización o deshabilita "
+                "Files On-Demand para ella para evitar file locks y placeholders "
+                "a petición en las voces de usuario.",
+            )
+
+    # Respaldo por patrón de ruta: algún perfil corporativo monta OneDrive sin
+    # exponer las variables de entorno (rutas de tipo 'OneDrive - Empresa').
+    if "onedrive" in resolved:
+        return (
+            "WARN", "OneDrive user-data-dir",
+            f"data_root() ({data_root}) contiene 'onedrive' en la ruta; puede "
+            "estar bajo sincronización de OneDrive. Excluye la carpeta de la "
+            "sincronización o deshabilita Files On-Demand para ella para evitar "
+            "file locks y placeholders a petición en las voces de usuario.",
+        )
+
+    return ("PASS", "OneDrive user-data-dir", "no detectado")
+
+
 def cmd_doctor(args):
     """Ejecuta los chequeos de diagnóstico."""
     from . import voices
@@ -709,6 +759,12 @@ def cmd_doctor(args):
     # en Windows no hay vía estándar y el chequeo se degrada a una nota
     # informativa. Como la RAM, es un WARN: nunca altera el exit code.
     checks.append(_check_avx2())
+
+    # Chequea si data_root() de Windows cae bajo la sincronización de OneDrive
+    # (advisory): las voces de usuario quedarían expuestas a file locks y
+    # placeholders a petición. Es puramente informativo (WARN), igual que AVX2
+    # y RAM: no altera el exit code. Ver _check_onedrive.
+    checks.append(_check_onedrive())
 
     # Solo FAIL cuenta como fallo: WARN/SKIP no penalizan el exit code.
     checks_failed = sum(1 for status, _, _ in checks if status == "FAIL")

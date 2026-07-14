@@ -350,6 +350,11 @@ Chequeos: 5 exitosos, 0 fallidos
 Termina con código de salida 0 si todo pasa, y 1 si algún chequeo falla (cada
 `[FAIL]` indica cómo corregirlo, p. ej. `ejecuta: tts-sidecar setup`).
 
+> El número y los nombres de chequeos varían según el SO: por ejemplo, Windows
+> añade el chequeo informativo `OneDrive user-data-dir` (ver solución de
+> problemas), y Linux/macOS añaden `CPU AVX2` (SKIP en ARM). Un `[WARN]` o
+> `[SKIP]` nunca cuenta como fallido ni altera el código de salida.
+
 ---
 
 ### `devices`
@@ -902,6 +907,23 @@ dependencias empaquetadas (torch, onnxruntime). En una distro más antigua
 el AppImage mismo: actualiza la distro a una versión con glibc ≥ 2.35, o
 compila `tts-sidecar` desde código fuente en tu distro actual (ver
 [docs/BUILD.md](docs/BUILD.md)).
+
+### "OneDrive user-data-dir" [WARN] en doctor (Windows)
+
+En perfiles corporativos, `LOCALAPPDATA` (donde `tts-sidecar` guarda las voces de
+usuario) puede caer bajo una jerarquía de **OneDrive**. Eso expone los archivos de
+voz a *file locks* y a *placeholders* «a petición» (Files On-Demand), que causan
+fallos de lectura esporádicos e inatribuibles al cargar una voz.
+
+`doctor` emite `[WARN] OneDrive user-data-dir` cuando detecta que `data_root()`
+está bajo la sincronización de OneDrive (vía las variables de entorno
+`OneDrive`/`OneDriveCommercial`, o por patrón de ruta). Es un aviso informativo:
+no bloquea nada ni cambia dónde se guardan las voces. Para mitigarlo:
+
+- **Excluye** la carpeta de datos de `tts-sidecar` (`%LOCALAPPDATA%\tts-sidecar`)
+  de la sincronización de OneDrive, o
+- **Deshabilita Files On-Demand** para esa carpeta, de modo que sus archivos se
+  descarguen siempre y no queden como marcadores bajo demanda.
 
 ### "Voice 'x' not found"
 

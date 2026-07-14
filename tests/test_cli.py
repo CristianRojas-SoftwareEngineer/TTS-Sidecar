@@ -942,6 +942,57 @@ class TestCheckAvx2:
         assert "PyTorch" in detail
 
 
+class TestCheckOnedrive:
+    """Chequeo informativo (WARN) de data_root() bajo OneDrive en Windows (S2-08).
+    Fuera de Windows es SKIP; en Windows es PASS salvo que data_root() caiga bajo
+    la sincronización de OneDrive (WARN). Nunca FAIL: no altera el exit code."""
+
+    def _patch(self, monkeypatch, data_root_path, platform="win32",
+               onedrive=None, onedrive_commercial=None):
+        import tts_sidecar.cli as cli
+
+        monkeypatch.setattr(sys, "platform", platform)
+        monkeypatch.setattr(
+            "tts_sidecar.paths.data_root", lambda: data_root_path)
+        # Aísla el caso limpiando las variables de entorno de OneDrive.
+        monkeypatch.delenv("OneDrive", raising=False)
+        monkeypatch.delenv("OneDriveCommercial", raising=False)
+        if onedrive is not None:
+            monkeypatch.setenv("OneDrive", onedrive)
+        if onedrive_commercial is not None:
+            monkeypatch.setenv("OneDriveCommercial", onedrive_commercial)
+        return cli
+
+    def test_non_windows_is_skip(self, monkeypatch):
+        cli = self._patch(monkeypatch, "x", platform="darwin")
+        status, name, detail = cli._check_onedrive()
+        assert (status, name) == ("SKIP", "OneDrive user-data-dir")
+        assert "fuera de Windows" in detail
+
+    def test_windows_under_onedrive_env_var_warns(self, monkeypatch):
+        cli = self._patch(
+            monkeypatch, r"C:\Users\test\OneDrive\tts-sidecar",
+            onedrive=r"C:\Users\test\OneDrive")
+        status, name, detail = cli._check_onedrive()
+        assert status == "WARN"
+        assert "OneDrive" in detail
+        assert "Files On-Demand" in detail
+
+    def test_windows_under_onedrive_path_pattern_warns(self, monkeypatch):
+        cli = self._patch(
+            monkeypatch, r"C:\Users\test\OneDrive - Company\tts-sidecar")
+        status, name, detail = cli._check_onedrive()
+        assert status == "WARN"
+        assert "Files On-Demand" in detail
+
+    def test_windows_normal_passes(self, monkeypatch):
+        cli = self._patch(
+            monkeypatch, r"C:\Users\test\AppData\Local\tts-sidecar")
+        status, name, detail = cli._check_onedrive()
+        assert (status, name) == ("PASS", "OneDrive user-data-dir")
+        assert "no detectado" in detail
+
+
 class TestInterruptHandling:
     """Ctrl+C termina con código 130 y una línea a stderr, sin traceback."""
 
@@ -2233,6 +2284,53 @@ class TestDoctorRAM:
         ram = next(c for c in payload["checks"] if c["name"] == "RAM")
         assert ram["status"] == "WARN"
         assert payload["failed"] == 0
+
+
+class TestDoctorOnedrive:
+    """doctor incluye el chequeo OneDrive user-data-dir (WARN advisory en
+    Windows, S2-08). No altera el exit code (failed == 0)."""
+
+    def _patch_onedrive(self, monkeypatch, data_root_path):
+        monkeypatch.setattr(sys, "platform", "win32")
+        monkeypatch.setattr(
+            "tts_sidecar.paths.data_root", lambda: data_root_path)
+        monkeypatch.delenv("OneDrive", raising=False)
+        monkeypatch.delenv("OneDriveCommercial", raising=False)
+        monkeypatch.setenv("OneDrive", r"C:\Users\test\OneDrive")
+
+    def test_windows_onedrive_warns_in_json(self, monkeypatch, capsys):
+        import json
+        import tts_sidecar.cli as cli
+
+        self._patch_onedrive(monkeypatch, r"C:\Users\test\OneDrive\tts-sidecar")
+
+        fake_mem = MagicMock()
+        fake_mem.total = 16 * 1024 ** 3
+        with patch.object(cli, "_environment_checks", return_value=[]), \
+                patch("tts_sidecar.model_cache.is_model_cached", return_value=True), \
+                patch("psutil.virtual_memory", return_value=fake_mem):
+            cli.cmd_doctor(MockArgs(json=True))
+
+        payload = json.loads(capsys.readouterr().out)
+        onedrive = next(
+            c for c in payload["checks"] if c["name"] == "OneDrive user-data-dir")
+        assert onedrive["status"] == "WARN"
+        assert payload["failed"] == 0
+
+    def test_windows_onedrive_warn_printed_human(self, monkeypatch, capsys):
+        import tts_sidecar.cli as cli
+
+        self._patch_onedrive(monkeypatch, r"C:\Users\test\OneDrive\tts-sidecar")
+
+        fake_mem = MagicMock()
+        fake_mem.total = 16 * 1024 ** 3
+        with patch.object(cli, "_environment_checks", return_value=[]), \
+                patch("tts_sidecar.model_cache.is_model_cached", return_value=True), \
+                patch("psutil.virtual_memory", return_value=fake_mem):
+            cli.cmd_doctor(MockArgs(json=False))
+
+        out = capsys.readouterr().out
+        assert "[WARN] OneDrive user-data-dir" in out
 
 
 class TestSetupDiskAndForceUpdate:

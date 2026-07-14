@@ -122,3 +122,36 @@ def test_appimage_failure_is_fatal(tmp_path, monkeypatch):
         build_linux.build_linux("x86_64")
     assert exc.value.code == 1
     assert "capture_output" not in captured
+
+
+class TestHostGlibcFloor:
+    """La verificación de glibc del host aborta el build si el host supera el
+    piso documentado (GLIBC_FLOOR), y continúa si está dentro del piso o no se
+    puede medir (S2-07)."""
+
+    def test_host_above_floor_aborts(self, monkeypatch):
+        import build_linux
+
+        monkeypatch.setattr(build_linux, "get_host_glibc_version", lambda: (2, 39))
+        with pytest.raises(SystemExit) as exc:
+            build_linux.check_host_glibc_floor()
+        assert exc.value.code == 1
+
+    def test_host_at_floor_continues(self, monkeypatch):
+        import build_linux
+
+        monkeypatch.setattr(build_linux, "get_host_glibc_version", lambda: (2, 35))
+        # No debe lanzar SystemExit.
+        build_linux.check_host_glibc_floor()
+
+    def test_host_below_floor_continues(self, monkeypatch):
+        import build_linux
+
+        monkeypatch.setattr(build_linux, "get_host_glibc_version", lambda: (2, 31))
+        build_linux.check_host_glibc_floor()
+
+    def test_unmeasurable_host_continues(self, monkeypatch):
+        import build_linux
+
+        monkeypatch.setattr(build_linux, "get_host_glibc_version", lambda: None)
+        build_linux.check_host_glibc_floor()
