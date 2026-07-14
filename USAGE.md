@@ -28,7 +28,7 @@ tts-sidecar <comando>
 ```
 
 En **Linux**, `install-linux.sh` automatiza toda la descarga/verificación/instalación
-con una sola línea (detalle en [README.md](README.md#instalación-de-una-línea-linux-y-windows)):
+con una sola línea (detalle en [README.md](README.md#instalación-de-una-línea)):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/main/install-linux.sh | sh

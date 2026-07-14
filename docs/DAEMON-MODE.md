@@ -265,6 +265,41 @@ tts-sidecar speak --text "Hola" --no-daemon
 > al proceso de acumular un thread sin límite por ráfaga de invocaciones
 > concurrentes.
 
+## Cancelación cooperativa del cliente
+
+Cuando un cliente IPC cierra la conexión a mitad de una síntesis (`/synthesize`), el
+daemon **detecta la desconexión y aborta la síntesis en curso** en vez de malgastar
+GPU/CPU hasta completarla. Para un integrador que consume el stream NDJSON, «qué
+pasa si cierro la conexión a mitad de síntesis» es parte del contrato, no un detalle
+interno: sin documentarlo, el comportamiento correcto parece un bug (stream sin
+evento terminal).
+
+El mecanismo es **cooperativo** (no preemptivo): el generador del stream setea un
+`threading.Event` al detectar la desconexión (vía `GeneratorExit`/`OSError`), y el
+callback de progreso del worker (`push`) consulta ese evento en cada punto
+cooperativo y eleva `SynthesisCancelled` (excepción compartida en `exceptions.py`).
+El engine la re-lanza selectivamente desde `_emit_progress`/`_token_counting_iter` sin
+romper el contrato best-effort para otras excepciones del callback (ver
+`server.py:201-283`).
+
+**Contrato observable** al desconectar el cliente:
+
+1. La síntesis se aborta *best-effort* durante la fase **T3** (el autoregresivo). No
+   se emite ningún frame terminal: ni `result` ni `error`, porque la conexión ya no
+   existe para recibirlos.
+2. El `finally` del worker **siempre** libera el semáforo de admisión y la memoria del
+   modelo (igual que en éxito o error), así que el slot de concurrencia vuelve a estar
+   disponible de inmediato.
+3. Un stream que se corta de forma abrupta (sin `GeneratorExit` limpio) se trata
+   igual: se señaliza la cancelación y el worker la honra en el próximo punto
+   cooperativo.
+
+> **Límite deliberado (no es un bug):** la etapa del vocoder **S3Gen no está
+> instrumentada** para cancelación cooperativa. Si la desconexión ocurre *durante* el
+> S3Gen, la cancelación solo se aplica tras completar esa etapa (unos segundos de
+> consumo residual). No reportes como bug «cancelé y el daemon siguió consumiendo
+> unos segundos»: es el comportamiento documentado para esa ventana.
+
 ## Seguridad: directorios de audio permitidos
 
 El endpoint `/synthesize` **no acepta rutas de audio arbitrarias del sistema

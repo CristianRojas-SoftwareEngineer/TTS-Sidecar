@@ -10,12 +10,13 @@
 **Revisión de remediación (2)**: 2026-07-14 — implementadas y verificadas con tests las tres soluciones recomendadas de las Dimensiones 9 y 10 (S2-14, S1-02, S2-15); ambas dimensiones cerradas con veredicto LISTO. Suite: 547 tests.
 **Revisión de remediación (3)**: 2026-07-14 — implementada y verificada con tests la solución recomendada para S2-09 (job `coverage` independiente en CI, `pytest-cov` pineado vía `pipeline.parameters`, gate por módulo en `scripts/check_coverage.py` con ratchet-desde-lo-medido). Suite: 559 tests.
 **Revisión de remediación (4)**: 2026-07-14 — implementada y verificada con tests la solución recomendada para S2-10 (normalización de la criticidad de Inno Setup a `required=True` en `ensure_build_dependency` con eliminación del `sys.exit` manual redundante, y tests de rama de fallo por build script: Inno ausente → aborta en `tests/test_create_installer_windows.py`, `create-dmg` con `rc != 0` → aborta en `tests/test_build_macos.py`, tooling del AppImage ausente → degrada en `tests/test_build_linux.py`); S2-12 se cierra con S2-10. Dimensiones 5 y 7 cerradas con veredicto LISTO. Quedan 0 S2 abiertos; solo restan S1-01 y S0-01/S0-02.
+**Revisión de remediación (5)**: 2026-07-14 — pasada documental única: sección «Cancelación cooperativa del cliente» añadida a DAEMON-MODE.md (S1-01), anchor USAGE.md:31 corregido a `#instalación-de-una-línea` (S0-01) y S0-02 marcado Resuelto (drift) en el audit (ya coincidía el orden de flags entre USAGE.md:437-438 y cli.py:1696-1698). Dimensión 8 cerrada con veredicto LISTO. No quedan hallazgos abiertos.
 
 ---
 
 ## Resumen ejecutivo
 
-Se audió el proyecto completo contra las 10 dimensiones de production-readiness. **El código base es sólido, bien testeado y con arquitectura limpia**. Se identificaron originalmente 0 S4, 1 S3, 15 S2, 2 S1 y 2 S0. Tras la remediación y la **revisión de refinamiento** (2026-07-13, verificación contra código): S3-01 y S2-13 **resueltos** en tests; S2-03 y S2-04 **cerrados por drift de la auditoría** (la evidencia original era incorrecta: `cleanup --json` y `setup --json` ya emitían sus payloads, con tests); S2-11 **consolidado** en S2-15 y S2-12 **subsumido** en S2-10 (misma causa raíz). Una segunda ronda de remediación (2026-07-14) implementó y verificó con tests las cuatro soluciones recomendadas de la Dimensión 2: S2-01, S2-02, S2-05 y S2-06 **resueltos**. Una tercera ronda (2026-07-14) cerró las Dimensiones 9 y 10: S2-14 (`SOURCE-OFFER.md` en los 4 artefactos), S1-02 (verificación lockfile↔`THIRD-PARTY-LICENSES.md` en la suite) y S2-15 (create-dmg pineado por SHA-256 vía `fetch_pinned_asset`) **resueltos**. Una cuarta ronda (2026-07-14) cerró S2-09: job `coverage` independiente en CI con `pytest-cov` pineado y gate por módulo (`scripts/check_coverage.py`) **resuelto**. Una quinta ronda (2026-07-14) cerró S2-07 (piso glibc como invariante única `GLIBC_FLOOR` con aborto fail-fast en `build_linux.py` y test de consistencia contra `install-linux.sh`) y S2-08 (check WARN de OneDrive en `doctor`). Una sexta ronda (2026-07-14) cerró S2-10 (normalización de la criticidad de Inno Setup a `required=True` y ramas de fallo de los build scripts testeadas: Inno ausente → aborta, `create-dmg` con `rc != 0` → aborta, tooling AppImage ausente → degrada), cerrando también S2-12 con él. Quedan **0 S2 abiertos**, **1 S1** y **2 S0**. Los gaps abiertos: DAEMON-MODE.md desactualizado (cancelación cooperativa, S1-01) y dos S0 documentales (anchor roto USAGE.md:175, orden de flags USAGE vs cli.py). Cada hallazgo abierto incluye ahora análisis de alternativas con trade-offs y una solución recomendada con criterio arquitectónico. **Veredicto global: LISTO-CON-RESERVAS** — apto para release 0.6.1 con plan de hardening pre-1.0.0.
+Se audió el proyecto completo contra las 10 dimensiones de production-readiness. **El código base es sólido, bien testeado y con arquitectura limpia**. Se identificaron originalmente 0 S4, 1 S3, 15 S2, 2 S1 y 2 S0. Tras la remediación y la **revisión de refinamiento** (2026-07-13, verificación contra código): S3-01 y S2-13 **resueltos** en tests; S2-03 y S2-04 **cerrados por drift de la auditoría** (la evidencia original era incorrecta: `cleanup --json` y `setup --json` ya emitían sus payloads, con tests); S2-11 **consolidado** en S2-15 y S2-12 **subsumido** en S2-10 (misma causa raíz). Una segunda ronda de remediación (2026-07-14) implementó y verificó con tests las cuatro soluciones recomendadas de la Dimensión 2: S2-01, S2-02, S2-05 y S2-06 **resueltos**. Una tercera ronda (2026-07-14) cerró las Dimensiones 9 y 10: S2-14 (`SOURCE-OFFER.md` en los 4 artefactos), S1-02 (verificación lockfile↔`THIRD-PARTY-LICENSES.md` en la suite) y S2-15 (create-dmg pineado por SHA-256 vía `fetch_pinned_asset`) **resueltos**. Una cuarta ronda (2026-07-14) cerró S2-09: job `coverage` independiente en CI con `pytest-cov` pineado y gate por módulo (`scripts/check_coverage.py`) **resuelto**. Una quinta ronda (2026-07-14) cerró S2-07 (piso glibc como invariante única `GLIBC_FLOOR` con aborto fail-fast en `build_linux.py` y test de consistencia contra `install-linux.sh`) y S2-08 (check WARN de OneDrive en `doctor`). Una sexta ronda (2026-07-14) cerró S2-10 (normalización de la criticidad de Inno Setup a `required=True` y ramas de fallo de los build scripts testeadas: Inno ausente → aborta, `create-dmg` con `rc != 0` → aborta, tooling AppImage ausente → degrada), cerrando también S2-12 con él. Con la pasada documental del 2026-07-14 (séptima ronda) quedan **0 S2, 0 S1 y 0 S0 abiertos**: sección «Cancelación cooperativa del cliente» añadida a DAEMON-MODE.md (S1-01), anchor USAGE.md:31 corregido (S0-01) y S0-02 marcado Resuelto (drift, ya coincidía el orden de flags entre USAGE.md y cli.py). Cada hallazgo abierto incluye ahora análisis de alternativas con trade-offs y una solución recomendada con criterio arquitectónico. **Veredicto global: LISTO** — apto para release 0.6.1, sin hardening pendiente de documentación.
 
 ### Conteo por severidad
 
@@ -24,8 +25,8 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 | **S4 — Crítico** | 0 | — |
 | **S3 — Alto** | 0 | — |
 | **S2 — Medio** | 0 | — (S2-10 resuelto el 2026-07-14: normalización de criticidad de Inno Setup + ramas de fallo de build testeadas; S2-12 cerrado con S2-10) |
-| **S1 — Bajo** | 1 | DAEMON-MODE.md desactualizado (cancelación cooperativa) |
-| **S0 — Informativo** | 2 | Anchor roto USAGE.md, orden de flags USAGE vs cli.py |
+| **S1 — Bajo** | 0 | — (S1-01 resuelto el 2026-07-14: sección añadida a DAEMON-MODE.md) |
+| **S0 — Informativo** | 0 | — (S0-01 corregido el 2026-07-14; S0-02 Resuelto (drift)) |
 
 *Cerrados desde la emisión: S3-01 y S2-13 (resueltos en tests), S2-03 y S2-04 (drift de la auditoría — la evidencia era incorrecta), S2-11 → S2-15 y S2-12 → S2-10 (consolidados por causa raíz común), S2-01/S2-02/S2-05/S2-06 (implementados y verificados con tests en la remediación del 2026-07-14), S2-14/S1-02/S2-15 (implementados y verificados con tests en la remediación de compliance/supply-chain del 2026-07-14), S2-09 (job `coverage` + gate por módulo, implementado y verificado con tests en la remediación del 2026-07-14), S2-07 (piso glibc como invariante única `GLIBC_FLOOR` con verificación fail-fast en `build_linux.py`, test de consistencia en `test_pin_consistency.py`) y S2-08 (check WARN de OneDrive en `doctor`, con tests en `test_cli.py`) resueltos el 2026-07-14, S2-10 (normalización de la criticidad de Inno Setup a `required=True` en `ensure_build_dependency` con eliminación del `sys.exit` manual, y tests de rama de fallo de build: Inno ausente → aborta en `tests/test_create_installer_windows.py`, `create-dmg` con `rc != 0` → aborta en `tests/test_build_macos.py`, tooling AppImage ausente → degrada en `tests/test_build_linux.py`; S2-12 se cierra con S2-10) resuelto el 2026-07-14.*
 
@@ -35,8 +36,8 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 |-----------|--------|-------------|
 | **P0** | 0 | — *coverage por módulo (S2-09) y create-dmg pin (S2-15) resueltos el 2026-07-14* |
 | **P1** | 0 | — *ramas de fallo de build + normalización de criticidad (S2-10) resueltas el 2026-07-14; piso glibc (S2-07), check OneDrive (S2-08) y SOURCE-OFFER en artefactos (S2-14) resueltos el 2026-07-14* |
-| **P2** | 1 | DAEMON-MODE.md cancelación cooperativa (S1-01) — *verificación THIRD-PARTY-LICENSES (S1-02) resuelta el 2026-07-14* |
-| **P3** | 2 | S0 residuales (anchor + orden de flags; corregir junto a S1-01) |
+| **P2** | 0 | — *DAEMON-MODE.md cancelación cooperativa (S1-01) resuelta el 2026-07-14* |
+| **P3** | 0 | — *S0-01 corregido y S0-02 Resuelto (drift) el 2026-07-14* |
 
 ### Conteo por dimensión (10 canónicas)
 
@@ -49,10 +50,10 @@ Se audió el proyecto completo contra las 10 dimensiones de production-readiness
 | 5. Real cross-platform compatibility | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
 | 6. End-to-end install/uninstall UX | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
 | 7. Test quality & coverage | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
-| 8. Documentation as product | 0 | 0 | 0 | 1 | 2 | 3 | ⚠️ GAPS MENORES |
+| 8. Documentation as product | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
 | 9. Licensing & compliance | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
 | 10. Supply chain & CI | 0 | 0 | 0 | 0 | 0 | 0 | ✅ LISTO |
-| **TOTAL** | **0** | **0** | **0** | **1** | **2** | **3** | **LISTO-CON-RESERVAS** |
+| **TOTAL** | **0** | **0** | **0** | **0** | **0** | **0** | **LISTO** |
 
 *Dimensión 2: 4 → 0 (S2-01/S2-02/S2-05/S2-06 implementados y verificados en la remediación del 2026-07-14). Dimensión 5: 2 → 0 (S2-07 piso glibc como invariante única `GLIBC_FLOOR`, S2-08 check WARN OneDrive en `doctor`, ambos resueltos el 2026-07-14). Dimensión 7: 4 → 2 → 1 → 0 (S2-11 consolidado en S2-15 de la Dimensión 10; S2-12 subsumido en S2-10; S2-09 implementado y verificado el 2026-07-14; S2-10 resuelto el 2026-07-14, cerrando la dimensión). Dimensiones 9 y 10: 3 → 0 (S2-14/S1-02/S2-15 implementados y verificados en la remediación de compliance/supply-chain del 2026-07-14).*
 
@@ -311,37 +312,39 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 
 ---
 
-### 8. Documentation as product — GAPS MENORES
+### 8. Documentation as product — LISTO
 
 **Qué está listo:**
 - 100% CLI commands/flags/docs coinciden con implementación (cli.py argparse vs README/USAGE)
 - 3 audiencias servidas: usuario final (README/USAGE), integrador (exit codes, JSON schemas, subprocess patterns), empaquetador (BUILD.md)
 - CHANGELOG Keep a Changelog + SemVer ✅
 - PARITY.md v0.6.0 refleja estado real ✅
-- DAEMON-MODE.md falta sección cancelación cooperativa (añadida en CHANGELOG Unreleased) ❌ (S1)
+- DAEMON-MODE.md documenta cancelación cooperativa (sección «Cancelación cooperativa del cliente» añadida el 2026-07-14) ✅ (S1-01 resuelto)
 - README/USAGE/SECURITY/BUILD tienen troubleshooting actionable (SmartScreen, Gatekeeper, glibc, AVX2, headless) ✅
-- Cross-refs: USAGE.md:175 anchor roto (README.md#instalación-de-una-línea-linux-y-windows no existe; real es #instalación-de-una-línea) ❌ (S0)
-- GPLv3 source offer solo en GitHub Release notes, NO en instaladores nativos ⚠️
+- Cross-refs: anchor de USAGE.md:31 corregido a #instalación-de-una-línea el 2026-07-14 ✅ (S0-01 resuelto; S0-02 Resuelto (drift), ya coincidía el orden de flags)
+- GPLv3 source offer en los 4 artefactos nativos + wheel/sdist (SOURCE-OFFER.md vía LICENSE_FILES / pyproject license-files) ✅ (S2-14 resuelto el 2026-07-14)
 
 **Hallazgos S0/S1:**
 
 | ID | Estado | Severidad | Título |
 |----|--------|-----------|--------|
-| S1-01 | Abierto | S1 — Bajo | DAEMON-MODE.md no documenta la cancelación cooperativa |
-| S0-01 | Abierto | S0 — Info | Anchor roto USAGE.md:175 |
-| S0-02 | Abierto | S0 — Info | Orden de flags `--voice-audio`/`--speech-audio` difiere entre USAGE y cli.py (no contradictorio) |
+| S1-01 | Resuelto | S1 — Bajo | DAEMON-MODE.md documenta la cancelación cooperativa (sección añadida el 2026-07-14) |
+| S0-01 | Resuelto | S0 — Info | Anchor USAGE.md:31 corregido a `#instalación-de-una-línea` (el 2026-07-14) |
+| S0-02 | Resuelto (drift) | S0 — Info | Orden de flags ya coincidía entre USAGE.md:437-438 y cli.py:1696-1698; no requirió edición |
 
-#### S1-01 — DAEMON-MODE.md no documenta la cancelación cooperativa
+#### S1-01 — DAEMON-MODE.md no documenta la cancelación cooperativa — **Resuelto** (2026-07-14)
 
 **Problema (refinado).** La cancelación al desconectar el cliente (S2-04 del sprint anterior: `GeneratorExit` → `cancel_event` → `SynthesisCancelled`, server.py:201-283) cambió el comportamiento observable del daemon —una request abandonada ya **no** consume GPU/CPU hasta terminar, no emite `result`/`error`, y libera el slot de admisión— pero `docs/DAEMON-MODE.md` sigue describiendo el modelo anterior. Para un integrador que consume el NDJSON, «qué pasa si cierro la conexión a mitad de síntesis» es parte del contrato, no un detalle interno: sin documentarlo, el comportamiento correcto parece un bug (stream sin evento terminal).
 
-**Solución recomendada.** Añadir a `DAEMON-MODE.md` la sección «Cancelación cooperativa del cliente» describiendo el contrato observable (desconexión ⇒ aborto best-effort durante la fase T3, sin frame terminal, semáforo y memoria liberados) y su límite deliberado (S3Gen no instrumentado: la cancelación durante el vocoder espera a que la etapa termine). Documentar el límite es tan importante como la funcionalidad — evita el reporte de bug «cancelé y siguió consumiendo unos segundos». Criterio de mantenibilidad: la fuente ya existe (entrada del CHANGELOG `[Unreleased]`); la tarea es promoverla de historial de cambios a documento de contrato, que es donde el integrador la busca.
+**Solución implementada.** Se añadió a `DAEMON-MODE.md` la sección «Cancelación cooperativa del cliente» describiendo el contrato observable (desconexión ⇒ aborto best-effort durante la fase T3, sin frame terminal, semáforo y memoria liberados) y su límite deliberado (S3Gen no instrumentado: la cancelación durante el vocoder espera a que la etapa termine). Documentar el límite es tan importante como la funcionalidad — evita el reporte de bug «cancelé y siguió consumiendo unos segundos». Criterio de mantenibilidad: la fuente ya existía (entrada del CHANGELOG `[Unreleased]`); la tarea fue promoverla de historial de cambios a documento de contrato, que es donde el integrador la busca.
 
-#### S0-01 / S0-02 — Exactitud documental menor
+#### S0-01 / S0-02 — Exactitud documental menor — **Resuelto** (2026-07-14)
 
-**Problema.** Anchor roto en `USAGE.md:175` (apunta a `#instalación-de-una-línea-linux-y-windows`; el real es `#instalación-de-una-línea`) y orden de flags distinto entre `USAGE.md:406-407` y `cli.py:1578-1582` (cosmético, no contradictorio).
+**S0-01 (corregido).** El anchor en `USAGE.md:31` apuntaba a `#instalación-de-una-línea-linux-y-windows`; el real en `README.md:43` es `#instalación-de-una-línea`. Corregido a la línea 31 (fix de 1 línea).
 
-**Solución recomendada.** Corregir el anchor y alinear el orden de flags en la misma pasada documental de S1-01 (un solo commit `docs:`). Sin análisis de alternativas: son correcciones deterministas. Nota preventiva con criterio de largo plazo: los anchors entre documentos son enlaces sin verificación automática — si vuelven a romperse con frecuencia, considerar un chequeo de enlaces internos en CI (p. ej. lychee sobre `*.md`), pero no antes de que el problema reincida; instrumentar contra un incidente único es sobre-ingeniería.
+**S0-02 (drift, sin edición).** La auditoría afirmaba orden de flags distinto entre `USAGE.md:406-407` y `cli.py:1578-1582`. Verificado en disco: `USAGE.md:437-438` y `cli.py:1696-1698` **coinciden** (`--voice-audio` antes que `--speech-audio`). El hallazgo estaba desfasado respecto al código actual; no requirió edición de archivos, solo este reconocimiento en el documento.
+
+**Nota preventiva** con criterio de largo plazo: los anchors entre documentos son enlaces sin verificación automática — si vuelven a romperse con frecuencia, considerar un chequeo de enlaces internos en CI (p. ej. lychee sobre `*.md`), pero no antes de que el problema reincida; instrumentar contra un incidente único es sobre-ingeniería.
 
 ---
 
@@ -438,20 +441,20 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 |----------|-----------|----------------------------------|
 | S3-01 | S3 — Alto | **Resuelto** — cubierto por `tests/test_build_utils.py::TestRunPyinstaller` (timeout) y `tests/test_build_utils.py::TestPyinstallerWrapper` (wrapper COM) |
 | S2-10 (último S2 abierto) | S2 — Medio | **Resuelto** el 2026-07-14 (normalización de criticidad de Inno Setup a `required=True` + ramas de fallo de build testeadas; S2-12 cerrado con S2-10). No bloquea release. |
-| S1-01 | S1 — Bajo | No — solo docs menor (S1-02 resuelto el 2026-07-14) |
-| S0 | S0 — Info | No — solo pulido |
+| S1-01 | S1 — Bajo | **Resuelto** — sección «Cancelación cooperativa del cliente» añadida a DAEMON-MODE.md (2026-07-14) |
+| S0 | S0 — Info | **Resuelto** — S0-01 (anchor USAGE.md:31) corregido; S0-02 marcado Resuelto (drift), sin edición |
 
 ---
 
 ## Recomendación global de madurez
 
-**LISTO-CON-RESERVAS** — El proyecto **cumple funcionalmente** para un release 0.6.1 (todas las brechas accionables de PARITY.md cerradas en código/tests, paridad UX completa en 3 SO). Los hallazgos abiertos (S1-01 + S0-01/S0-02) son de **pulido documental**, no bloquean release de mantenimiento.
+**LISTO** — El proyecto **cumple funcionalmente** para un release 0.6.1 (todas las brechas accionables de PARITY.md cerradas en código/tests, paridad UX completa en 3 SO). Con la pasada documental del 2026-07-14 (S1-01 + S0-01/S0-02) **no quedan hallazgos abiertos**: los tres eran de **pulido documental** y no bloqueaban release de mantenimiento.
 
 **Plan sugerido** (con las dependencias entre soluciones refinadas):
 1. Release 0.6.1 con fixes P0: ~~pin de create-dmg vía `fetch_pinned_asset` (S2-15)~~ — **completado el 2026-07-14** (ver Dimensión 10) — y ~~coverage por módulo con `pytest-cov` pineado (S2-09)~~ — **completado el 2026-07-14** (ver Dimensión 7).
 2. ~~Sprint 0.7.0 — contrato `--json` completo~~ — **completado el 2026-07-14**: helper `emit_json` + `--json` en `daemon start/stop/restart` (S2-02), `speak --json` acoplado a `--output` sobre `SynthesisResult` (S2-01), test estructural del contrato derivado de `build_parser()` (S2-06), y clase base versionada del protocolo NDJSON + `version` en `/health` + política de compatibilidad en DAEMON-MODE.md (S2-05). Ver detalle y evidencia en la Dimensión 2.
 3. Sprint 0.7.x — P1 restante: ~~normalización de criticidad en `ensure_build_dependency` + tests de ramas de fallo (S2-10, cierra S2-12)~~ — **completado el 2026-07-14**. ~~`GLIBC_FLOOR` como invariante única del build (S2-07)~~ — **completado el 2026-07-14**; ~~check OneDrive en `doctor` (S2-08)~~ — **completado el 2026-07-14**. ~~`SOURCE-OFFER.md` en los 4 artefactos (S2-14)~~ — **completado el 2026-07-14** (ver Dimensión 9).
-4. Pasada documental única: DAEMON-MODE.md cancelación cooperativa (S1-01) + anchor y orden de flags (S0-01/S0-02). ~~Verificación de THIRD-PARTY-LICENSES (S1-02)~~ — **completada el 2026-07-14** como test de la suite (ver Dimensión 9).
+4. ~~Pasada documental única: DAEMON-MODE.md cancelación cooperativa (S1-01) + anchor y orden de flags (S0-01/S0-02)~~ — **completada el 2026-07-14** (sección añadida a DAEMON-MODE.md, anchor USAGE.md:31 corregido, S0-02 marcado Resuelto (drift)). ~~Verificación de THIRD-PARTY-LICENSES (S1-02)~~ — **completada el 2026-07-14** como test de la suite (ver Dimensión 9).
 5. 1.0.0 cuando P1/P2 cerrados + validación E2E usuarios reales Linux/macOS (criterio aceptación 10 GOAL.md).
 
 ---
@@ -469,7 +472,7 @@ Subsumido en **S2-10** (es su caso Windows). Ver la solución allí.
 | S2-07 | **Implementado.** `build_linux.py` falla si la glibc del host de build > `GLIBC_FLOOR` declarado (test `TestHostGlibcFloor`); `GLIBC_FLOOR = (2, 35)` en `build_utils.py` es fuente única; el test de consistencia `TestGlibcFloorConsistency` valida que `install-linux.sh` deriva del mismo valor |
 | S2-08 | **Implementado.** `TestCheckOnedrive`/`TestDoctorOnedrive` validan el check WARN con `data_root` simulado bajo OneDrive (vía variable `OneDrive` o patrón de ruta) y su presencia en el payload `--json`; log muestra `[WARN]` con mitigación |
 | S2-14 | **Implementado.** `SOURCE-OFFER.md` en `LICENSE_FILES` (3 bundles nativos) y en `license-files` de pyproject.toml (wheel/sdist, verificado con build real); `TestSourceOfferVersion` confirma la consistencia byte-exacta con el generador; caveats del Cask en vez de la stanza `license` (inexistente en el DSL de Casks), cubiertos por `test_cask.py` |
-| S1-01 | PR incluye sección «Cancelación cooperativa del cliente» en DAEMON-MODE.md |
+| S1-01 | **Implementado.** Sección «Cancelación cooperativa del cliente» añadida a DAEMON-MODE.md (2026-07-14); S0-01 (anchor USAGE.md:31) corregido y S0-02 marcado Resuelto (drift) en la misma pasada documental |
 | S1-02 | **Implementado.** `check_third_party_licenses.py` verifica lockfile ↔ THIRD-PARTY-LICENSES.md; corre como test (`TestRealSync`) en los 3 jobs de test y falla con diff legible |
 
 ---
