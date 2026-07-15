@@ -5,6 +5,32 @@ Todos los cambios notables de TTS Sidecar se documentan en este archivo.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [0.7.3] — 2026-07-15
+
+Release de documentación que acompaña el lanzamiento del plugin de narración
+para Claude Code. No hay cambios de contrato ni de comportamiento del CLI: los
+artefactos son funcionalmente idénticos a 0.7.2.
+
+### Añadido
+
+- **Plugin de narración por voz para Claude Code**: se lanza
+  [`tts-sidecar-narrator`](https://github.com/CristianRojas-SoftwareEngineer/tts-sidecar-narrator),
+  un plugin que narra la actividad de la sesión de Claude Code usando este
+  motor como sintetizador (verificado contra esta versión del CLI). Vive en su
+  propio repositorio con ciclo de vida y versionado independientes.
+- **`docs/NARRATION-INTEGRATION.md`**: el contrato de integración con el
+  plugin, desde la perspectiva del motor (superficies de la CLI consumidas,
+  estabilidad esperada). Contraparte del `docs/INTEGRATION.md` del plugin.
+
+### Cambiado
+
+- **`docs/CLAUDE-CODE-PLUGIN.md`** pasa a ser un puntero histórico: el diseño
+  original del plugin se conserva como referencia, pero la fuente de verdad es
+  el repositorio del plugin (el árbol `claude-plugin/` se extrajo del repo).
+- **Documentación**: tablas de contenido en los documentos largos y formato
+  refinado; `CLAUDE.md` se convierte en guía de comportamiento del agente con
+  `AGENTS.md` como hardlink.
+
 ## [0.7.2] — 2026-07-14
 
 Corrección del smoke test de release en Windows. No hay cambios de contrato ni
@@ -554,6 +580,7 @@ estado con el que nace el producto.
   `THIRD-PARTY-LICENSES.md` (inventario de licencias generado del lockfile).
   Código propio bajo GPL-3.0-or-later; modelo MIT.
 
+[0.7.3]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.0...v0.7.2
 [0.7.0]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.5.0...v0.6.0
