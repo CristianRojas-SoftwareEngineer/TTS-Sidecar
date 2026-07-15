@@ -1,5 +1,19 @@
 # Diseño del Sistema TTS Sidecar con Chatterbox Multilingual V3
 
+## Tabla de contenidos
+
+- [Resumen ejecutivo](#resumen-ejecutivo)
+- [Arquitectura](#arquitectura)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Motor Chatterbox Multilingual V3](#motor-chatterbox-multilingual-v3)
+- [Flujo de síntesis](#flujo-de-síntesis)
+- [Modelo de voces de dos niveles](#modelo-de-voces-de-dos-niveles)
+- [Comandos CLI](#comandos-cli)
+- [Invocación desde otros lenguajes](#invocación-desde-otros-lenguajes)
+- [Compilación PyInstaller](#compilación-pyinstaller)
+- [Extensibilidad](#extensibilidad)
+- [Referencias](#referencias)
+
 ## Resumen ejecutivo
 
 TTS Sidecar es un motor de síntesis de voz (TTS) **100% local** que usa **Chatterbox Multilingual V3** para clonación de voz en español latinoamericano. El usuario puede clonar su propia voz a partir de ~10 segundos de audio y generar narración de alta calidad.

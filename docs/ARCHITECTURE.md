@@ -5,6 +5,15 @@
 > (MIT/BSD/Apache); las menciones «Licencia: MIT» de este documento se refieren al **modelo**.
 > Ver [THIRD-PARTY-LICENSES.md](../THIRD-PARTY-LICENSES.md).
 
+## Tabla de contenidos
+
+- [Visión General](#visión-general)
+- [Principios de Diseño](#principios-de-diseño)
+- [Modelos Disponibles](#modelos-disponibles)
+- [Flujo de Síntesis](#flujo-de-síntesis)
+- [Clonación de Voz](#clonación-de-voz)
+- [Extensibilidad](#extensibilidad)
+
 ## Visión General
 
 ```

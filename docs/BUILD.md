@@ -2,6 +2,17 @@
 
 `tts-sidecar` se compila con **PyInstaller** (empaquetado de Python bytecode) para obtener un ejecutable autocontenido multiplataforma, luego se envuelve en un instalador por SO.
 
+## Tabla de contenidos
+
+- [1. Requisitos](#1-requisitos)
+- [2. Plataformas Soportadas](#2-plataformas-soportadas)
+- [3. Compilación Local](#3-compilación-local)
+- [4. CI/CD con CircleCI](#4-cicd-con-circleci)
+- [5. Distribución de artefactos](#5-distribución-de-artefactos)
+- [6. Paquetes excluidos (bloat)](#6-paquetes-excluidos-bloat)
+- [7. Notas de dependencias](#7-notas-de-dependencias)
+- [8. Notas importantes](#8-notas-importantes)
+
 ---
 
 ## 1. Requisitos

@@ -7,6 +7,14 @@ tool`/`pipx`). Ambos instalan el mismo CLI con el mismo contrato programático
 (exit codes, esquemas `--json`); difieren en audiencia, prerequisitos y
 fricción del primer arranque.
 
+## Tabla de contenidos
+
+- [Los dos canales](#los-dos-canales)
+- [Instalación por canal](#instalación-por-canal)
+- [Por qué el canal pip evita SmartScreen/Gatekeeper](#por-qué-el-canal-pip-evita-smartscreengatekeeper)
+- [Registro de la decisión A vs. B](#registro-de-la-decisión-a-vs-b)
+- [Flujo de publicación (CI)](#flujo-de-publicación-ci)
+
 ## Los dos canales
 
 | | Canal nativo | Canal PyPI |

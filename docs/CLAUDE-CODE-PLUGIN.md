@@ -9,6 +9,13 @@
 > **Contrato de integración** (superficies del CLI que el plugin consume, desde
 > la perspectiva de este motor): [NARRATION-INTEGRATION.md](NARRATION-INTEGRATION.md).
 
+## Tabla de contenidos
+
+- [Qué es](#qué-es)
+- [Propiedades de diseño](#propiedades-de-diseño)
+- [Por qué un repositorio independiente](#por-qué-un-repositorio-independiente)
+- [Instalación (resumen)](#instalación-resumen)
+
 ## Qué es
 
 `tts-sidecar-narrator` es un plugin de [Claude Code](https://code.claude.com)

@@ -12,6 +12,13 @@ permite que [docs/GOAL.md](GOAL.md) siga siendo la fuente de verdad del *qué* y
 el *cuándo está hecho*, mientras este archivo responde al *dónde estamos* y *qué
 falta*.
 
+## Tabla de contenidos
+
+- [Estado actual](#estado-actual)
+- [Trabajo pendiente (roadmap al Goal inmediato)](#trabajo-pendiente-roadmap-al-goal-inmediato)
+- [Plan técnico: brecha de *desinstalación en un comando* — EJECUTADO (v0.6.0)](#plan-técnico-brecha-de-desinstalación-en-un-comando--ejecutado-v060)
+- [Hacia el Goal inmediato](#hacia-el-goal-inmediato)
+
 ## Estado actual
 
 **Implementado y verificable en el repo** (la validación end-to-end de los

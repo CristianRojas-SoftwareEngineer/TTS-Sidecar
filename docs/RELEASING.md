@@ -13,6 +13,14 @@ el paquete al canal PyPI (ver [docs/DISTRIBUTION.md](DISTRIBUTION.md)). Igual qu
 publican en firme en el mismo tag, sin generar un borrador ni requerir un clic
 humano.
 
+## Tabla de contenidos
+
+- [Prerequisitos](#prerequisitos)
+- [1. Corte: crear y publicar el tag](#1-corte-crear-y-publicar-el-tag)
+- [2. Automático: lo que hace el CI](#2-automático-lo-que-hace-el-ci)
+- [3. Verificación post-publicación](#3-verificación-post-publicación)
+- [4. Verificación del usuario final](#4-verificación-del-usuario-final)
+
 ## Prerequisitos
 
 - No hay hallazgos Bloqueantes ni Mayores abiertos (criterios de
@@ -131,7 +139,7 @@ Una vez pushado el tag, el pipeline ejecuta sin intervención:
    detecta que el archivo ya existe en PyPI y termina en éxito sin reintentar
    el upload, en vez de fallar ruidosamente.
 
-3. **`publish-metadata`** (tras `publish-release`, solo en tags `v*`): recupera
+4. **`publish-metadata`** (tras `publish-release`, solo en tags `v*`): recupera
    `SHA256SUMS.txt` del Release recién publicado (`gh release download`,
    idempotente y sin depender del workspace del pipeline), reescribe
    `Casks/tts-sidecar.rb` con la versión del tag y el sha256 del `.dmg` arm64

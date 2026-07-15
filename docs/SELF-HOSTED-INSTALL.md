@@ -5,6 +5,22 @@ artefactos PyInstaller que se publican como GitHub Release en cada tag `v*`) hac
 una experiencia de **instalación auto-hospedada** por sistema operativo: descubrir →
 instalar → comando disponible en el PATH → provisión guiada del modelo → desinstalar.
 
+## Tabla de contenidos
+
+- [Alcance](#alcance)
+- [Principios](#principios)
+- [Glosario](#glosario)
+- [Requisitos previos de Homebrew (ya provistos)](#requisitos-previos-de-homebrew-ya-provistos)
+- [Endurecimiento del build](#endurecimiento-del-build)
+- [Instalador Linux (`curl | sh`)](#instalador-linux-curl--sh)
+- [Instalador Windows (`irm | iex`)](#instalador-windows-irm--iex)
+- [Cask de macOS](#cask-de-macos)
+- [Instalador macOS (`curl | sh`)](#instalador-macos-curl--sh)
+- [Desinstalación limpia](#desinstalación-limpia)
+- [Comportamiento frente a antivirus](#comportamiento-frente-a-antivirus)
+- [Orden de implementación](#orden-de-implementación)
+- [Validación E2E (fase final del proyecto)](#validación-e2e-fase-final-del-proyecto)
+
 ## Alcance
 
 Se implementan cinco piezas:

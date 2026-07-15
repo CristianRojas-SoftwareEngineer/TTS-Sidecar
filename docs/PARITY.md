@@ -4,6 +4,16 @@ Este documento registra el **estado de equivalencia funcional y de experiencia d
 
 Fecha de corte: **v0.6.0**. Cada brecha se identifica por un **nombre descriptivo** (no por número: la numeración secuencial se vuelve inconsistente a medida que se cierran brechas). Al cerrar una brecha, actualizar la tabla y la sección correspondiente.
 
+## Tabla de contenidos
+
+- [Resumen ejecutivo](#resumen-ejecutivo)
+- [Fase 1 — Instalación](#fase-1--instalación)
+- [Fase 2 — Primer arranque (reputación del binario sin firmar)](#fase-2--primer-arranque-reputación-del-binario-sin-firmar)
+- [Fase 3 — Uso](#fase-3--uso)
+- [Fase 4 — Actualización](#fase-4--actualización)
+- [Fase 5 — Desinstalación](#fase-5--desinstalación)
+- [Registro de brechas](#registro-de-brechas)
+
 ## Resumen ejecutivo
 
 | Fase | Windows | Linux | macOS | ¿Paridad? |

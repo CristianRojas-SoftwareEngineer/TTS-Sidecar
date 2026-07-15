@@ -7,6 +7,18 @@ Sistema de síntesis de voz (TTS) **100% local** con clonación de voz en **espa
 - **Multiplataforma**: Windows x64, Linux x64/ARM64, macOS ARM64 (Apple Silicon)
 - **Consumible via CLI**: Invocable desde cualquier lenguaje de programación
 
+## Tabla de contenidos
+
+- [Uso ético y responsable](#uso-ético-y-responsable)
+- [Características](#características)
+- [Instalación](#instalación)
+- [Uso Rápido](#uso-rápido)
+- [Invocación desde cualquier lenguaje](#invocación-desde-cualquier-lenguaje)
+- [Arquitectura](#arquitectura)
+- [Licencia](#licencia)
+- [Documentación](#documentación)
+- [Comunidad y soporte](#comunidad-y-soporte)
+
 ## Uso ético y responsable
 
 TTS Sidecar clona voces arbitrarias y **el audio que genera no lleva marca de

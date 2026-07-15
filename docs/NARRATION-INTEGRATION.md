@@ -9,6 +9,13 @@ La contraparte, escrita desde la perspectiva del plugin, está en su repositorio
 El documento de diseño original y puntero al repo es
 [CLAUDE-CODE-PLUGIN.md](CLAUDE-CODE-PLUGIN.md).
 
+## Tabla de contenidos
+
+- [Rol en el sistema de narración](#rol-en-el-sistema-de-narración)
+- [El contrato de integración](#el-contrato-de-integración)
+- [Qué NO comparten los dos proyectos](#qué-no-comparten-los-dos-proyectos)
+- [Punto de entrada para el usuario](#punto-de-entrada-para-el-usuario)
+
 ## Rol en el sistema de narración
 
 El sistema de narración por voz tiene dos componentes con repositorios y ciclos

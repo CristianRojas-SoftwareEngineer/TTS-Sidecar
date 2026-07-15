@@ -2,6 +2,19 @@
 
 El daemon mode mantiene el modelo de Chatterbox en memoria entre invocaciones del CLI, eliminando el overhead de carga (~15-30s) en cada llamada.
 
+## Tabla de contenidos
+
+- [Problema](#problema)
+- [Solución](#solución)
+- [Arquitectura](#arquitectura)
+- [Comandos del Daemon](#comandos-del-daemon)
+- [Cancelación cooperativa del cliente](#cancelación-cooperativa-del-cliente)
+- [Seguridad: directorios de audio permitidos](#seguridad-directorios-de-audio-permitidos)
+- [Parámetros Optimizados](#parámetros-optimizados)
+- [Métricas de Rendimiento](#métricas-de-rendimiento)
+- [Decisiones de Diseño](#decisiones-de-diseño)
+- [Compatibilidad](#compatibilidad)
+
 ## Problema
 
 Sin daemon, cada ejecución del CLI funciona así:
