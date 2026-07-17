@@ -328,7 +328,6 @@ def common_pyinstaller_args(
         # Recolectar todos los paquetes que PyInstaller no puede seguir
         # automáticamente (imports perezosos, extensiones C, código compilado)
         "--collect-all", "chatterbox",
-        "--collect-all", "tts_sidecar",
         "--collect-all", "transformers",
         "--collect-all", "diffusers",
         "--collect-all", "s3tokenizer",
@@ -347,6 +346,13 @@ def common_pyinstaller_args(
         # Voces de fábrica (incluida la voz 'default'), empaquetadas dentro del
         # árbol del paquete y resueltas en runtime por paths.bundled_voices_dir()
         # (sys._MEIPASS/tts_sidecar/voices).
+        # Fuente ÚNICA de las voces en CI: `--add-data`. A propósito NO se usa
+        # `--collect-all tts_sidecar` para datos, porque en el build de CI el
+        # proyecto no se instala editable (solo requirements-lock*.txt), así que
+        # durante la fase SPEC PyInstaller emite "collect_data_files - skipping
+        # data collection for module 'tts_sidecar' as it is not a package" y no
+        # aporta nada. `--add-data` es más robusto: falla ruidosamente si falta
+        # el dir fuente, en vez de enmascarar la ausencia de voces en silencio.
         "--add-data", f"{project_root / 'src' / 'tts_sidecar' / 'voices'}{data_sep}tts_sidecar/voices",
         # Metadata requerida por importlib.metadata / pkg_resources
         "--recursive-copy-metadata", "chatterbox-tts",
