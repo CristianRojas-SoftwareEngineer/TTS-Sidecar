@@ -96,16 +96,20 @@ class DaemonManager:
 
             try:
                 if self.system == "Windows":
-                    # DETACHED_PROCESS por sí solo no basta: al no heredar
-                    # consola, Windows le asigna una nueva y visible al
-                    # subproceso (python.exe es de subsistema consola).
-                    # CREATE_NO_WINDOW evita que se asigne ninguna consola.
+                    # CREATE_NO_WINDOW: el hijo (python.exe o el EXE congelado
+                    # --console, ambos de subsistema consola) NO crea consola
+                    # alguna -> sin ventana ni parpadeo. CREATE_NEW_PROCESS_GROUP
+                    # lo aísla en su propio grupo de proceso, así no hereda la
+                    # consola del padre ni recibe CTRL_CLOSE al cerrar la
+                    # terminal que lo lanzó (sobrevive como daemon). La
+                    # combinación es válida: CREATE_NO_WINDOW solo se ignora con
+                    # DETACHED_PROCESS o CREATE_NEW_CONSOLE, no con este flag.
                     proc = subprocess.Popen(
                         cmd,
                         env=env,
                         creationflags=(
-                            subprocess.DETACHED_PROCESS
-                            | subprocess.CREATE_NO_WINDOW
+                            subprocess.CREATE_NO_WINDOW
+                            | subprocess.CREATE_NEW_PROCESS_GROUP
                         ),
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,

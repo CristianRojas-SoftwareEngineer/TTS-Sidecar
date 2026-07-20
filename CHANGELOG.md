@@ -5,6 +5,20 @@ Todos los cambios notables de TTS Sidecar se documentan en este archivo.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [0.7.6] — 2026-07-20
+
+### Corregido
+
+- **Ventana de consola visible al iniciar el daemon en Windows**: el subproceso
+  del daemon se lanzaba con `DETACHED_PROCESS | CREATE_NO_WINDOW`, pero
+  `CREATE_NO_WINDOW` es ignorado por Windows cuando se combina con
+  `DETACHED_PROCESS`, así que el daemon obtenía una consola nueva y visible
+  (parpadeo). Se reemplaza por `CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP`:
+  `CREATE_NO_WINDOW` suprime la consola por completo (sin ventana ni parpadeo) y
+  `CREATE_NEW_PROCESS_GROUP` aísla al daemon en su propio grupo de proceso para
+  que sobreviva al cierre de la terminal que lo lanzó. Sin cambios de contrato
+  del CLI.
+
 ## [0.7.5] — 2026-07-17
 
 Corrección de robustez del empaquetado (PyInstaller). No hay cambios de
@@ -608,6 +622,7 @@ estado con el que nace el producto.
   `THIRD-PARTY-LICENSES.md` (inventario de licencias generado del lockfile).
   Código propio bajo GPL-3.0-or-later; modelo MIT.
 
+[0.7.6]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.5...v0.7.6
 [0.7.5]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.2...v0.7.3
