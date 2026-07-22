@@ -56,9 +56,28 @@ class AudioWriter:
     @staticmethod
     def _to_wav_bytes(audio_np: np.ndarray, sample_rate: int) -> bytes:
         """Codifica el array float32 aplanado a bytes WAV en un buffer en memoria."""
-        # Aplica desvanecimiento suave (fade-out de 15 ms) y silencio de cola (50 ms)
-        # para prevenir el chasquido/ruido de interferencia por discontinuidad al terminar.
-        fade_samples = int(sample_rate * 0.015)
+        # Fade adaptativo: detecta dinámicamente dónde termina el habla real
+        # (RMS > 0.004) y aplica fade-out desde ese punto para eliminar el hiss
+        # de alta frecuencia (4-8 kHz) que el vocoder S3Gen produce en la cola.
+        # El silencio de cola (50 ms) da margen al DAC para drenar sin chasquido.
+        threshold_rms = 0.004
+        window_ms = 10
+        window_samples = int(sample_rate * window_ms / 1000)
+        min_fade_ms = 15
+        fade_start = 0
+
+        i = len(audio_np) - window_samples
+        while i >= 0:
+            segment = audio_np[i:i + window_samples]
+            rms = float(np.sqrt(np.mean(segment ** 2)))
+            if rms > threshold_rms:
+                fade_start = i + window_samples
+                break
+            i -= window_samples
+
+        fade_samples = max(int(sample_rate * min_fade_ms / 1000), len(audio_np) - fade_start)
+        fade_samples = min(fade_samples, len(audio_np))
+
         if fade_samples > 0 and len(audio_np) >= fade_samples:
             fade_window = np.linspace(1.0, 0.0, fade_samples, dtype=np.float32)
             audio_np = audio_np.copy()

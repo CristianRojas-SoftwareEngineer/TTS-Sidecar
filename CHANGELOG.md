@@ -5,6 +5,17 @@ Todos los cambios notables de TTS Sidecar se documentan en este archivo.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [0.7.8] — 2026-07-22
+
+### Corregido
+
+- **Hiss de alta frecuencia al final de la locución**: el fade-out fijo de 15 ms
+  introducido en v0.7.7 era insuficiente para el hiss (~70 ms, 4-8 kHz) que el
+  vocoder S3Gen produce en la cola de la síntesis. Se reemplaza por un fade
+  adaptativo que detecta dinámicamente dónde termina el habla real (RMS > 0.004)
+  y aplica un fade lineal completo desde ese punto, eliminando el "pss" audible
+  al final de la reproducción en ambos backends (winsound y sounddevice).
+
 ## [0.7.7] — 2026-07-22
 
 ### Corregido
@@ -628,6 +639,8 @@ estado con el que nace el producto.
   `THIRD-PARTY-LICENSES.md` (inventario de licencias generado del lockfile).
   Código propio bajo GPL-3.0-or-later; modelo MIT.
 
+[0.7.8]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.7...v0.7.8
+[0.7.7]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.6...v0.7.7
 [0.7.6]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.5...v0.7.6
 [0.7.5]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.3...v0.7.4
