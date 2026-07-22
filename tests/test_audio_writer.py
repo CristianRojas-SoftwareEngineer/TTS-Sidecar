@@ -37,15 +37,17 @@ class TestWriteInMemory:
         sr, ch, n, int16 = _read_wav(out)
         assert sr == 24000
         assert ch == 1
-        assert n == 24000
+        tail_frames = int(24000 * 0.05)  # 50 ms de silencio de cola
+        assert n == 24000 + tail_frames
         assert int16[0] == 32767
-        assert int16[-1] == -32767  # -1.0 se satura a -32767 (no -32768)
+        assert int16[-1] == 0  # Silencio al final del tail
 
     def test_float64_input_is_cast_to_float32(self):
         audio = np.linspace(-0.5, 0.5, 1000)  # float64 por defecto
         out = AudioWriter().write(audio, sample_rate=24000)
         sr, ch, n, _ = _read_wav(out)
-        assert n == 1000
+        tail_frames = int(24000 * 0.05)
+        assert n == 1000 + tail_frames
         assert ch == 1
 
     def test_batched_input_is_flattened(self):
@@ -53,7 +55,8 @@ class TestWriteInMemory:
         audio = np.full((1, 500), 0.25, dtype=np.float32)
         out = AudioWriter().write(audio, sample_rate=16000)
         _, _, n, _ = _read_wav(out)
-        assert n == 500
+        tail_frames = int(16000 * 0.05)
+        assert n == 500 + tail_frames
 
     def test_clips_values_above_one(self):
         audio = np.full(100, 2.0, dtype=np.float32)  # fuera de [-1, 1]
@@ -71,7 +74,8 @@ class TestWriteToFile:
         # El archivo en disco coincide con los bytes retornados.
         assert out_path.read_bytes() == out
         _, _, n, _ = _read_wav(out_path.read_bytes())
-        assert n == 2400
+        tail_frames = int(24000 * 0.05)
+        assert n == 2400 + tail_frames
 
     def test_pathless_write_does_not_touch_disk(self, tmp_path):
         audio = np.full(100, 0.1, dtype=np.float32)

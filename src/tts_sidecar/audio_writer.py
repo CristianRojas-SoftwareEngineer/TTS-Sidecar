@@ -56,6 +56,17 @@ class AudioWriter:
     @staticmethod
     def _to_wav_bytes(audio_np: np.ndarray, sample_rate: int) -> bytes:
         """Codifica el array float32 aplanado a bytes WAV en un buffer en memoria."""
+        # Aplica desvanecimiento suave (fade-out de 15 ms) y silencio de cola (50 ms)
+        # para prevenir el chasquido/ruido de interferencia por discontinuidad al terminar.
+        fade_samples = int(sample_rate * 0.015)
+        if fade_samples > 0 and len(audio_np) >= fade_samples:
+            fade_window = np.linspace(1.0, 0.0, fade_samples, dtype=np.float32)
+            audio_np = audio_np.copy()
+            audio_np[-fade_samples:] *= fade_window
+
+        tail_silence = np.zeros(int(sample_rate * 0.05), dtype=np.float32)
+        audio_np = np.concatenate([audio_np, tail_silence])
+
         buffer = io.BytesIO()
         with wave.open(buffer, 'wb') as wf:
             wf.setnchannels(1)

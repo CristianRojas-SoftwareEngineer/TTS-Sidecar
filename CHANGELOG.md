@@ -5,6 +5,12 @@ Todos los cambios notables de TTS Sidecar se documentan en este archivo.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [0.7.7] — 2026-07-22
+
+### Corregido
+
+- **Eliminación de ruido/estática al final de la síntesis de audio**: se aplica un desvanecimiento suave (*fade-out* lineal de 15 ms) y un relleno de silencio de cola (50 ms) en `AudioWriter` (`_to_wav_bytes`) para prevenir la discontinuidad de fase y evitar estallidos de estática/interferencia al finalizar la locución en reproductores como `winsound` (WASAPI).
+
 ## [0.7.6] — 2026-07-20
 
 ### Corregido

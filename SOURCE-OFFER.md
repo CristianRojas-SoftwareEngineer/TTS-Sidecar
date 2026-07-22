@@ -1,14 +1,14 @@
 # Oferta de código fuente (GPLv3 §6)
 
-**TTS Sidecar 0.7.6** se distribuye bajo la licencia
+**TTS Sidecar 0.7.7** se distribuye bajo la licencia
 **GPL-3.0-or-later** (ver `LICENSE`). Conforme a la sección 6 de la GPLv3,
 este binario va acompañado de una oferta de acceso al código fuente completo
 correspondiente a esta versión exacta:
 
 - **Código fuente (tarball del tag):**
-  <https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/archive/refs/tags/v0.7.6.tar.gz>
-- **Release v0.7.6 (artefactos y notas):**
-  <https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/releases/tag/v0.7.6>
+  <https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/archive/refs/tags/v0.7.7.tar.gz>
+- **Release v0.7.7 (artefactos y notas):**
+  <https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/releases/tag/v0.7.7>
 - **Repositorio:** <https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar>
 
 Las atribuciones de las dependencias redistribuidas están en
