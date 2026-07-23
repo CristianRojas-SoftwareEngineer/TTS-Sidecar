@@ -1,6 +1,6 @@
 """Tests de `ChatterboxEngine` a nivel voz.
 
-Cubren `add_voice` (ramas precompute/force) y los delegates
+Cubren `clone_voice` (ramas precompute/force) y los delegates
 `list_voices`/`remove_voice`/`resolve_voice`, inyectando colaboradores falsos
 y monkeypatcheando el módulo `voices`, sin cargar el modelo real. El engine se
 instancia con `ChatterboxEngine.__new__` (patrón ya usado en test_engine_cache.py).
@@ -36,7 +36,7 @@ class _FakePreparer:
 
 @pytest.fixture
 def engine(monkeypatch):
-    """Engine sin modelo real: colaboradores inyectados y register stubbeado."""
+    """Engine sin modelo real: colaboradores inyectados y clone stubbeado."""
     eng = ChatterboxEngine.__new__(ChatterboxEngine)
     eng.compute_backend = "cpu"
     eng.model_name = "es-mx-latam"
@@ -46,19 +46,19 @@ def engine(monkeypatch):
 
     register_calls = {}
 
-    def fake_register(name, reference_audio, speech_audio, force=False):
+    def fake_clone(name, reference_audio, speech_audio, force=False):
         register_calls["register"] = (name, reference_audio, speech_audio, force)
         return (f"/voices/{name}/reference.wav", f"/voices/{name}/speech.wav")
 
-    monkeypatch.setattr(voices_mod, "register_voice_files", fake_register)
+    monkeypatch.setattr(voices_mod, "clone_voice_files", fake_clone)
     eng._register_calls = register_calls
     return eng
 
 
-def test_add_voice_precompute_true_invokes_preparer(engine):
+def test_clone_voice_precompute_true_invokes_preparer(engine):
     engine._conditionals_prep = _FakePreparer()
 
-    ref, speech = engine.add_voice("v", "r.wav", "s.wav", precompute=True)
+    ref, speech = engine.clone_voice("v", "r.wav", "s.wav", precompute=True)
 
     assert (ref, speech) == ("/voices/v/reference.wav", "/voices/v/speech.wav")
     assert engine._conditionals_prep.precompute_calls == [
@@ -66,18 +66,18 @@ def test_add_voice_precompute_true_invokes_preparer(engine):
     ]
 
 
-def test_add_voice_precompute_false_skips_preparer(engine):
+def test_clone_voice_precompute_false_skips_preparer(engine):
     engine._conditionals_prep = _FakePreparer()
 
-    engine.add_voice("v", "r.wav", "s.wav", precompute=False)
+    engine.clone_voice("v", "r.wav", "s.wav", precompute=False)
 
     assert engine._conditionals_prep.precompute_calls == []
 
 
-def test_add_voice_force_propagated(engine):
+def test_clone_voice_force_propagated(engine):
     engine._conditionals_prep = _FakePreparer()
 
-    engine.add_voice("v", "r.wav", "s.wav", force=True)
+    engine.clone_voice("v", "r.wav", "s.wav", force=True)
 
     assert engine._register_calls["register"][3] is True
 

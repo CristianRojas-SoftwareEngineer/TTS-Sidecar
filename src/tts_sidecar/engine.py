@@ -490,7 +490,7 @@ class ChatterboxEngine:
             text, voice_audio, speech_audio, output_path, progress_callback
         )
 
-    def add_voice(
+    def clone_voice(
         self,
         name: str,
         reference_audio: str,
@@ -499,7 +499,7 @@ class ChatterboxEngine:
         force: bool = False,
     ) -> tuple[str, str]:
         """
-        Registra una voz clonada a partir de dos archivos de audio.
+        Clona una voz a partir de dos archivos de audio.
 
         Args:
             name: Nombre para la voz
@@ -515,9 +515,9 @@ class ChatterboxEngine:
             ValueError: si algún audio no es cargable, o si la voz ya existe
                         (usuario o fábrica) y no se pasó force.
         """
-        # Validación y copia sin modelo: núcleo compartido con `voice add`,
-        # que registra voces sin instanciar el motor (voices.register_voice_files).
-        ref_path, speech_path = voices.register_voice_files(
+        # Validación y copia sin modelo: núcleo compartido con `voice clone`,
+        # que clona voces sin instanciar el motor (voices.clone_voice_files).
+        ref_path, speech_path = voices.clone_voice_files(
             name=name,
             reference_audio=reference_audio,
             speech_audio=speech_audio,

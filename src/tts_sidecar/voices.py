@@ -112,7 +112,7 @@ def _is_symlink(path: str) -> bool:
 
 def _is_valid_voice_dir(candidate: str) -> bool:
     """Una voz es válida solo con sus dos audios: reference.wav (timbre) y
-    speech.wav (conditioning), igual que exige `voice add`.
+    speech.wav (conditioning), igual que exige `voice clone`.
 
     Cualquier componente symlink (el directorio de la voz o sus dos
     `.wav`) la hace inválida, para que `list_voices` y `voice_paths` coincidan
@@ -173,15 +173,15 @@ def remove_voice(name: str) -> bool:
     return False
 
 
-def register_voice_files(
+def clone_voice_files(
     name: str,
     reference_audio: str,
     speech_audio: str,
     force: bool = False,
 ) -> tuple[str, str]:
-    """Valida y copia los audios de una voz al registro de usuario, SIN el modelo.
+    """Valida y copia los audios de una voz como clon de usuario, SIN el modelo.
 
-    Es el núcleo de `voice add`: validación de carga con librosa (audio ilegible
+    Es el núcleo de `voice clone`: validación de carga con librosa (audio ilegible
     no debe dejar una voz rota que falle recién en la síntesis), colisión de
     nombres con precedencia usuario→fábrica, y copia de los dos WAV. No importa
     torch ni instancia el motor: la precomputación de conditionals se difiere al
@@ -209,7 +209,7 @@ def register_voice_files(
     # si lo fueran, copy2 escribiría *a través* del enlace (y voice_paths
     # ya los rechaza al leer). Se rechaza antes de tocar el filesystem.
     if _is_symlink(target):
-        raise ValueError(f"La voz '{name}' apunta a un symlink; no se puede registrar.")
+        raise ValueError(f"La voz '{name}' apunta a un symlink; no se puede clonar.")
     ref_path = os.path.join(target, "reference.wav")
     speech_path = os.path.join(target, "speech.wav")
     shutil.copy2(reference_audio, ref_path)
@@ -227,7 +227,7 @@ def voice_paths(name: str) -> tuple[str, str]:
     if target is None:
         raise FileNotFoundError(
             f"Voz '{name}' no encontrada (ni en las voces de usuario ni en las de fábrica). "
-            f"Regístrala con 'tts-sidecar voice add' o usa la voz 'default'."
+            f"Clónala con 'tts-sidecar voice clone' o usa la voz 'default'."
         )
     ref_path = os.path.join(target, "reference.wav")
     speech_path = os.path.join(target, "speech.wav")

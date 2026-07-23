@@ -120,35 +120,35 @@ class TestCmdVoiceList:
         }
 
 
-class TestCmdVoiceAdd:
+class TestCmdVoiceClone:
     @patch("tts_sidecar.model_cache.is_model_cached", return_value=False)
-    @patch("tts_sidecar.voices.register_voice_files")
-    def test_cmd_voice_add_success_without_engine(self, mock_register, _cached, capsys):
-        """Voice add registra sin instanciar ChatterboxEngine."""
-        from tts_sidecar.cli import cmd_voice_add
+    @patch("tts_sidecar.voices.clone_voice_files")
+    def test_cmd_voice_clone_success_without_engine(self, mock_register, _cached, capsys):
+        """Voice clone clona sin instanciar ChatterboxEngine."""
+        from tts_sidecar.cli import cmd_voice_clone
 
         mock_register.return_value = ("/path/to/ref.wav", "/path/to/speech.wav")
 
         with patch("tts_sidecar.engine.ChatterboxEngine") as mock_engine_cls:
-            cmd_voice_add(MockArgs(name="newvoice", reference="ref.wav", speech="speech.wav"))
+            cmd_voice_clone(MockArgs(name="newvoice", reference="ref.wav", speech="speech.wav"))
             mock_engine_cls.assert_not_called()
 
         out = capsys.readouterr().out
-        assert "Voz 'newvoice' registrada" in out
+        assert "Voz 'newvoice' clonada" in out
         mock_register.assert_called_once()
 
     @patch("tts_sidecar.model_cache.is_model_cached", return_value=False)
-    @patch("tts_sidecar.voices.register_voice_files")
-    def test_cmd_voice_add_succeeds_without_model(self, mock_register, _cached, capsys):
-        """Sin modelo cacheado, voice add registra la voz (registro libre de modelo)."""
-        from tts_sidecar.cli import cmd_voice_add
+    @patch("tts_sidecar.voices.clone_voice_files")
+    def test_cmd_voice_clone_succeeds_without_model(self, mock_register, _cached, capsys):
+        """Sin modelo cacheado, voice clone clona la voz (clonado libre de modelo)."""
+        from tts_sidecar.cli import cmd_voice_clone
 
         mock_register.return_value = ("/path/to/ref.wav", "/path/to/speech.wav")
 
-        cmd_voice_add(MockArgs(name="newvoice", reference="ref.wav", speech="speech.wav"))
+        cmd_voice_clone(MockArgs(name="newvoice", reference="ref.wav", speech="speech.wav"))
 
         captured = capsys.readouterr()
-        assert "Voz 'newvoice' registrada" in captured.out
+        assert "Voz 'newvoice' clonada" in captured.out
         assert "setup" not in captured.err
         mock_register.assert_called_once()
 
@@ -426,7 +426,7 @@ class TestCmdSpeakVoiceAudioDaemonSandbox:
         assert exc_info.value.code == EXIT_INVALID_INPUT
         mock_client_cls.return_value.synthesize.assert_not_called()
         stderr = capsys.readouterr().err
-        assert "voice add" in stderr
+        assert "voice clone" in stderr
         assert "--no-daemon" in stderr
 
 
@@ -1069,14 +1069,14 @@ class TestExitCodes:
                 cmd_devices(MockArgs())
         assert exc.value.code == EXIT_ERROR
 
-    def test_voice_add_collision_exits_4(self):
-        from tts_sidecar.cli import cmd_voice_add, EXIT_INVALID_INPUT
+    def test_voice_clone_collision_exits_4(self):
+        from tts_sidecar.cli import cmd_voice_clone, EXIT_INVALID_INPUT
 
         with patch("tts_sidecar.model_cache.is_model_cached", return_value=True), \
-                patch("tts_sidecar.voices.register_voice_files",
+                patch("tts_sidecar.voices.clone_voice_files",
                       side_effect=ValueError("La voz 'dup' ya existe")):
             with pytest.raises(SystemExit) as exc:
-                cmd_voice_add(MockArgs(name="dup"))
+                cmd_voice_clone(MockArgs(name="dup"))
         assert exc.value.code == EXIT_INVALID_INPUT
 
     def test_daemon_and_no_daemon_conflict_exits_4(self, capsys):
@@ -1729,14 +1729,14 @@ class TestWriteCommandsJSON:
     objeto JSON en stdout, con los listados informativos en stderr."""
 
     @patch("tts_sidecar.model_cache.is_model_cached", return_value=True)
-    @patch("tts_sidecar.voices.register_voice_files")
-    def test_voice_add_json_payload(self, mock_register, _cached, capsys):
+    @patch("tts_sidecar.voices.clone_voice_files")
+    def test_voice_clone_json_payload(self, mock_register, _cached, capsys):
         import json
-        from tts_sidecar.cli import cmd_voice_add, SCHEMA_VERSION
+        from tts_sidecar.cli import cmd_voice_clone, SCHEMA_VERSION
 
         mock_register.return_value = ("/voices/nueva/reference.wav", "/voices/nueva/speech.wav")
 
-        cmd_voice_add(MockArgs(name="nueva", json=True))
+        cmd_voice_clone(MockArgs(name="nueva", json=True))
 
         payload = json.loads(capsys.readouterr().out)
         assert payload == {
@@ -2038,7 +2038,7 @@ class TestSchemaVersionJSON:
 # hace fallar el test, en vez de quedar fuera de la cobertura en silencio.
 _JSON_COVERED_COMMANDS = {
     "speak", "devices", "doctor", "setup", "cleanup", "version",
-    "voice list", "voice add", "voice remove",
+    "voice list", "voice clone", "voice remove",
     "daemon start", "daemon stop", "daemon restart", "daemon status",
 }
 
@@ -2218,13 +2218,13 @@ class TestEmitAudioCreatesParentDirs:
 
 
 class TestVoiceAddWithoutComputeBackend:
-    """voice add --compute-backend ya no existe (flag muerta eliminada)."""
+    """voice clone --compute-backend ya no existe (flag muerta eliminada)."""
 
     def test_parser_rejects_compute_backend(self, monkeypatch, capsys):
         from tts_sidecar.cli import main
 
         monkeypatch.setattr(sys, "argv", [
-            "tts-sidecar", "voice", "add", "--name", "x", "--reference", "r.wav",
+            "tts-sidecar", "voice", "clone", "--name", "x", "--reference", "r.wav",
             "--speech", "s.wav", "--compute-backend", "cuda",
         ])
         with pytest.raises(SystemExit):

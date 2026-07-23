@@ -327,8 +327,8 @@ def cmd_speak(args):
         if audio_problem is not None:
             print(f"Error: {audio_problem}.", file=sys.stderr)
             print(
-                "Sugerencia: registra el audio como voz "
-                "(tts-sidecar voice add --name <nombre> --reference <ref> "
+                "Sugerencia: clona el audio como voz "
+                "(tts-sidecar voice clone --name <nombre> --reference <ref> "
                 "--speech <habla>) o usa --no-daemon para sintetizar con esta ruta.",
                 file=sys.stderr,
             )
@@ -347,7 +347,7 @@ def cmd_speak(args):
                     "server.py). Alternativas:",
                     file=sys.stderr,
                 )
-                print("  1. Registra el audio como voz: tts-sidecar voice add --name <nombre> --reference <ref> --speech <habla>", file=sys.stderr)
+                print("  1. Clona el audio como voz: tts-sidecar voice clone --name <nombre> --reference <ref> --speech <habla>", file=sys.stderr)
                 print("  2. Usa --no-daemon para sintetizar en modo directo con esta ruta", file=sys.stderr)
                 print("  3. Copia el audio dentro del directorio de voces del usuario", file=sys.stderr)
                 sys.exit(EXIT_INVALID_INPUT)
@@ -421,19 +421,19 @@ def cmd_speak(args):
 
 
 @timed_command
-def cmd_voice_add(args):
-    """Registra una voz clonada a partir de los audios de referencia.
+def cmd_voice_clone(args):
+    """Clona una voz a partir de dos archivos de audio (timbre + habla).
 
-    Registro ligero: valida y copia los audios sin instanciar el motor de
+    Clonado ligero: valida y copia los audios sin instanciar el motor de
     inferencia; la precomputación de conditionals se difiere al primer
-    `speak --voice <nombre>`. El registro es libre de modelo:
+    `speak --voice <nombre>`. El clonado es libre de modelo:
     no exige `setup` previo, porque validar y copiar audio no necesita el
     checkpoint; la descarga sigue siendo responsabilidad exclusiva de `setup`
     para la síntesis.
     """
     try:
         from . import voices
-        ref_path, speech_path = voices.register_voice_files(
+        ref_path, speech_path = voices.clone_voice_files(
             name=args.name,
             reference_audio=args.reference,
             speech_audio=args.speech,
@@ -448,16 +448,16 @@ def cmd_voice_add(args):
             })
             return
 
-        print(f"Voz '{args.name}' registrada:")
+        print(f"Voz '{args.name}' clonada:")
         print(f"  timbre (reference): {ref_path}")
         print(f"  habla (conditioning): {speech_path}")
 
     except ValueError as e:
         # Audio ilegible, nombre de voz inválido o colisión sin --force.
-        print(f"Error al registrar la voz: {e}", file=sys.stderr)
+        print(f"Error al clonar la voz: {e}", file=sys.stderr)
         sys.exit(EXIT_INVALID_INPUT)
     except Exception as e:
-        print(f"Error al registrar la voz: {e}", file=sys.stderr)
+        print(f"Error al clonar la voz: {e}", file=sys.stderr)
         sys.exit(EXIT_ERROR)
 
 
@@ -524,7 +524,7 @@ def cmd_voice_list(args):
                 print(f"  - {voice}")
         else:
             print("No hay voces registradas. Ejecuta:")
-            print("  tts-sidecar voice add --name mi_voz --reference timbre.wav --speech habla.wav")
+            print("  tts-sidecar voice clone --name mi_voz --reference timbre.wav --speech habla.wav")
 
     except FileNotFoundError as e:
         # Listar voces es una operación pura de filesystem; remitir a
@@ -1712,7 +1712,7 @@ def build_parser() -> argparse.ArgumentParser:
                                    "(exit 4 si se usa sin --output)")
     speak_parser.set_defaults(func=cmd_speak)
 
-    # grupo de comandos voice (list / add / remove)
+    # grupo de comandos voice (list / clone / remove)
     voice_parser = subparsers.add_parser("voice", help="Gestiona las voces registradas")
     voice_subparsers = voice_parser.add_subparsers(dest="action", help="Acciones de voz")
 
@@ -1720,16 +1720,16 @@ def build_parser() -> argparse.ArgumentParser:
     voice_list.add_argument("--json", action="store_true", help="Emitir JSON legible por máquina")
     voice_list.set_defaults(func=cmd_voice_list)
 
-    voice_add = voice_subparsers.add_parser("add", help="Registra una voz clonada")
-    voice_add.add_argument("--name", "-n", required=True, help="Nombre de la voz")
-    voice_add.add_argument("--reference", "-r", required=True,
-                           help="Archivo de audio de referencia para el timbre (cualquier largo, se usa el audio completo)")
-    voice_add.add_argument("--speech", "-s", required=True,
-                           help="Archivo de audio de habla para el conditioning del T3 (10+ segundos de habla limpia)")
-    voice_add.add_argument("--force", "-f", action="store_true",
-                           help="Sobrescribir la voz si ya existe (usuario o fábrica homónima)")
-    voice_add.add_argument("--json", action="store_true", help="Emitir JSON legible por máquina")
-    voice_add.set_defaults(func=cmd_voice_add)
+    voice_clone = voice_subparsers.add_parser("clone", help="Clona una voz desde dos archivos de audio")
+    voice_clone.add_argument("--name", "-n", required=True, help="Nombre de la voz")
+    voice_clone.add_argument("--reference", "-r", required=True,
+                             help="Archivo de audio de referencia para el timbre (cualquier largo, se usa el audio completo)")
+    voice_clone.add_argument("--speech", "-s", required=True,
+                             help="Archivo de audio de habla para el conditioning del T3 (10+ segundos de habla limpia)")
+    voice_clone.add_argument("--force", "-f", action="store_true",
+                             help="Sobrescribir la voz si ya existe (usuario o fábrica homónima)")
+    voice_clone.add_argument("--json", action="store_true", help="Emitir JSON legible por máquina")
+    voice_clone.set_defaults(func=cmd_voice_clone)
 
     voice_remove = voice_subparsers.add_parser("remove", help="Elimina una voz registrada")
     voice_remove.add_argument("--name", "-n", required=True, help="Nombre de la voz")
@@ -1775,7 +1775,7 @@ def build_parser() -> argparse.ArgumentParser:
                                 help="Elimina el modelo descargado (solo las carpetas de este proyecto "
                                      "dentro de la caché de HuggingFace)")
     cleanup_parser.add_argument("--voices", action="store_true",
-                                help="Elimina las voces de usuario registradas con 'voice add'")
+                                help="Elimina las voces de usuario registradas con 'voice clone'")
     cleanup_parser.add_argument("--all", action="store_true",
                                 help="Elimina el modelo y las voces de usuario")
     cleanup_parser.add_argument("--dry-run", action="store_true",

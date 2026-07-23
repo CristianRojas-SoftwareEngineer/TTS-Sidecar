@@ -175,7 +175,7 @@ Es un modo mutuamente excluyente con `--remove-path` y `--uninstall`. Sin el fla
 ## Comandos
 
 Tanto los comandos de lectura (`version`, `doctor`, `devices`, `voice list`,
-`daemon status`) como los de escritura (`voice add`, `voice remove`, `setup`,
+`daemon status`) como los de escritura (`voice clone`, `voice remove`, `setup`,
 `cleanup`) aceptan `--json` para salida legible por máquina, útil al invocar
 `tts-sidecar` desde otro programa: ningún comando obliga a parsear texto.
 
@@ -256,7 +256,7 @@ stream NDJSON de `/synthesize`, no un payload de una sola línea.
 | `model_loaded` | boolean | Solo con `running: true`: si el modelo está cargado |
 | `uptime_seconds` | number | Solo con `running: true`: segundos desde el arranque |
 
-**`voice add --json`**
+**`voice clone --json`**
 
 | Clave | Tipo | Significado |
 |-------|------|-------------|
@@ -383,7 +383,7 @@ altavoces; con `--output` lo guarda en un archivo WAV sin reproducirlo.
 
 Sin `--voice` ni audios explícitos, `speak` usa la voz de fábrica **`default`**
 (empaquetada, de solo lectura), por lo que el ejemplo mínimo funciona recién
-instalado, sin registrar nada:
+instalado, sin clonar nada:
 
 ```bash
 # Reproducir con la voz de fábrica 'default'
@@ -426,7 +426,7 @@ Con `--output`, en lugar de las líneas de `[Reproducción]` verás
 **Orígenes de voz (resolución usuario→fábrica):**
 - **Fábrica**: voces empaquetadas en el ejecutable, de solo lectura (incluye
   `default`). Idénticas en desarrollo y en cualquier instalación.
-- **Usuario**: voces registradas con `voice add`, escribibles, guardadas en el
+- **Usuario**: voces registradas con `voice clone`, escribibles, guardadas en el
   directorio de datos de usuario por SO (estables entre ejecuciones). Una voz de
   usuario con el mismo nombre que una de fábrica la sobrescribe.
 
@@ -470,7 +470,7 @@ Tú solo gestionas las voces.
 # Usando voz registrada
 tts-sidecar speak --text "Hola mundo" --voice mi_voz
 
-# Usando archivos de audio directamente (sin registrar voz)
+# Usando archivos de audio directamente (sin clonar voz)
 tts-sidecar speak --text "Hola" --voice-audio timbre.wav --speech-audio condicion.wav
 
 # Guardar a archivo con voz registrada
@@ -484,8 +484,8 @@ tts-sidecar speak --text "Hola" --voice mi_voz --no-daemon
 > de audio dentro de los directorios de voces (fábrica o usuario) o del
 > subdirectorio de sesión del daemon (`<tempdir>/tts-sidecar/`), no un archivo
 > arbitrario del sistema ni el tempdir compartido general. Si el daemon está
-> activo y tu audio vive fuera de esos directorios, tienes tres alternativas: (1) registra el audio
-> como voz con `voice add` y usa `--voice`; (2) fuerza `--no-daemon` para
+> activo y tu audio vive fuera de esos directorios, tienes tres alternativas: (1) clona el audio
+> como voz con `voice clone` y usa `--voice`; (2) fuerza `--no-daemon` para
 > sintetizar en modo directo con esa ruta; o (3) copia el audio dentro del
 > directorio de voces del usuario. Sin `--daemon` explícito, el CLI detecta la
 > restricción y degrada a modo directo automáticamente con un aviso por
@@ -493,20 +493,20 @@ tts-sidecar speak --text "Hola" --voice mi_voz --no-daemon
 
 ---
 
-### `voice add`
+### `voice clone`
 
-Registra una nueva voz clonada a partir de dos archivos de audio.
+Clona una voz a partir de dos archivos de audio.
 
 ```bash
-tts-sidecar voice add --name mi_voz --reference timbre.wav --speech condicion.wav
+tts-sidecar voice clone --name mi_voz --reference timbre.wav --speech condicion.wav
 ```
 
 **Qué esperar:** el comando valida que ambos audios sean cargables, copia los
 archivos al directorio de voces de usuario y confirma:
 
 ```
-Iniciando voice_add...
-Voz 'mi_voz' registrada:
+Iniciando voice_clone...
+Voz 'mi_voz' clonada:
   timbre (reference): <ruta>/voices/mi_voz/reference.wav
   habla (conditioning): <ruta>/voices/mi_voz/speech.wav
 Finalizado en 0.4s
@@ -515,11 +515,11 @@ Finalizado en 0.4s
 A partir de ese momento la voz aparece en `voice list` y puede usarse con
 `speak --voice mi_voz`.
 
-El registro es **casi instantáneo** (< 1 s): no carga el motor de inferencia,
+El clonado es **casi instantáneo** (< 1 s): no carga el motor de inferencia,
 solo valida y copia los audios. La preparación de la voz (cómputo de
 conditionals) la absorbe la primera síntesis con `speak --voice mi_voz`, que
 por eso puede tardar unos segundos más que las siguientes. Como el resto de
-comandos de escritura, `voice add` requiere el modelo provisionado
+comandos de escritura, `voice clone` requiere el modelo provisionado
 (`tts-sidecar setup`).
 
 **Opciones:**
@@ -612,7 +612,7 @@ eliminan las carpetas de los dos repos que usa el proyecto
 (`Chatterbox-Multilingual-es-mx-latam` y `chatterbox` de ResembleAI), nunca
 modelos de otros proyectos; `--voices` elimina únicamente el directorio de
 voces de usuario. Todo es recuperable: `setup` reprovisiona el modelo y
-`voice add` vuelve a registrar voces.
+`voice clone` vuelve a clonar voces.
 
 ---
 
@@ -814,9 +814,9 @@ De principio a fin, desde grabar tu voz hasta escucharla sintetizada:
 #    timbre.wav  - cualquier largo, captura tu timbre
 #    habla.wav   - 10+ segundos de habla limpia y continua
 
-# 2. Registra la voz
-tts-sidecar voice add --name mi_voz --reference timbre.wav --speech habla.wav
-# → Voz 'mi_voz' registrada: (rutas de los dos archivos copiados)
+# 2. Clona la voz
+tts-sidecar voice clone --name mi_voz --reference timbre.wav --speech habla.wav
+# → Voz 'mi_voz' clonada: (rutas de los dos archivos copiados)
 
 # 3. Verifica que aparece
 tts-sidecar voice list
@@ -832,7 +832,7 @@ tts-sidecar speak --text "Hola, esto es una prueba" --voice mi_voz --output mi_v
 ```
 
 La voz queda guardada de forma permanente: en futuras sesiones basta con
-`--voice mi_voz`, sin volver a registrar nada.
+`--voice mi_voz`, sin volver a clonar nada.
 
 ---
 
@@ -856,7 +856,7 @@ desde el binario como desde el código fuente. En concreto:
   | `1` | Error genérico | Fallo inesperado; `doctor` con algún chequeo fallido |
   | `2` | Modelo no provisionado | `speak`/`daemon start` sin ejecutar `setup` |
   | `3` | Voz o audio no encontrado | `--voice inexistente`; `voice remove` de una voz ausente |
-  | `4` | Entrada inválida | `--text` vacío; nombre de voz ilegal; colisión en `voice add` sin `--force` |
+  | `4` | Entrada inválida | `--text` vacío; nombre de voz ilegal; colisión en `voice clone` sin `--force` |
   | `5` | Daemon inalcanzable | `speak --daemon` sin daemon; `daemon start/stop/restart` fallido |
   | `130` | Interrupción del usuario | Ctrl+C (128 + SIGINT) durante cualquier comando |
 - **La voz `default` y el modelo** son los mismos en todas las plataformas: el
@@ -935,26 +935,26 @@ tts-sidecar voice list
 
 ### "La voz 'x' ya existe"
 
-`voice add` no sobrescribe voces por accidente. Si quieres reemplazarla:
+`voice clone` no sobrescribe voces por accidente. Si quieres reemplazarla:
 
 ```bash
-tts-sidecar voice add --name mi_voz --reference timbre.wav --speech habla.wav --force
+tts-sidecar voice clone --name mi_voz --reference timbre.wav --speech habla.wav --force
 ```
 
 ### "reference.wav/speech.wav not found"
 
 La voz no tiene los archivos necesarios. Puede que se registró con el formato
-antiguo. Vuelve a registrar:
+antiguo. Vuelve a clonar:
 
 ```bash
-tts-sidecar voice add --name mi_voz --reference timbre.wav --speech condicion.wav --force
+tts-sidecar voice clone --name mi_voz --reference timbre.wav --speech condicion.wav --force
 ```
 
 ### "Voz 'x' es una voz de fábrica (solo lectura)"
 
 Las voces empaquetadas (como `default`) no pueden eliminarse con `voice remove`.
-Si quieres reemplazar su sonido, registra una voz de usuario con el mismo nombre
-usando `voice add --force`: la tuya toma precedencia.
+Si quieres reemplazar su sonido, clona una voz de usuario con el mismo nombre
+usando `voice clone --force`: la tuya toma precedencia.
 
 ### Error al eliminar una voz: "uno de sus archivos parece estar en uso"
 
@@ -1033,7 +1033,7 @@ PerthNet está desactivado en el motor (tanto en modo directo como en el daemon)
 de modo que la salida no es distinguible por medios técnicos de una grabación
 real. Esta capacidad exige diligencia por parte de quien la usa:
 
-- **Consentimiento explícito**: registra y clona únicamente voces para las que
+- **Consentimiento explícito**: clona únicamente voces para las que
   cuentes con el permiso de la persona titular. Clonar la voz de alguien sin su
   autorización puede ser ilegal en tu jurisdicción y es, en todo caso, una falta
   de respeto a su identidad.

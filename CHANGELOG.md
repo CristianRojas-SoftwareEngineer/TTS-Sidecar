@@ -5,6 +5,16 @@ Todos los cambios notables de TTS Sidecar se documentan en este archivo.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y el proyecto adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [0.8.0] — 2026-07-22
+
+### Cambiado
+
+- **`voice add` renombrado a `voice clone`**: el subcomando, la función
+  `cmd_voice_add`, el método `add_voice` del motor y `register_voice_files`
+  en `voices.py` se renombraron para reflejar con precisión la operación
+  de clonado de voz. Toda la prosa, documentación y tests se actualizaron
+  consistentemente.
+
 ## [0.7.8] — 2026-07-22
 
 ### Corregido
@@ -455,7 +465,7 @@ de contrato son aditivos: los códigos de salida existentes no cambian y
 
 ### Añadido
 
-- **`--json` en los cuatro comandos de escritura**: `voice add`
+- **`--json` en los cuatro comandos de escritura**: `voice clone`
   (`{name, reference, speech}`), `voice remove` (`{name, removed}`), `setup`
   (`{model, already_cached, downloaded, cache_dir}`, con variante para
   `--remove-path`) y `cleanup` (`{removed, dry_run}`). El contrato programático
@@ -582,12 +592,12 @@ estado con el que nace el producto.
 
 - **Motor de síntesis offline** con Chatterbox Multilingual (alias
   `es-mx-latam`, español latinoamericano): voz por defecto empaquetada
-  (`default`, de fábrica) y clonación de voz vía `voice add` con modelo
+  (`default`, de fábrica) y clonación de voz vía `voice clone` con modelo
   dual-audio (`reference.wav` para timbre + `speech.wav` para conditioning).
   El audio generado no lleva marca de agua (watermark de PerthNet desactivado
   por diseño; ver «Uso ético y responsable»).
 - **CLI multiplataforma** (Windows/Linux/macOS, idéntica en los tres SO) con
-  los comandos `speak`, `voice` (`add`/`list`/`remove`), `daemon`
+  los comandos `speak`, `voice` (`clone`/`list`/`remove`), `daemon`
   (`start`/`stop`/`restart`/`status`/`serve`), `devices`, `doctor`, `setup`,
   `cleanup` y `version`; salidas de usuario en español.
 - **Contrato programático para orquestadores** (consumo vía `subprocess`):
@@ -639,6 +649,7 @@ estado con el que nace el producto.
   `THIRD-PARTY-LICENSES.md` (inventario de licencias generado del lockfile).
   Código propio bajo GPL-3.0-or-later; modelo MIT.
 
+[0.8.0]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.8...v0.8.0
 [0.7.8]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.7...v0.7.8
 [0.7.7]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.6...v0.7.7
 [0.7.6]: https://github.com/CristianRojas-SoftwareEngineer/TTS-Sidecar/compare/v0.7.5...v0.7.6

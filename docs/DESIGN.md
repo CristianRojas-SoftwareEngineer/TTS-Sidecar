@@ -157,7 +157,7 @@ Las voces se separan en dos orígenes y se resuelven por nombre con precedencia
   modo congelado (PyInstaller) es el mismo subdirectorio dentro de
   `sys._MEIPASS`. Incluye la voz `default`, derivada de `assets/audios/`.
 - **Usuario**: `data_root()/voices` (user-data-dir por SO; escribible),
-  registradas con `voice add`. Una voz de usuario homónima sobrescribe a la de
+  registradas con `voice clone`. Una voz de usuario homónima sobrescribe a la de
   fábrica.
 
 Sin `--voice` ni audios explícitos, la CLI usa la voz `default`, de modo que
@@ -179,7 +179,7 @@ tts-sidecar speak --text "Hola" -v mi_voz
 tts-sidecar speak --text "Hola" --output audio.wav -v mi_voz
 
 # Clonación de voz (requiere dos archivos de audio)
-tts-sidecar voice add --name mi_voz --reference timbre.wav --speech condicion.wav
+tts-sidecar voice clone --name mi_voz --reference timbre.wav --speech condicion.wav
 
 # Listar voces
 tts-sidecar voice list

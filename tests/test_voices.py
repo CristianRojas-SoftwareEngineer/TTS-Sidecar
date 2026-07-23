@@ -76,12 +76,12 @@ class TestRegisterVoiceFiles:
             __import__("sys").modules, "librosa", types.SimpleNamespace(load=fake_load)
         )
 
-    def test_registers_without_engine(self, voice_roots, tmp_path, monkeypatch):
+    def test_clones_without_engine(self, voice_roots, tmp_path, monkeypatch):
         user_root, _ = voice_roots
         ref, speech = self._audios(tmp_path)
         self._mock_librosa(monkeypatch)
 
-        ref_path, speech_path = voices.register_voice_files("nueva", str(ref), str(speech))
+        ref_path, speech_path = voices.clone_voice_files("nueva", str(ref), str(speech))
 
         assert (user_root / "nueva" / "reference.wav").read_bytes() == b"RIFF-ref"
         assert (user_root / "nueva" / "speech.wav").read_bytes() == b"RIFF-speech"
@@ -94,7 +94,7 @@ class TestRegisterVoiceFiles:
         self._mock_librosa(monkeypatch, fail_on="habla.wav")
 
         with pytest.raises(ValueError, match="no es cargable"):
-            voices.register_voice_files("rota", str(ref), str(speech))
+            voices.clone_voice_files("rota", str(ref), str(speech))
 
         assert not (user_root / "rota").exists()
 
@@ -105,7 +105,7 @@ class TestRegisterVoiceFiles:
         self._mock_librosa(monkeypatch)
 
         with pytest.raises(ValueError, match="ya existe"):
-            voices.register_voice_files("existente", str(ref), str(speech))
+            voices.clone_voice_files("existente", str(ref), str(speech))
 
     def test_force_overwrites(self, voice_roots, tmp_path, monkeypatch):
         user_root, _ = voice_roots
@@ -113,15 +113,15 @@ class TestRegisterVoiceFiles:
         ref, speech = self._audios(tmp_path)
         self._mock_librosa(monkeypatch)
 
-        voices.register_voice_files("existente", str(ref), str(speech), force=True)
+        voices.clone_voice_files("existente", str(ref), str(speech), force=True)
 
         assert (user_root / "existente" / "reference.wav").read_bytes() == b"RIFF-ref"
 
-    def test_register_rejects_symlink_target(self, voice_roots, tmp_path, monkeypatch, symlink):
+    def test_clone_rejects_symlink_target(self, voice_roots, tmp_path, monkeypatch, symlink):
         """No se registra una voz cuyo directorio destino es un symlink.
 
         Un symlink como destino haría que `shutil.copy2` escribiera *a través*
-        del enlace; `voice_dir`/`register_voice_files` lo rechazan antes de
+        del enlace; `voice_dir`/`clone_voice_files` lo rechazan antes de
         tocar el filesystem.
         """
         user_root, _ = voice_roots
@@ -135,7 +135,7 @@ class TestRegisterVoiceFiles:
         self._mock_librosa(monkeypatch)
 
         with pytest.raises(ValueError):
-            voices.register_voice_files("v", str(ref), str(speech))
+            voices.clone_voice_files("v", str(ref), str(speech))
 
 
 class TestResolveVoiceDir:
